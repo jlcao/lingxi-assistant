@@ -692,3 +692,153 @@ class WebSocketManager:
             会话数
         """
         return len(self.session_connections)
+
+    async def send_thought_chain_event(self, session_id: str, execution_id: str, thoughts: list):
+        """发送思维链事件
+
+        Args:
+            session_id: 会话ID
+            execution_id: 执行ID
+            thoughts: 思维链列表
+        """
+        event = {
+            "event_type": "thought_chain",
+            "data": {
+                "execution_id": execution_id,
+                "thoughts": thoughts
+            }
+        }
+        await self.send_to_session(session_id, event)
+
+    async def send_step_status_event(self, session_id: str, execution_id: str, step_index: int, 
+                                     status: str, error: str = None):
+        """发送步骤状态事件
+
+        Args:
+            session_id: 会话ID
+            execution_id: 执行ID
+            step_index: 步骤索引
+            status: 状态
+            error: 错误信息
+        """
+        event = {
+            "event_type": "step_status",
+            "data": {
+                "execution_id": execution_id,
+                "step_index": step_index,
+                "status": status,
+                "error": error,
+                "timestamp": asyncio.get_event_loop().time()
+            }
+        }
+        await self.send_to_session(session_id, event)
+
+    async def send_skill_call_event(self, session_id: str, execution_id: str, skill_id: str, 
+                                   parameters: dict, result: dict):
+        """发送技能调用事件
+
+        Args:
+            session_id: 会话ID
+            execution_id: 执行ID
+            skill_id: 技能ID
+            parameters: 参数
+            result: 结果
+        """
+        event = {
+            "event_type": "skill_call",
+            "data": {
+                "execution_id": execution_id,
+                "skill_id": skill_id,
+                "parameters": parameters,
+                "result": result,
+                "timestamp": asyncio.get_event_loop().time()
+            }
+        }
+        await self.send_to_session(session_id, event)
+
+    async def send_resource_update_event(self, cpu_percent: float, memory_percent: float, 
+                                        disk_percent: float, token_usage: dict):
+        """发送资源更新事件
+
+        Args:
+            cpu_percent: CPU使用率
+            memory_percent: 内存使用率
+            disk_percent: 磁盘使用率
+            token_usage: Token使用情况
+        """
+        event = {
+            "event_type": "resource_update",
+            "data": {
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory_percent,
+                "disk_percent": disk_percent,
+                "token_usage": token_usage
+            }
+        }
+        await self.broadcast(event)
+
+    async def send_model_route_event(self, session_id: str, task_level: str, selected_model: str, 
+                                     reason: str, estimated_tokens: int = None):
+        """发送模型路由事件
+
+        Args:
+            session_id: 会话ID
+            task_level: 任务级别
+            selected_model: 选择的模型
+            reason: 原因
+            estimated_tokens: 预估Token数
+        """
+        event = {
+            "event_type": "model_route",
+            "data": {
+                "task_level": task_level,
+                "selected_model": selected_model,
+                "reason": reason,
+                "estimated_tokens": estimated_tokens
+            }
+        }
+        await self.send_to_session(session_id, event)
+
+    async def send_task_completed_event(self, session_id: str, execution_id: str, task: str, 
+                                        result: dict):
+        """发送任务完成事件
+
+        Args:
+            session_id: 会话ID
+            execution_id: 执行ID
+            task: 任务
+            result: 结果
+        """
+        event = {
+            "event_type": "task_completed",
+            "data": {
+                "execution_id": execution_id,
+                "task": task,
+                "status": "completed",
+                "result": result,
+                "timestamp": asyncio.get_event_loop().time()
+            }
+        }
+        await self.send_to_session(session_id, event)
+
+    async def send_task_failed_event(self, session_id: str, execution_id: str, task: str, 
+                                      error: dict):
+        """发送任务失败事件
+
+        Args:
+            session_id: 会话ID
+            execution_id: 执行ID
+            task: 任务
+            error: 错误信息
+        """
+        event = {
+            "event_type": "task_failed",
+            "data": {
+                "execution_id": execution_id,
+                "task": task,
+                "status": "failed",
+                "error": error,
+                "timestamp": asyncio.get_event_loop().time()
+            }
+        }
+        await self.send_to_session(session_id, event)

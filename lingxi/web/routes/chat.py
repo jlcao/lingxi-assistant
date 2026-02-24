@@ -1,9 +1,23 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any
-from web.state import get_assistant
+from typing import Dict, Any, Optional
+from lingxi.web.state import get_assistant
+import uuid
 
 router = APIRouter()
+
+
+class CreateSessionRequest(BaseModel):
+    """创建会话请求模型"""
+    user_name: str = "default"
+
+
+class SessionInfo(BaseModel):
+    """会话信息模型"""
+    session_id: str
+    user_name: str
+    created_at: str
+    updated_at: str
 
 
 class ChatRequest(BaseModel):
@@ -16,6 +30,60 @@ class ChatResponse(BaseModel):
     """聊天响应模型"""
     response: str
     session_id: str
+
+
+@router.post("/sessions", response_model=SessionInfo)
+async def create_session(request: CreateSessionRequest) -> Dict[str, Any]:
+    """创建会话
+
+    Args:
+        request: 创建会话请求数据
+
+    Returns:
+        会话信息
+    """
+    assistant = get_assistant()
+    if not assistant:
+        raise HTTPException(status_code=503, detail="助手服务未初始化")
+
+    try:
+        session_id = assistant.session_manager.create_session(request.user_name)
+        session_info = assistant.session_manager.get_session_info(session_id)
+
+        return {
+            "session_id": session_id,
+            "user_name": session_info.get("user_name", request.user_name),
+            "created_at": session_info.get("created_at", ""),
+            "updated_at": session_info.get("updated_at", "")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建会话失败: {str(e)}")
+
+
+@router.get("/sessions/{session_id}")
+async def get_session(session_id: str) -> Dict[str, Any]:
+    """获取会话详情
+
+    Args:
+        session_id: 会话ID
+
+    Returns:
+        会话详情
+    """
+    assistant = get_assistant()
+    if not assistant:
+        raise HTTPException(status_code=503, detail="助手服务未初始化")
+
+    try:
+        session_info = assistant.session_manager.get_session_info(session_id)
+        if not session_info:
+            raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
+
+        return session_info
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取会话详情失败: {str(e)}")
 
 
 @router.post("/chat", response_model=ChatResponse)

@@ -6,8 +6,16 @@ from typing import Dict, Any, List
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
-from MultiSiteSearchAgent import MultiSiteSearchAgent
+import importlib.util
+import os
+
+spec = importlib.util.spec_from_file_location(
+    "MultiSiteSearchAgent",
+    os.path.join(os.path.dirname(__file__), "MultiSiteSearchAgent.py")
+)
+multi_site_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(multi_site_module)
+MultiSiteSearchAgent = multi_site_module.MultiSiteSearchAgent
 
 
 def execute(parameters: Dict[str, Any]) -> str:

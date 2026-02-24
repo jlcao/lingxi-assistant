@@ -3,11 +3,11 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from lingxi.__main__ import LingxiAssistant
-from lingxi.utils.config import get_config
+from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
-from web.websocket import WebSocketManager
-from web.routes import chat, health
-from web.state import set_assistant, set_websocket_manager, get_assistant, get_websocket_manager
+from lingxi.web.websocket import WebSocketManager
+from lingxi.web.routes import chat, health, tasks, checkpoints, skills, resources, config as config_router
+from lingxi.web.state import set_assistant, set_websocket_manager, get_assistant, get_websocket_manager
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +45,14 @@ def init_app(config=None):
 
     app.include_router(chat.router, prefix="/api", tags=["chat"])
     app.include_router(health.router, prefix="/api", tags=["health"])
+    app.include_router(tasks.router, prefix="/api", tags=["tasks"])
+    app.include_router(checkpoints.router, prefix="/api", tags=["checkpoints"])
+    app.include_router(skills.router, prefix="/api", tags=["skills"])
+    app.include_router(resources.router, prefix="/api", tags=["resources"])
+    app.include_router(config_router.router, prefix="/api", tags=["config"])
 
     try:
-        app.mount("/static", StaticFiles(directory="web/static"), name="static")
+        app.mount("/static", StaticFiles(directory="lingxi/web/static"), name="static")
     except RuntimeError:
         logger.warning("静态文件目录不存在，跳过静态文件服务")
 
@@ -110,12 +115,14 @@ def run_server(config=None):
     """启动FastAPI服务器
 
     Args:
-        config: 系统配置
+        config: 系统配置或配置文件路径
     """
     import uvicorn
 
     if not config:
-        config = get_config()
+        config = load_config()
+    elif isinstance(config, str):
+        config = load_config(config)
 
     init_app(config)
 
@@ -128,7 +135,7 @@ def run_server(config=None):
     logger.info(f"Web界面: http://{host}:{port}/static/index.html")
 
     uvicorn.run(
-        "web.fastapi_server:app",
+        "lingxi.web.fastapi_server:app",
         host=host,
         port=port,
         reload=web_config.get('debug', False)

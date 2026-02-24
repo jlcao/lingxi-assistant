@@ -8,8 +8,17 @@ from typing import Dict, Any, List
 from datetime import datetime, timedelta
 import re
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from get_cls_news_final import get_cls_news_selenium, get_cls_news_requests
+import importlib.util
+import os
+
+spec = importlib.util.spec_from_file_location(
+    "get_cls_news_final",
+    os.path.join(os.path.dirname(__file__), "get_cls_news_final.py")
+)
+cls_news_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(cls_news_module)
+get_cls_news_selenium = cls_news_module.get_cls_news_selenium
+get_cls_news_requests = cls_news_module.get_cls_news_requests
 
 
 def parse_time_str(time_str: str) -> datetime:

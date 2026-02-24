@@ -1,7 +1,7 @@
 """全局状态管理模块，避免循环导入"""
 from typing import Optional
 from lingxi.__main__ import LingxiAssistant
-from web.websocket import WebSocketManager
+from lingxi.web.websocket import WebSocketManager
 
 
 assistant: Optional[LingxiAssistant] = None

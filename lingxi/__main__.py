@@ -342,12 +342,16 @@ class LingxiAssistant:
                 print(f"灵犀: {response}")
                 print("=" * 60)
 
+            except EOFError:
+                print("\n输入结束，退出系统")
+                break
             except KeyboardInterrupt:
                 print("\n再见！")
                 break
             except Exception as e:
                 self.logger.error(f"交互模式错误: {e}")
                 print(f"错误: {e}")
+                break
 
     def _handle_command(self, command: str, session_id: str) -> str:
         """处理命令
@@ -435,6 +439,7 @@ def main():
     parser = argparse.ArgumentParser(description="灵犀智能助手")
     parser.add_argument("--config", default="config.yaml", help="配置文件路径")
     parser.add_argument("--session", default="default", help="会话ID")
+    parser.add_argument("--web", action="store_true", help="启动 Web 服务器模式")
     parser.add_argument("--cleanup-checkpoints", action="store_true", help="清理过期检查点")
     parser.add_argument("--list-checkpoints", action="store_true", help="列出活跃检查点")
     parser.add_argument("--clear-checkpoint", help="清除指定会话的检查点")
@@ -444,6 +449,11 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="覆盖已存在的技能目录")
 
     args = parser.parse_args()
+
+    if args.web:
+        from lingxi.web.fastapi_server import run_server
+        run_server(args.config)
+        return
 
     assistant = LingxiAssistant(args.config)
 
