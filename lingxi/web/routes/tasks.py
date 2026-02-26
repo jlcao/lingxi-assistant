@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 from lingxi.web.state import get_assistant, get_websocket_manager
 import uuid
 import time
+import traceback
 
 router = APIRouter()
 
@@ -50,14 +51,14 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
     if not assistant:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
+    execution_id = str(uuid.uuid4())
+
     try:
         if not request.task:
             raise HTTPException(status_code=400, detail="任务内容不能为空")
 
-        execution_id = str(uuid.uuid4())
-
-        task_level = assistant.task_classifier.classify(request.task).get("level", "simple")
-        model = request.model_override or assistant.execution_mode_selector.select_model(task_level)
+        task_level = assistant.classifier.classify(request.task).get("level", "simple")
+        model = request.model_override or assistant.classifier.llm_client.select_model(task_level)
 
         task_info = {
             "execution_id": execution_id,
@@ -95,6 +96,11 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
 
         return task_info
     except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"执行任务失败 - 错误类型: {type(e).__name__}")
+        print(f"错误信息: {str(e)}")
+        print(f"错误堆栈:\n{error_trace}")
+        
         if websocket_manager:
             await websocket_manager.send_task_failed_event(
                 request.session_id,
@@ -102,10 +108,11 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
                 request.task,
                 {
                     "type": "execution_error",
-                    "message": str(e)
+                    "message": str(e),
+                    "traceback": error_trace
                 }
             )
-        raise HTTPException(status_code=500, detail=f"执行任务失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"执行任务失败: {str(e)}\n{error_trace}")
 
 
 @router.get("/tasks/{execution_id}/status")

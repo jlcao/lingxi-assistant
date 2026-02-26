@@ -53,11 +53,12 @@ DEFAULT_CONFIG = {
 # 全局配置实例
 _config = None
 
-def load_config(config_path: str = None) -> Dict[str, Any]:
+def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) -> Dict[str, Any]:
     """加载配置
     
     Args:
         config_path: 配置文件路径
+        initial_config: 初始配置字典（可选）
         
     Returns:
         配置字典
@@ -81,7 +82,13 @@ def load_config(config_path: str = None) -> Dict[str, Any]:
                 break
     
     # 加载配置文件
-    config = DEFAULT_CONFIG.copy()
+    if initial_config:
+        # 使用默认配置作为基础，然后合并初始配置
+        config = DEFAULT_CONFIG.copy()
+        config = _merge_configs(config, initial_config)
+    else:
+        # 使用默认配置作为基础
+        config = DEFAULT_CONFIG.copy()
     
     if config_path and os.path.exists(config_path):
         logger.info(f"加载配置文件: {config_path}")
@@ -140,8 +147,10 @@ def _load_from_env(config: Dict[str, Any]) -> Dict[str, Any]:
     if os.environ.get("LLM_PROVIDER"):
         config["llm"]["provider"] = os.environ.get("LLM_PROVIDER")
     
-    if os.environ.get("LLM_API_KEY"):
-        config["llm"]["api_key"] = os.environ.get("LLM_API_KEY")
+    # 支持多种API密钥环境变量名，优先级从高到低
+    api_key = os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    if api_key:
+        config["llm"]["api_key"] = api_key
     
     if os.environ.get("LLM_MODEL"):
         config["llm"]["model"] = os.environ.get("LLM_MODEL")

@@ -116,6 +116,22 @@ def _configure_third_party_logs(config: Dict[str, Any]):
     # 配置sqlalchemy库日志
     sqlalchemy_logger = logging.getLogger("sqlalchemy")
     sqlalchemy_logger.setLevel(logging.WARNING)
+    
+    # 配置httpcore库日志（关闭HTTP连接的debug日志）
+    httpcore_logger = logging.getLogger("httpcore")
+    httpcore_logger.setLevel(logging.WARNING)
+    
+    # 配置httpx库日志
+    httpx_logger = logging.getLogger("httpx")
+    httpx_logger.setLevel(logging.WARNING)
+    
+    # 配置事件发布系统日志（开启debug日志）
+    event_logger = logging.getLogger("lingxi.core.event")
+    event_logger.setLevel(logging.DEBUG)
+    
+    # 配置事件发布者日志
+    publisher_logger = logging.getLogger("lingxi.core.event.publisher")
+    publisher_logger.setLevel(logging.DEBUG)
 
 def get_logger(name: str = None) -> logging.Logger:
     """获取日志记录器

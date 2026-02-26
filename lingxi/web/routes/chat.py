@@ -32,6 +32,11 @@ class ChatResponse(BaseModel):
     session_id: str
 
 
+class RenameSessionRequest(BaseModel):
+    """重命名会话请求模型"""
+    name: str
+
+
 @router.post("/sessions", response_model=SessionInfo)
 async def create_session(request: CreateSessionRequest) -> Dict[str, Any]:
     """创建会话
@@ -170,12 +175,12 @@ async def delete_session(session_id: str) -> Dict[str, Any]:
 
 
 @router.patch("/sessions/{session_id}")
-async def rename_session(session_id: str, new_title: str) -> Dict[str, Any]:
+async def rename_session(session_id: str, request: RenameSessionRequest) -> Dict[str, Any]:
     """重命名会话
 
     Args:
         session_id: 会话ID
-        new_title: 新标题
+        request: 重命名会话请求数据
 
     Returns:
         操作结果
@@ -185,6 +190,7 @@ async def rename_session(session_id: str, new_title: str) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
+        new_title = request.name
         if not new_title or not new_title.strip():
             raise HTTPException(status_code=400, detail="标题不能为空")
 
@@ -222,3 +228,27 @@ async def list_sessions() -> Dict[str, Any]:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取会话列表失败: {str(e)}")
+
+
+@router.delete("/sessions/{session_id}/history")
+async def clear_session_history(session_id: str) -> Dict[str, Any]:
+    """清除会话历史记录
+
+    Args:
+        session_id: 会话ID
+
+    Returns:
+        操作结果
+    """
+    assistant = get_assistant()
+    if not assistant:
+        raise HTTPException(status_code=503, detail="助手服务未初始化")
+
+    try:
+        assistant.session_manager.clear_session_history(session_id)
+        return {
+            "success": True,
+            "message": f"会话 {session_id} 的历史记录已清除"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清除历史记录失败: {str(e)}")

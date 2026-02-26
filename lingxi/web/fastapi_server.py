@@ -8,6 +8,7 @@ from lingxi.utils.logging import setup_logging
 from lingxi.web.websocket import WebSocketManager
 from lingxi.web.routes import chat, health, tasks, checkpoints, skills, resources, config as config_router
 from lingxi.web.state import set_assistant, set_websocket_manager, get_assistant, get_websocket_manager
+from lingxi.core.event.websocket_subscriber import WebSocketSubscriber
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ def init_app(config=None):
 
     assistant = LingxiAssistant(config)
     websocket_manager = WebSocketManager(assistant)
+    
+    # 初始化WebSocket事件订阅者
+    websocket_subscriber = WebSocketSubscriber(websocket_manager)
 
     set_assistant(assistant)
     set_websocket_manager(websocket_manager)

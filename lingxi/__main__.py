@@ -1,7 +1,7 @@
 import sys
 import logging
 import argparse
-from typing import Optional
+from typing import Optional, Union, Any, Dict
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
 from lingxi.core.session import SessionManager
@@ -13,13 +13,16 @@ from lingxi.core.skill_caller import SkillCaller
 class LingxiAssistant:
     """灵犀智能助手主类"""
 
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path_or_obj: Union[str, Dict[str, Any]] = "config.yaml"):
         """初始化灵犀助手
 
         Args:
-            config_path: 配置文件路径
+            config_path_or_obj: 配置文件路径或配置对象
         """
-        self.config = load_config(config_path)
+        if isinstance(config_path_or_obj, dict):
+            self.config = config_path_or_obj
+        else:
+            self.config = load_config(config_path_or_obj)
         setup_logging(self.config)
         self.logger = logging.getLogger(__name__)
 
@@ -31,15 +34,16 @@ class LingxiAssistant:
         self.skill_caller = SkillCaller(self.config)
         self.mode_selector = ExecutionModeSelector(self.config, self.skill_caller)
 
-    def process_input(self, user_input: str, session_id: str = "default") -> str:
+    def process_input(self, user_input: str, session_id: str = "default", stream: bool = False) -> Union[str, Any]:
         """处理用户输入
 
         Args:
             user_input: 用户输入
             session_id: 会话ID
+            stream: 是否启用流式输出
 
         Returns:
-            系统响应
+            系统响应（非流式）或流式响应生成器（流式）
         """
         self.logger.debug(f"处理用户输入: {user_input}")
 
@@ -72,10 +76,12 @@ class LingxiAssistant:
                 user_input=user_input,
                 task_info=task_info,
                 session_history=history,
-                session_id=session_id
+                session_id=session_id,
+                stream=stream
             )
 
-            self.session_manager.add_turn(session_id, "assistant", response)
+            if not stream:
+                self.session_manager.add_turn(session_id, "assistant", response)
 
             return response
 
@@ -85,7 +91,23 @@ class LingxiAssistant:
             self.logger.error(f"处理失败: {e}\n{error_trace}")
             error_response = f"抱歉，处理您的请求时出现错误：{str(e)}\n\n堆栈信息:\n{error_trace}"
             self.session_manager.add_turn(session_id, "assistant", error_response)
+            if stream:
+                def error_generator():
+                    yield {"type": "error", "message": error_response}
+                return error_generator()
             return error_response
+
+    def stream_process_input(self, user_input: str, session_id: str = "default") -> Any:
+        """流式处理用户输入
+
+        Args:
+            user_input: 用户输入
+            session_id: 会话ID
+
+        Returns:
+            流式响应生成器
+        """
+        return self.process_input(user_input, session_id, stream=True)
 
     def _check_install_skill_intent(self, user_input: str) -> Optional[tuple]:
         """检查是否是安装技能的请求
@@ -323,6 +345,8 @@ class LingxiAssistant:
         print("输入 '/help' 查看帮助")
         print("=" * 60)
 
+        stream_mode = False  # 默认为非流式模式
+
         while True:
             try:
                 user_input = input("用户: ").strip()
@@ -335,11 +359,105 @@ class LingxiAssistant:
                     continue
 
                 if user_input.startswith("/"):
-                    session_id = self._handle_command(user_input, session_id)
+                    cmd_result = self._handle_command(user_input, session_id, stream_mode)
+                    # 检查是否是 /stream 命令的特殊处理
+                    if isinstance(cmd_result, tuple):
+                        session_id, stream_mode = cmd_result
+                    else:
+                        session_id = cmd_result
                     continue
 
-                response = self.process_input(user_input, session_id)
-                print(f"灵犀: {response}")
+                if stream_mode:
+                    # 流式输出模式
+                    print("灵犀: ", end="", flush=True)
+                    response_generator = self.stream_process_input(user_input, session_id)
+                    final_response = []
+                    
+                    if hasattr(response_generator, '__next__') or hasattr(response_generator, 'send'):
+                        try:
+                            while True:
+                                chunk = next(response_generator)
+                                if isinstance(chunk, dict):
+                                    # 处理结构化流式数据
+                                    if chunk.get('type') == 'error':
+                                        print(f"\n错误: {chunk.get('message', '未知错误')}")
+                                        break
+                                    elif chunk.get('reasoning_content'):
+                                        # 处理思考过程
+                                        reasoning_chunk = chunk['reasoning_content']
+                                        print(f"\r思考: {reasoning_chunk}", end="", flush=True)
+                                    elif chunk.get('content'):
+                                        # 处理回复内容
+                                        text_chunk = chunk['content']
+                                        final_response.append(text_chunk)
+                                        print(f"\r灵犀: {''.join(final_response)}", end="", flush=True)
+                                elif hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+                                    # 处理 LLM 原始流式响应对象
+                                    choice = chunk.choices[0]
+                                    if hasattr(choice, 'delta'):
+                                        delta = choice.delta
+                                        if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                                            # 思考阶段
+                                            reasoning_chunk = delta.reasoning_content
+                                            print(f"\r思考: {reasoning_chunk}", end="", flush=True)
+                                        elif hasattr(delta, 'content') and delta.content:
+                                            # 回复阶段
+                                            text_chunk = delta.content
+                                            final_response.append(text_chunk)
+                                            print(f"\r灵犀: {''.join(final_response)}", end="", flush=True)
+                                elif hasattr(chunk, 'usage'):
+                                    # 处理结束的 usage 信息，不显示给用户
+                                    pass
+                                elif hasattr(chunk, '__next__') or hasattr(chunk, 'send'):
+                                    # 处理嵌套的生成器
+                                    nested_generator = chunk
+                                    try:
+                                        while True:
+                                            nested_chunk = next(nested_generator)
+                                            if isinstance(nested_chunk, dict):
+                                                # 处理嵌套的结构化流式数据
+                                                if nested_chunk.get('type') == 'error':
+                                                    print(f"\n错误: {nested_chunk.get('message', '未知错误')}")
+                                                    break
+                                                elif nested_chunk.get('reasoning_content'):
+                                                    # 处理思考过程
+                                                    reasoning_chunk = nested_chunk['reasoning_content']
+                                                    print(f"\r思考: {reasoning_chunk}", end="", flush=True)
+                                                elif nested_chunk.get('content'):
+                                                    # 处理回复内容
+                                                    text_chunk = nested_chunk['content']
+                                                    final_response.append(text_chunk)
+                                                    print(f"\r灵犀: {''.join(final_response)}", end="", flush=True)
+                                            elif hasattr(nested_chunk, 'choices') and len(nested_chunk.choices) > 0:
+                                                # 处理嵌套的 LLM 原始流式响应对象
+                                                choice = nested_chunk.choices[0]
+                                                if hasattr(choice, 'delta'):
+                                                    delta = choice.delta
+                                                    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                                                        # 思考阶段
+                                                        reasoning_chunk = delta.reasoning_content
+                                                        print(f"\r思考: {reasoning_chunk}", end="", flush=True)
+                                                    elif hasattr(delta, 'content') and delta.content:
+                                                        # 回复阶段
+                                                        text_chunk = delta.content
+                                                        final_response.append(text_chunk)
+                                                        print(f"\r灵犀: {''.join(final_response)}", end="", flush=True)
+                                    except StopIteration:
+                                        pass
+                                else:
+                                    # 处理其他类型的块，避免显示内部对象
+                                    pass
+                        except StopIteration:
+                            pass
+                    
+                    final_response_str = ''.join(final_response)
+                    if final_response_str:
+                        self.session_manager.add_turn(session_id, "assistant", final_response_str)
+                    print()  # 换行
+                else:
+                    # 非流式输出模式
+                    response = self.process_input(user_input, session_id)
+                    print(f"灵犀: {response}")
                 print("=" * 60)
 
             except EOFError:
@@ -353,15 +471,16 @@ class LingxiAssistant:
                 print(f"错误: {e}")
                 break
 
-    def _handle_command(self, command: str, session_id: str) -> str:
+    def _handle_command(self, command: str, session_id: str, stream_mode: bool = False) -> Union[str, tuple]:
         """处理命令
 
         Args:
             command: 命令
             session_id: 会话ID
+            stream_mode: 当前的流式输出模式
 
         Returns:
-            新的会话ID（如果切换了会话）
+            新的会话ID（如果切换了会话）或 (会话ID, 新的流式模式) 元组
         """
         cmd_parts = command.split()
         cmd = cmd_parts[0].lower()
@@ -377,6 +496,7 @@ class LingxiAssistant:
             print("  /compress - 手动触发上下文压缩")
             print("  /search <query> - 检索相关历史")
             print("  /session [id] - 创建新会话或切换到指定会话")
+            print("  /stream [on|off] - 切换流式输出模式")
             print("  /exit - 退出系统")
 
         elif cmd == "/clear":
@@ -428,6 +548,24 @@ class LingxiAssistant:
             print("再见！")
             sys.exit(0)
 
+        elif cmd == "/stream":
+            # 切换流式输出模式
+            if len(cmd_parts) > 1:
+                mode = cmd_parts[1].lower()
+                if mode == "on":
+                    print("已启用流式输出模式")
+                    return (session_id, True)
+                elif mode == "off":
+                    print("已禁用流式输出模式")
+                    return (session_id, False)
+                else:
+                    print("用法: /stream [on|off]")
+            else:
+                # 切换模式
+                new_mode = not stream_mode
+                print(f"已{'启用' if new_mode else '禁用'}流式输出模式")
+                return (session_id, new_mode)
+
         else:
             print(f"未知命令: {cmd}")
 
@@ -450,12 +588,42 @@ def main():
 
     args = parser.parse_args()
 
-    if args.web:
-        from lingxi.web.fastapi_server import run_server
-        run_server(args.config)
-        return
+    # 检查是否是控制台模式
+    is_console_mode = not args.web and not any([
+        args.cleanup_checkpoints,
+        args.list_checkpoints,
+        args.clear_checkpoint,
+        args.list_skills,
+        args.install_skill
+    ])
 
-    assistant = LingxiAssistant(args.config)
+    if is_console_mode:
+        # 控制台交互式模式，修改配置中的日志级别
+        import yaml
+        import os
+        
+        # 加载配置文件
+        config_path = args.config
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                initial_config = yaml.safe_load(f)
+        else:
+            # 如果配置文件不存在，使用空字典
+            initial_config = {}
+        
+        # 修改日志级别为 ERROR
+        if 'logging' not in initial_config:
+            initial_config['logging'] = {}
+        initial_config['logging']['level'] = 'ERROR'
+        
+        # 使用修改后的初始配置调用 load_config，确保环境变量被正确加载
+        config = load_config(args.config, initial_config)
+        
+        # 传递加载后的配置给 LingxiAssistant
+        assistant = LingxiAssistant(config)
+    else:
+        # 其他模式，使用默认配置
+        assistant = LingxiAssistant(args.config)
 
     if args.cleanup_checkpoints:
         count = assistant.cleanup_checkpoints()

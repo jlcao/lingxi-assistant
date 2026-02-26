@@ -80,7 +80,12 @@ class SessionManager:
     def add_turn(self, session_id: str, role: str, content: str,
                  content_type: ContentType = None,
                  task_id: str = None,
-                 metadata: Dict = None):
+                 metadata: Dict = None,
+                 thought: str = None,
+                 observation: str = None,
+                 skill_calls: List[Dict] = None,
+                 steps: List[Dict] = None,
+                 thought_chain: Dict = None):
         """添加对话轮次
 
         Args:
@@ -90,9 +95,30 @@ class SessionManager:
             content_type: 内容类型
             task_id: 任务ID
             metadata: 元数据
+            thought: 思考过程
+            observation: 观察结果
+            skill_calls: 技能调用列表
+            steps: 任务步骤列表
+            thought_chain: 思考链
         """
         history = self.get_history(session_id)
-        history.append({"role": role, "content": content, "time": time.time()})
+        
+        # 构建完整的对话轮次信息
+        turn_info = {
+            "role": role,
+            "content": content,
+            "time": time.time(),
+            "content_type": content_type.value if content_type else None,
+            "task_id": task_id,
+            "metadata": metadata,
+            "thought": thought,
+            "observation": observation,
+            "skill_calls": skill_calls,
+            "steps": steps,
+            "thought_chain": thought_chain
+        }
+        
+        history.append(turn_info)
 
         if len(history) > self.max_history_turns:
             history = history[-self.max_history_turns:]
@@ -171,6 +197,24 @@ class SessionManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+        conn.commit()
+        conn.close()
+
+    def clear_session_history(self, session_id: str):
+        """清除会话历史记录，但保留会话本身
+
+        Args:
+            session_id: 会话ID
+        """
+        if session_id in self.memory_cache:
+            self.memory_cache[session_id] = []
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE sessions SET history_json = '[]', updated_at = CURRENT_TIMESTAMP
+            WHERE session_id = ?
+        """, (session_id,))
         conn.commit()
         conn.close()
 
@@ -474,3 +518,27 @@ class SessionManager:
         conn.close()
 
         return deleted
+
+    def create_session(self, user_name: str = "default") -> str:
+        """创建新会话
+
+        Args:
+            user_name: 用户名
+
+        Returns:
+            会话ID
+        """
+        import uuid
+        session_id = f"session_{uuid.uuid4().hex[:8]}"
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO sessions (session_id, user_name, history_json)
+            VALUES (?, ?, ?)
+        """, (session_id, user_name, json.dumps([])))
+        conn.commit()
+        conn.close()
+        
+        self.memory_cache[session_id] = []
+        return session_id

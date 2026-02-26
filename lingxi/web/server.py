@@ -216,6 +216,83 @@ def health():
     """健康检查"""
     return jsonify({'status': 'healthy', 'service': 'lingxi-web'})
 
+# 会话管理API
+@app.route('/api/sessions', methods=['GET'])
+def get_sessions():
+    """获取所有会话列表"""
+    try:
+        sessions = session_manager.list_all_sessions()
+        return jsonify({'sessions': sessions})
+    except Exception as e:
+        logger.error(f"获取会话列表失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sessions/<session_id>', methods=['GET'])
+def get_session(session_id):
+    """获取会话详情"""
+    try:
+        info = session_manager.get_session_info(session_id)
+        if not info:
+            return jsonify({'error': '会话不存在'}), 404
+        return jsonify(info)
+    except Exception as e:
+        logger.error(f"获取会话详情失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sessions', methods=['POST'])
+def create_session():
+    """创建新会话"""
+    try:
+        data = request.get_json() or {}
+        name = data.get('name', '')
+        
+        import time
+        session_id = f"session_{int(time.time() * 1000)}"
+        
+        if name:
+            history = [{"role": "system", "type": "title", "content": name, "time": time.time()}]
+            session_manager.memory_cache[session_id] = history
+            session_manager._save_to_db(session_id, history)
+        
+        return jsonify({'session_id': session_id, 'name': name})
+    except Exception as e:
+        logger.error(f"创建会话失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sessions/<session_id>', methods=['PATCH'])
+def update_session(session_id):
+    """更新会话名称"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': '缺少请求数据'}), 400
+        
+        name = data.get('name')
+        if not name:
+            return jsonify({'error': '缺少名称参数'}), 400
+        
+        success = session_manager.rename_session(session_id, name)
+        if not success:
+            return jsonify({'error': '会话不存在'}), 404
+        
+        return jsonify({'session_id': session_id, 'name': name})
+    except Exception as e:
+        logger.error(f"更新会话失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sessions/<session_id>', methods=['DELETE'])
+def delete_session(session_id):
+    """删除会话"""
+    try:
+        success = session_manager.delete_session(session_id)
+        if not success:
+            return jsonify({'error': '会话不存在'}), 404
+        
+        return jsonify({'session_id': session_id})
+    except Exception as e:
+        logger.error(f"删除会话失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
 # 启动函数
 def run_server(config=None):
     """启动Web服务器

@@ -51,12 +51,13 @@ class ExecutionModeSelector:
             self.logger.warning(f"未知任务级别: {task_level}，使用默认模式react")
             return "react"
 
-    def get_engine(self, mode: str, session_manager=None):
+    def get_engine(self, mode: str, session_manager=None, websocket_manager=None):
         """获取执行引擎实例
 
         Args:
             mode: 执行模式名称
             session_manager: 会话管理器（Plan+ReAct需要）
+            websocket_manager: WebSocket管理器（已弃用，使用事件系统）
 
         Returns:
             执行引擎实例
@@ -66,7 +67,7 @@ class ExecutionModeSelector:
         elif mode == "react":
             return ReActEngine(self.config, self.skill_caller)
         elif mode == "plan_react":
-            return PlanReActEngine(self.config, session_manager, self.skill_caller)
+            return PlanReActEngine(self.config, self.skill_caller, session_manager)
         else:
             self.logger.warning(f"未知执行模式: {mode}，使用默认ReAct引擎")
             return ReActEngine(self.config, self.skill_caller)

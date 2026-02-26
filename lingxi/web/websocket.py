@@ -25,14 +25,13 @@ class WebSocketMessage:
         """
         return {
             "type": message_type,
-            "success": success,
-            "data": data,
+            "payload": data,
             "timestamp": asyncio.get_event_loop().time()
         }
 
     @staticmethod
-    def create_stream_chunk(message_type: str, content: str, chunk_index: int, 
-                           is_last: bool = False, metadata: Dict = None) -> Dict[str, Any]:
+    def create_stream_chunk(message_type: str, content: str, chunk_index: int,
+                           is_last: bool = False, metadata: Dict = None, stream_id: str = None) -> Dict[str, Any]:
         """创建流式消息块
 
         Args:
@@ -41,19 +40,27 @@ class WebSocketMessage:
             chunk_index: 块索引
             is_last: 是否最后一块
             metadata: 元数据
+            stream_id: 流ID
 
         Returns:
             流式消息块
         """
-        return {
+        result = {
             "type": message_type,
             "stream": True,
             "chunk_index": chunk_index,
             "is_last": is_last,
             "content": content,
-            "metadata": metadata or {},
             "timestamp": asyncio.get_event_loop().time()
         }
+        
+        if metadata:
+            result["metadata"] = metadata
+        
+        if stream_id:
+            result["streamId"] = stream_id
+            
+        return result
 
     @staticmethod
     def create_error(message_type: str, error: str, details: str = None) -> Dict[str, Any]:
@@ -299,7 +306,13 @@ class WebSocketManager:
 
         try:
             response = self.assistant.process_input(message, session_id)
-            await self._send_chat_response(connection, response, session_id)
+            # 发送 task_completed 事件
+            await self.send_task_completed_event(
+                session_id,
+                f"ws_{connection.connection_id}_{int(asyncio.get_event_loop().time())}",
+                message,
+                {"content": response}
+            )
         except Exception as e:
             logger.error(f"处理聊天消息失败: {e}", exc_info=True)
             await self._send_error(connection, f"处理消息失败: {str(e)}")
@@ -312,7 +325,8 @@ class WebSocketManager:
             data: 消息数据
         """
         message = data.get('content', '')
-        session_id = data.get('session_id', connection.session_id)
+        # 兼容前端发送的 sessionId 和 session_id 字段
+        session_id = data.get('sessionId') or data.get('session_id', connection.session_id)
 
         if not message:
             await self._send_error(connection, "消息内容不能为空")
@@ -591,39 +605,242 @@ class WebSocketManager:
             message: 消息内容
             session_id: 会话ID
         """
+        stream_id = f"stream_{connection.connection_id}_{int(asyncio.get_event_loop().time())}"
+        
+        # 发送流式开始消息
         start_msg = WebSocketMessage.create_response(
             "stream_start",
-            {"session_id": session_id}
+            {"session_id": session_id, "streamId": stream_id}
         )
-        if not await connection.send_json(start_msg):
-            logger.debug(f"发送流式开始消息失败，连接可能已断开")
-            return
+        await connection.send_json(start_msg)
 
         try:
-            response = self.assistant.process_input(message, session_id)
+            # 使用流式处理
+            response_generator = self.assistant.stream_process_input(message, session_id)
 
-            chunk_size = 100
-            for i in range(0, len(response), chunk_size):
-                chunk = response[i:i + chunk_size]
-                is_last = i + chunk_size >= len(response)
+            if hasattr(response_generator, '__next__') or hasattr(response_generator, 'send'):
+                chunk_index = 0
+                step_index = 1
+                
+                # 开始输出思考链标题
+                thought_chain_start = "# 思考链\n\n"
+                start_chunk = WebSocketMessage.create_stream_chunk(
+                    "stream_chunk",
+                    thought_chain_start,
+                    chunk_index,
+                    False,
+                    None,
+                    stream_id
+                )
+                await connection.send_json(start_chunk)
+                chunk_index += 1
+                
+                final_response = [thought_chain_start]
+                reasoning_content = []
+                
+                try:
+                    while True:
+                        chunk = next(response_generator)
+                        
+                        if isinstance(chunk, dict):
+                            # 处理结构化流式数据
+                            if chunk.get('type') == 'stream':
+                                # 处理流式输出
+                                stream_content = chunk.get('content', '')
+                                if stream_content:
+                                    stream_chunk = WebSocketMessage.create_stream_chunk(
+                                        "stream_chunk",
+                                        stream_content,
+                                        chunk_index,
+                                        False,
+                                        None,
+                                        stream_id
+                                    )
+                                    await connection.send_json(stream_chunk)
+                                    chunk_index += 1
+                                    final_response.append(stream_content)
+                            
+                            if chunk.get('thought'):
+                                # 输出思考过程
+                                thought_text = f"## 步骤 {step_index}：思考\n\n**思考**：{chunk['thought']}\n\n"
+                                thought_chunk = WebSocketMessage.create_stream_chunk(
+                                    "stream_chunk",
+                                    thought_text,
+                                    chunk_index,
+                                    False,
+                                    None,
+                                    stream_id
+                                )
+                                await connection.send_json(thought_chunk)
+                                chunk_index += 1
+                                final_response.append(thought_text)
+                                reasoning_content.append(chunk['thought'])
+                                
+                                # 发送符合前端期望格式的事件
+                                event = {
+                                    "choices": [{
+                                        "delta": {
+                                            "thought": chunk['thought'],
+                                            "action": chunk.get('action', None)
+                                        }
+                                    }]
+                                }
+                                await connection.send_json(event)
+                            
+                            if chunk.get('action'):
+                                # 输出执行步骤
+                                action_text = "**执行**："
+                                if chunk['action'] == 'xlsx':
+                                    action_text += "读取Excel文件\n"
+                                elif chunk.get('action_input'):
+                                    if chunk['action_input'].get('command'):
+                                        # 将命令内容处理为Markdown代码块
+                                        command = chunk['action_input']['command']
+                                        action_text += "执行命令:\n```python\n"
+                                        action_text += f"{command}\n"
+                                        action_text += "```\n"
+                                    elif chunk['action_input'].get('description'):
+                                        action_text += f"{chunk['action_input']['description']}\n"
+                                else:
+                                    action_text += f"{chunk['action']}\n"
+                                action_text += "\n"
+                                
+                                action_chunk = WebSocketMessage.create_stream_chunk(
+                                    "stream_chunk",
+                                    action_text,
+                                    chunk_index,
+                                    False,
+                                    None,
+                                    stream_id
+                                )
+                                await connection.send_json(action_chunk)
+                                chunk_index += 1
+                                final_response.append(action_text)
+                                step_index += 1
+                            
+                            if chunk.get('action_input') and chunk['action_input'].get('response'):
+                                # 输出执行结果
+                                response = chunk['action_input']['response']
+                                response_text = f"**结果**：{response}\n\n"
+                                response_chunk = WebSocketMessage.create_stream_chunk(
+                                    "stream_chunk",
+                                    response_text,
+                                    chunk_index,
+                                    False,
+                                    None,
+                                    stream_id
+                                )
+                                await connection.send_json(response_chunk)
+                                chunk_index += 1
+                                final_response.append(response_text)
+                            
+                            if chunk.get('type') == 'finish':
+                                # 输出最终结果
+                                final_result = chunk.get('result', '')
+                                result_text = f"# 最终结果\n\n{final_result}\n"
+                                result_chunk = WebSocketMessage.create_stream_chunk(
+                                    "stream_chunk",
+                                    result_text,
+                                    chunk_index,
+                                    False,
+                                    None,
+                                    stream_id
+                                )
+                                await connection.send_json(result_chunk)
+                                chunk_index += 1
+                                final_response.append(result_text)
+                            
+                        elif isinstance(chunk, str) and chunk.strip():
+                            # 处理纯文本块
+                            text_chunk = chunk
+                            final_response.append(text_chunk)
+                            chunk_msg = WebSocketMessage.create_stream_chunk(
+                                "stream_chunk",
+                                text_chunk,
+                                chunk_index,
+                                False,
+                                None,
+                                stream_id
+                            )
+                            await connection.send_json(chunk_msg)
+                            chunk_index += 1
+                        
+                        await asyncio.sleep(0.01)
+                        
+                except StopIteration:
+                    # 流结束，发送最终块
+                    if final_response:
+                        # 发送一个标记为isLast=true的最终块
+                        final_chunk = WebSocketMessage.create_stream_chunk(
+                            "stream_chunk",
+                            "",
+                            chunk_index,
+                            True,
+                            None,
+                            stream_id
+                        )
+                        await connection.send_json(final_chunk)
+                    pass
+                except Exception as e:
+                    logger.error(f"处理流式数据时出错: {e}", exc_info=True)
+                    error_msg = WebSocketMessage.create_error(
+                        "stream_error",
+                        f"处理流式数据时出错: {str(e)}"
+                    )
+                    await connection.send_json(error_msg)
+                    return
+                
+                # 发送最终块
+                final_response_str = ''.join(final_response)
+                reasoning_content_str = ''.join(reasoning_content)
+                
+                if final_response_str:
+                    # 保存最终响应到会话历史
+                    metadata = {}
+                    if reasoning_content_str:
+                        metadata["reasoning"] = reasoning_content_str
+                    
+                    self.assistant.session_manager.add_turn(
+                        session_id, "assistant", final_response_str, metadata=metadata
+                    )
+                    
+                    end_msg = WebSocketMessage.create_response(
+                        "stream_end",
+                        {"session_id": session_id, "reasoning_content": reasoning_content_str, "streamId": stream_id}
+                    )
+                    await connection.send_json(end_msg)
+            else:
+                # 非流式响应，作为单个块发送
+                final_response = str(response_generator)
+                self.assistant.session_manager.add_turn(
+                    session_id, "assistant", final_response
+                )
+                
+                # 格式化为友好的文本
+                friendly_response = f"# 最终结果\n\n{final_response}\n"
+                
                 chunk_msg = WebSocketMessage.create_stream_chunk(
                     "stream_chunk",
-                    chunk,
-                    i // chunk_size,
-                    is_last
+                    friendly_response,
+                    0,
+                    True,
+                    None,
+                    stream_id
                 )
-                if not await connection.send_json(chunk_msg):
-                    logger.debug(f"发送流式数据块失败，连接可能已断开")
-                    return
-                await asyncio.sleep(0.01)
-
-            end_msg = WebSocketMessage.create_response(
-                "stream_end",
-                {"session_id": session_id}
-            )
-            await connection.send_json(end_msg)
+                await connection.send_json(chunk_msg)
+                
+                end_msg = WebSocketMessage.create_response(
+                    "stream_end",
+                    {"session_id": session_id, "streamId": stream_id}
+                )
+                await connection.send_json(end_msg)
         except Exception as e:
             logger.error(f"流式响应处理失败: {e}", exc_info=True)
+            error_msg = WebSocketMessage.create_error(
+                "stream_error",
+                f"流式响应处理失败: {str(e)}"
+            )
+            await connection.send_json(error_msg)
 
     async def _send_command_response(self, connection: WebSocketConnection, command: str, result: Any):
         """发送命令响应
@@ -701,14 +918,17 @@ class WebSocketManager:
             execution_id: 执行ID
             thoughts: 思维链列表
         """
-        event = {
-            "event_type": "thought_chain",
-            "data": {
-                "execution_id": execution_id,
-                "thoughts": thoughts
+        # 转换为前端期望的格式
+        for thought in thoughts:
+            event = {
+                "choices": [{
+                    "delta": {
+                        "thought": thought.get("thought", ""),
+                        "action": thought.get("action", None)
+                    }
+                }]
             }
-        }
-        await self.send_to_session(session_id, event)
+            await self.send_to_session(session_id, event)
 
     async def send_step_status_event(self, session_id: str, execution_id: str, step_index: int, 
                                      status: str, error: str = None):
@@ -722,13 +942,12 @@ class WebSocketManager:
             error: 错误信息
         """
         event = {
-            "event_type": "step_status",
-            "data": {
-                "execution_id": execution_id,
-                "step_index": step_index,
+            "type": "step_status",
+            "payload": {
+                "executionId": execution_id,
+                "stepIndex": step_index,
                 "status": status,
-                "error": error,
-                "timestamp": asyncio.get_event_loop().time()
+                "error": error
             }
         }
         await self.send_to_session(session_id, event)
@@ -745,13 +964,12 @@ class WebSocketManager:
             result: 结果
         """
         event = {
-            "event_type": "skill_call",
-            "data": {
-                "execution_id": execution_id,
-                "skill_id": skill_id,
+            "type": "skill_call",
+            "payload": {
+                "executionId": execution_id,
+                "skillId": skill_id,
                 "parameters": parameters,
-                "result": result,
-                "timestamp": asyncio.get_event_loop().time()
+                "result": result
             }
         }
         await self.send_to_session(session_id, event)
@@ -767,8 +985,8 @@ class WebSocketManager:
             token_usage: Token使用情况
         """
         event = {
-            "event_type": "resource_update",
-            "data": {
+            "type": "resource_update",
+            "payload": {
                 "cpu_percent": cpu_percent,
                 "memory_percent": memory_percent,
                 "disk_percent": disk_percent,
@@ -789,8 +1007,8 @@ class WebSocketManager:
             estimated_tokens: 预估Token数
         """
         event = {
-            "event_type": "model_route",
-            "data": {
+            "type": "model_route",
+            "payload": {
                 "task_level": task_level,
                 "selected_model": selected_model,
                 "reason": reason,
@@ -810,9 +1028,9 @@ class WebSocketManager:
             result: 结果
         """
         event = {
-            "event_type": "task_completed",
-            "data": {
-                "execution_id": execution_id,
+            "type": "task_completed",
+            "payload": {
+                "executionId": execution_id,
                 "task": task,
                 "status": "completed",
                 "result": result,
@@ -832,13 +1050,12 @@ class WebSocketManager:
             error: 错误信息
         """
         event = {
-            "event_type": "task_failed",
-            "data": {
-                "execution_id": execution_id,
+            "type": "task_failed",
+            "payload": {
+                "executionId": execution_id,
                 "task": task,
                 "status": "failed",
-                "error": error,
-                "timestamp": asyncio.get_event_loop().time()
+                "error": error
             }
         }
         await self.send_to_session(session_id, event)
