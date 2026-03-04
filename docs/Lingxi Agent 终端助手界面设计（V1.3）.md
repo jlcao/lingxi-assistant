@@ -196,7 +196,30 @@
     model_override?: string | null;
     enable_heartbeat?: boolean;
     heartbeat_interval?: number;
+  }, options?: {
+    timeout?: number;
+    maxRetries?: number;
+    retryDelay?: number;
   }): Promise<Response>;
+
+  // SSE连接配置
+  setSSEConfig(config: {
+    connectionTimeout?: number;
+    heartbeatTimeout?: number;
+    maxRetries?: number;
+    retryDelay?: number;
+    enableBuffer?: boolean;
+    bufferSize?: number;
+    flushInterval?: number;
+  }): void;
+
+  // 获取SSE连接状态
+  getSSEConnectionStatus(): {
+    connected: boolean;
+    lastHeartbeat: number | null;
+    retryCount: number;
+    bufferedEvents: number;
+  };
 
   // 断点管理
   getCheckpoints(params?: {
@@ -238,9 +261,24 @@
 - **错误处理**：统一错误处理，自动重试（默认3次），超时控制（默认30s），错误日志记录
 - **重试策略**：指数退避重试（2^n秒），仅对5xx错误和429（限流）错误重试
 - **流式响应处理**：`executeTaskStream`方法返回Fetch API的Response对象，支持Server-Sent Events（SSE）流式读取
+- **SSE连接配置**：支持连接超时、心跳超时、自动重连、事件缓冲等高级配置
+- **默认配置**：
+  - `connectionTimeout`: 30000ms（30秒）
+  - `heartbeatTimeout`: 90000ms（90秒，3倍心跳间隔）
+  - `maxRetries`: 3次
+  - `retryDelay`: 1000ms（1秒，指数退避）
+  - `enableBuffer`: true
+  - `bufferSize`: 100个事件
+  - `flushInterval`: 100ms
 
 #### 4.1.3 SSE流式响应处理模块（sseClient.ts）⭐ V2.1 新增
 - **核心功能**：封装SSE流式响应处理，通过Fetch API的ReadableStream读取后端SSE事件流，解析事件并分发到渲染进程
+- **核心功能扩展**：
+  - **连接超时检测**：检测SSE连接建立超时，自动触发重连
+  - **心跳超时检测**：监控心跳事件，超时后自动重连
+  - **自动重连机制**：连接断开后自动重连，支持指数退避策略
+  - **事件缓冲机制**：缓冲高频事件，定时批量刷新，防止UI卡顿
+  - **取消机制**：支持通过`AbortController`取消流式响应
 - **核心API**：
   ```typescript
   // SSE流式响应处理
@@ -261,13 +299,368 @@
     onStepEnd?: (data: {execution_id: string; task_id: string; step_id: string; step_index: number; result: any; status: string}) => void;
     onTaskEnd?: (data: {execution_id: string; task_id: string; result: any; status: string}) => void;
     onTaskFailed?: (data: {execution_id: string; task_id: string; error: string; error_code: string; traceback?: string; recoverable?: boolean}) => void;
+    onTaskCancelled?: (data: {execution_id: string; task_id: string; cancelled_at: number; reason: string; current_step: number; completed_steps: number; can_resume: boolean}) => void;
     onPing?: (data: {timestamp: number}) => void;
     onStreamEnd?: () => void;
     onError?: (error: Error) => void;
+    onReconnecting?: (attempt: number, maxRetries: number) => void;
+    onReconnectSuccess?: () => void;
+    onReconnectFailed?: () => void;
+  }, options?: {
+    connectionTimeout?: number;
+    heartbeatTimeout?: number;
+    maxRetries?: number;
+    retryDelay?: number;
+    enableBuffer?: boolean;
+    bufferSize?: number;
+    flushInterval?: number;
   }): Promise<void>;
 
   // 取消流式响应
   abort(): void;
+
+  // 获取连接状态
+  getConnectionStatus(): {
+    connected: boolean;
+    lastHeartbeat: number | null;
+    retryCount: number;
+    bufferedEvents: number;
+  };
+
+  // 手动重连
+  reconnect(): Promise<void>;
+  ```
+
+**连接超时检测机制**：
+- **连接超时**：在 `connectionTimeout` 时间内未建立连接，触发重连
+- **心跳超时**：在 `heartbeatTimeout` 时间内未收到 `ping` 事件，触发重连
+- **超时检测实现**：
+  ```typescript
+  class SSEClient {
+    private connectionTimeoutTimer: NodeJS.Timeout | null = null;
+    private heartbeatTimeoutTimer: NodeJS.Timeout | null = null;
+    private lastHeartbeatTime: number | null = null;
+
+    private startConnectionTimeout(timeout: number) {
+      this.connectionTimeoutTimer = setTimeout(() => {
+        this.handleConnectionTimeout();
+      }, timeout);
+    }
+
+    private startHeartbeatTimeout(timeout: number) {
+      this.heartbeatTimeoutTimer = setTimeout(() => {
+        this.handleHeartbeatTimeout();
+      }, timeout);
+    }
+
+    private resetHeartbeatTimeout(timeout: number) {
+      if (this.heartbeatTimeoutTimer) {
+        clearTimeout(this.heartbeatTimeoutTimer);
+      }
+      this.startHeartbeatTimeout(timeout);
+    }
+
+    private handleConnectionTimeout() {
+      this.logger.warn('SSE连接超时');
+      this.reconnect();
+    }
+
+    private handleHeartbeatTimeout() {
+      this.logger.warn('SSE心跳超时');
+      this.reconnect();
+    }
+  }
+  ```
+
+**自动重连机制**：
+- **重连触发条件**：
+  - 连接超时
+  - 心跳超时
+  - 网络错误
+  - 服务器断开连接
+- **重连策略**：
+  - 指数退避：`retryDelay * Math.pow(2, retryCount)`
+  - 最大重试次数：`maxRetries`（默认3次）
+  - 重连延迟：首次1秒，之后指数增长（1s, 2s, 4s, 8s...）
+- **重连实现**：
+  ```typescript
+  class SSEClient {
+    private retryCount = 0;
+    private maxRetries = 3;
+    private retryDelay = 1000;
+    private isReconnecting = false;
+
+    private async reconnect() {
+      if (this.retryCount >= this.maxRetries) {
+        this.logger.error('达到最大重试次数，放弃重连');
+        this.callbacks.onReconnectFailed?.();
+        return;
+      }
+
+      if (this.isReconnecting) {
+        return;
+      }
+
+      this.isReconnecting = true;
+      this.retryCount++;
+
+      const delay = this.retryDelay * Math.pow(2, this.retryCount - 1);
+      this.logger.info(`第${this.retryCount}次重连，延迟${delay}ms`);
+      this.callbacks.onReconnecting?.(this.retryCount, this.maxRetries);
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      try {
+        await this.connect();
+        this.retryCount = 0;
+        this.isReconnecting = false;
+        this.callbacks.onReconnectSuccess?.();
+        this.logger.info('重连成功');
+      } catch (error) {
+        this.logger.error('重连失败:', error);
+        this.isReconnecting = false;
+        this.reconnect();
+      }
+    }
+  }
+  ```
+
+**事件缓冲机制**：
+- **缓冲目的**：防止高频事件（如 `think_stream`）导致UI卡顿
+- **缓冲策略**：
+  - 缓冲区大小：`bufferSize`（默认100个事件）
+  - 刷新间隔：`flushInterval`（默认100ms）
+  - 优先级事件：`task_start`, `task_end`, `task_failed`, `task_cancelled` 立即刷新
+- **缓冲实现**：
+  ```typescript
+  class SSEClient {
+    private eventBuffer: SSEEvent[] = [];
+    private bufferSize = 100;
+    private flushInterval = 100;
+    private flushTimer: NodeJS.Timeout | null = null;
+
+    private startFlushTimer() {
+      this.flushTimer = setInterval(() => {
+        this.flushBuffer();
+      }, this.flushInterval);
+    }
+
+    private stopFlushTimer() {
+      if (this.flushTimer) {
+        clearInterval(this.flushTimer);
+        this.flushTimer = null;
+      }
+    }
+
+    private addToBuffer(event: SSEEvent) {
+      // 优先级事件立即刷新
+      if (this.isPriorityEvent(event)) {
+        this.flushBuffer();
+        this.dispatchImmediate(event);
+        return;
+      }
+
+      this.eventBuffer.push(event);
+
+      // 缓冲区满时立即刷新
+      if (this.eventBuffer.length >= this.bufferSize) {
+        this.flushBuffer();
+      }
+    }
+
+    private flushBuffer() {
+      if (this.eventBuffer.length === 0) {
+        return;
+      }
+
+      const events = [...this.eventBuffer];
+      this.eventBuffer = [];
+
+      // 批量分发事件
+      events.forEach(event => {
+        this.dispatchImmediate(event);
+      });
+    }
+
+    private isPriorityEvent(event: SSEEvent): boolean {
+      const priorityEvents = ['task_start', 'task_end', 'task_failed', 'task_cancelled', 'step_start', 'step_end'];
+      return priorityEvents.includes(event.event_type);
+    }
+
+    private dispatchImmediate(event: SSEEvent) {
+      switch (event.event_type) {
+        case 'task_start':
+          this.callbacks.onTaskStart?.(event.data);
+          break;
+        case 'think_stream':
+          this.callbacks.onThinkStream?.(event.data);
+          break;
+        // ... 其他事件类型
+      }
+    }
+  }
+  ```
+
+**完整实现示例**：
+  ```typescript
+  class SSEClient {
+    private controller: AbortController | null = null;
+    private reader: ReadableStreamDefaultReader | null = null;
+    private connectionTimeoutTimer: NodeJS.Timeout | null = null;
+    private heartbeatTimeoutTimer: NodeJS.Timeout | null = null;
+    private lastHeartbeatTime: number | null = null;
+    private retryCount = 0;
+    private isReconnecting = false;
+    private eventBuffer: SSEEvent[] = [];
+    private flushTimer: NodeJS.Timeout | null = null;
+
+    private config = {
+      connectionTimeout: 30000,
+      heartbeatTimeout: 90000,
+      maxRetries: 3,
+      retryDelay: 1000,
+      enableBuffer: true,
+      bufferSize: 100,
+      flushInterval: 100
+    };
+
+    async executeTaskStream(
+      data: TaskRequest,
+      callbacks: SSECallbacks,
+      options?: Partial<typeof this.config>
+    ): Promise<void> {
+      this.config = { ...this.config, ...options };
+      this.callbacks = callbacks;
+
+      if (this.config.enableBuffer) {
+        this.startFlushTimer();
+      }
+
+      await this.connect(data);
+    }
+
+    private async connect(data: TaskRequest) {
+      this.controller = new AbortController();
+
+      this.startConnectionTimeout(this.config.connectionTimeout);
+
+      try {
+        const response = await fetch('/api/tasks/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+          signal: this.controller.signal
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        this.connectionTimeoutTimer && clearTimeout(this.connectionTimeoutTimer);
+        this.reader = response.body!.getReader();
+
+        this.startHeartbeatTimeout(this.config.heartbeatTimeout);
+
+        await this.readStream();
+
+      } catch (error) {
+        this.handleError(error);
+      }
+    }
+
+    private async readStream() {
+      const decoder = new TextDecoder();
+
+      try {
+        while (true) {
+          const { done, value } = await this.reader!.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const events = this.parseSSEEvents(chunk);
+
+          events.forEach(event => {
+            this.handleEvent(event);
+          });
+        }
+      } catch (error) {
+        this.handleError(error);
+      }
+    }
+
+    private handleEvent(event: SSEEvent) {
+      if (event.event_type === 'ping') {
+        this.lastHeartbeatTime = Date.now();
+        this.resetHeartbeatTimeout(this.config.heartbeatTimeout);
+        this.callbacks.onPing?.(event.data);
+        return;
+      }
+
+      if (event.event_type === 'stream_end') {
+        this.cleanup();
+        this.callbacks.onStreamEnd?.();
+        return;
+      }
+
+      if (event.event_type === 'task_cancelled') {
+        this.callbacks.onTaskCancelled?.(event.data);
+        return;
+      }
+
+      if (this.config.enableBuffer) {
+        this.addToBuffer(event);
+      } else {
+        this.dispatchImmediate(event);
+      }
+    }
+
+    private handleError(error: Error) {
+      this.logger.error('SSE错误:', error);
+
+      if (error.name === 'AbortError') {
+        this.callbacks.onError?.(new Error('请求已被客户端取消'));
+        return;
+      }
+
+      this.reconnect();
+    }
+
+    private cleanup() {
+      this.stopFlushTimer();
+      this.flushBuffer();
+
+      if (this.connectionTimeoutTimer) {
+        clearTimeout(this.connectionTimeoutTimer);
+      }
+      if (this.heartbeatTimeoutTimer) {
+        clearTimeout(this.heartbeatTimeoutTimer);
+      }
+      if (this.reader) {
+        this.reader.cancel();
+      }
+      if (this.controller) {
+        this.controller.abort();
+      }
+
+      this.connectionTimeoutTimer = null;
+      this.heartbeatTimeoutTimer = null;
+      this.reader = null;
+      this.controller = null;
+    }
+
+    abort() {
+      this.cleanup();
+    }
+
+    getConnectionStatus() {
+      return {
+        connected: this.reader !== null,
+        lastHeartbeat: this.lastHeartbeatTime,
+        retryCount: this.retryCount,
+        bufferedEvents: this.eventBuffer.length
+      };
+    }
+  }
   ```
 - **SSE事件解析**：解析SSE格式的数据流（`data: {...}`），提取`event_type`和`data`字段
 - **心跳处理**：处理`ping`事件和`heartbeat`注释，保持连接活跃
@@ -340,6 +733,7 @@
 - `sse:step-end` - 步骤结束
 - `sse:task-end` - 任务结束
 - `sse:task-failed` - 任务失败
+- `sse:task-cancelled` - 任务取消（AbortController）
 - `sse:ping` - 心跳事件
 - `sse:stream-end` - 流结束
 - `sse:error` - SSE错误
@@ -708,6 +1102,20 @@ interface TaskFailedEvent {
   };
 }
 
+// 任务取消
+interface TaskCancelledEvent {
+  event_type: 'task_cancelled';
+  data: {
+    execution_id: UUID;
+    task_id: UUID;
+    cancelled_at: Timestamp;
+    reason: 'client_abort' | 'server_abort' | 'timeout' | 'resource_limit';
+    current_step: number;
+    completed_steps: number;
+    can_resume: boolean;
+  };
+}
+
 // 心跳事件
 interface PingEvent {
   event_type: 'ping';
@@ -734,6 +1142,7 @@ type SSEEvent =
   | StepEndEvent
   | TaskEndEvent
   | TaskFailedEvent
+  | TaskCancelledEvent
   | PingEvent
   | StreamEndEvent;
 ```
