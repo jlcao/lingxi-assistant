@@ -235,7 +235,7 @@ function setupWebSocketListeners() {
         }
 
         // 获取当前步骤索引，默认为最后一个步骤
-        const stepIndex = data.step_index || 0
+        const stepIndex = data.step_index || turn.steps.length - 1
 
         // 确保步骤对象存在
         if (!turn.steps[stepIndex]) {

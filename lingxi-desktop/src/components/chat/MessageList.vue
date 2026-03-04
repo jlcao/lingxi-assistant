@@ -292,18 +292,9 @@ function toggleStepExpand(turnId: string, stepIndex: number) {
   expandedSteps.value[turnId][stepIndex] = !expandedSteps.value[turnId][stepIndex]
 }
 
-// 计算步骤的展开状态 - 默认展开运行中的步骤
+// 计算步骤的展开状态
 function isStepExpanded(turnId: string, stepIndex: number): boolean {
-  // 如果已手动设置，使用设置值
-  if (expandedSteps.value[turnId]?.[stepIndex] !== undefined) {
-    return expandedSteps.value[turnId][stepIndex]
-  }
-  // 默认展开运行中的步骤
-  const turn = turns.value.find(t => t.id === turnId)
-  if (turn && turn.steps && turn.steps[stepIndex]) {
-    return turn.steps[stepIndex].status === 'running'
-  }
-  return false
+  return expandedSteps.value[turnId]?.[stepIndex] || false
 }
 
 // 监听turns变化，处理步骤的自动折叠逻辑
