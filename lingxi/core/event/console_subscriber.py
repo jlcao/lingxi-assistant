@@ -57,17 +57,55 @@ class ConsoleSubscriber:
             print(f"   {i}. {desc}")
 
     def handle_step_start(self, session_id: str, execution_id: str, step_index: int, **kwargs):
-        print(f"\n📍 执行步骤 {step_index + 1}...")
+        # description 可能包含换行符
+        description = kwargs.get('description', '')
+        if description:
+            formatted_desc = self._format_console_output(description)
+            print(f"\n📍 执行步骤 {step_index + 1}: {formatted_desc}")
+        else:
+            print(f"\n📍 执行步骤 {step_index + 1}...")
 
     def handle_step_end(self, session_id: str, execution_id: str, step_index: int, result: str, **kwargs):
-        # result 是字符串类型，直接使用
+        # result 可能是字符串或字典
         if result:
-            preview = result[:200] + '...' if len(result) > 200 else result
-            print(f"   ✅ 完成: {preview}")
+            # 格式化输出，处理换行符和 Markdown 格式
+            formatted_result = self._format_console_output(result)
+            preview = formatted_result[:200] + '...' if len(formatted_result) > 200 else formatted_result
+            print(f"\n   ✅ 完成：{preview}")
+
+    def _format_console_output(self, text: str) -> str:
+        """格式化控制台输出文本
+
+        Args:
+            text: 原始文本（可能包含 Markdown 格式和换行符）
+
+        Returns:
+            格式化后的文本
+        """
+        if not text:
+            return ""
+        
+        # 如果是字典，提取 answer 字段
+        if isinstance(text, dict):
+            text = text.get('answer', str(text))
+        
+        # 确保是字符串
+        text = str(text)
+        
+        # 处理换行符
+        lines = text.split('\\n')
+        
+        # 移除 Markdown 加粗标记 **
+        formatted_lines = [line.replace('**', '') for line in lines]
+        
+        # 重新组合
+        return '\n'.join(formatted_lines)
 
     def handle_task_end(self, session_id: str, execution_id: str, result: str, **kwargs):
-        self._final_result = result
-        print(f"\n✨ 最终结果: {result}")
+        self._final_result = result if isinstance(result, str) else str(result)
+        # 格式化输出，处理换行符和 Markdown 格式
+        formatted_result = self._format_console_output(result)
+        print(f"\n✨ 最终结果:\n{formatted_result}")
 
     def get_final_result(self) -> str:
         return self._final_result

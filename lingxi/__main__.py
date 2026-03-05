@@ -9,6 +9,7 @@ from lingxi.core.classifier import TaskClassifier
 from lingxi.core.mode_selector import ExecutionModeSelector
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.event.console_subscriber import ConsoleSubscriber
+from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 
 
 class LingxiAssistant:
@@ -35,6 +36,7 @@ class LingxiAssistant:
         self.skill_caller = SkillCaller(self.config)
         self.mode_selector = ExecutionModeSelector(self.config, self.skill_caller)
         self.console_subscriber = ConsoleSubscriber()
+        self.session_store_subscriber = SessionStoreSubscriber(self.session_manager)
 
     def process_input(self, user_input: str, session_id: str = "default", stream: bool = False) -> Union[str, Any]:
         """处理用户输入

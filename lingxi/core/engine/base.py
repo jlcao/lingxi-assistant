@@ -354,18 +354,20 @@ class BaseEngine:
             total_steps=total_steps
         )
 
-    def _publish_step_end(self, session_id: str, execution_id: str, step_idx: int, status: str, error: str = None, result: str = "", thought: str = "",description:str=""):
+    def _publish_step_end(self, session_id: str, execution_id: str, step_idx: int, status: str, error: str = None, result: str = "", thought: str = "",description:str="", task_id: str = None):
         """发布步骤结束事件
 
         Args:
-            session_id: 会话ID
-            execution_id: 执行ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
             step_idx: 步骤索引
             status: 状态
             error: 错误信息
             result: 结果
+            task_id: 任务 ID
         """
-        task_id = getattr(local_context, 'task_id', None)
+        if task_id is None:
+            task_id = getattr(local_context, 'task_id', None)
         global_event_publisher.publish(
             'step_end',
             session_id=session_id,
@@ -379,15 +381,17 @@ class BaseEngine:
             description=description
         )
 
-    def _publish_task_end(self, session_id: str, execution_id: str, result: str):
+    def _publish_task_end(self, session_id: str, execution_id: str, result: str, task_id: str = None):
         """发布任务结束事件
 
         Args:
-            session_id: 会话ID
-            execution_id: 执行ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
             result: 结果
+            task_id: 任务 ID
         """
-        task_id = getattr(local_context, 'task_id', None)
+        if task_id is None:
+            task_id = getattr(local_context, 'task_id', None)
         task = getattr(local_context, 'task', None)
         global_event_publisher.publish(
             'task_end',
@@ -397,20 +401,22 @@ class BaseEngine:
             task_input=task,
             result=result
         )
-        # 返回task_end事件
+        # 返回 task_end 事件
         return {
             "type": "task_end",
             "result": result
         }
-    def _publish_task_failed(self, session_id: str, execution_id: str, error: str):
+    def _publish_task_failed(self, session_id: str, execution_id: str, error: str, task_id: str = None):
         """发布任务失败事件
 
         Args:
-            session_id: 会话ID
-            execution_id: 执行ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
             error: 错误信息
+            task_id: 任务 ID
         """
-        task_id = getattr(local_context, 'task_id', None)
+        if task_id is None:
+            task_id = getattr(local_context, 'task_id', None)
         global_event_publisher.publish(
             'task_failed',
             session_id=session_id,
@@ -583,12 +589,12 @@ class BaseEngine:
             task_id = f"task_{session_id}_{uuid.uuid4().hex[:8]}"
             execution_id = f"{self.__class__.__name__.lower()}_{int(time.time())}"
             set_ids(session_id,task_id,execution_id,task);
-            self.logger.debug(f"生成任务ID：{task_id}")
-            self.logger.debug(f"生成执行ID：{execution_id}")
+            self.logger.debug(f"生成任务 ID：{task_id}")
+            self.logger.debug(f"生成执行 ID：{execution_id}")
             self._publish_task_start(session_id, execution_id, task, task_info)
 
             def stream_generator():
-                for chunk in self._execute_task_stream(task, task_info, history, session_id, execution_id, stream):
+                for chunk in self._execute_task_stream(task, task_info, history, session_id, execution_id, stream, task_id):
                     yield chunk
 
             if stream:

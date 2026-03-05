@@ -26,7 +26,7 @@ def execute(parameters: Dict[str, Any]) -> str:
     logger = logging.getLogger(__name__)
 
     operation = parameters.get("operation", "read")
-    logger.info(f"执行XLSX技能，参数: {parameters}")
+    logger.debug(f"执行XLSX技能，参数: {parameters}")
 
     try:
         if operation == "read":

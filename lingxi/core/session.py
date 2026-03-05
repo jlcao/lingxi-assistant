@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import sqlite3
 import json
@@ -472,16 +474,17 @@ class SessionManager:
         
         self.logger.debug(f"步骤已添加，session_id: {session_id}, task_id: {task_id}, step_index: {step_index}")
 
-    def set_task_result(self, session_id: str, task_id: str, result: str = None ,user_input: str = None):
+    def set_task_result(self, session_id: str, task_id: str, result: str = None ,user_input: str = None, status: str = None):
         """设置任务结果
 
         Args:
-            session_id: 会话ID
-            task_id: 任务ID
+            session_id: 会话 ID
+            task_id: 任务 ID
             result: 任务结果
             user_input: 用户输入
+            status: 任务状态
         """
-        if result is not None or user_input is not None:
+        if result is not None or user_input is not None or status is not None:
             update_fields = []
             update_values = []
             
@@ -492,6 +495,10 @@ class SessionManager:
             if user_input is not None:
                 update_fields.append("user_input = ?")
                 update_values.append(user_input)
+            
+            if status is not None:
+                update_fields.append("status = ?")
+                update_values.append(status)
             
             update_fields.append("updated_at = CURRENT_TIMESTAMP")
             update_values.append(task_id)
@@ -1207,4 +1214,30 @@ class SessionManager:
         conn.close()
         
         self.memory_cache[session_id] = Session(session_id=session_id, user_name=user_name, title="新会话")
+        return session_id
+
+    def create_session_by_id(self, session_id: str, user_name: str = "default") -> str:
+        """使用指定的 session_id 创建新会话
+
+        Args:
+            session_id: 会话 ID
+            user_name: 用户名
+
+        Returns:
+            会话 ID
+        """
+        # 确保 user_name 不是 None
+        user_name = user_name if user_name is not None else "default"
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO sessions (session_id, user_name, title, task_list, token_count)
+            VALUES (?, ?, ?, ?, ?)
+        """, (session_id, user_name, "新会话", json.dumps({}), 0))
+        conn.commit()
+        conn.close()
+        
+        self.memory_cache[session_id] = Session(session_id=session_id, user_name=user_name, title="新会话")
+        self.logger.debug(f"会话已创建，session_id: {session_id}")
         return session_id

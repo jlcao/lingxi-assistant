@@ -181,17 +181,18 @@ class PlanReActCore(ReActCore):
 
     def _execute_plan_steps(self, plan: List[str], task: str, task_info: Dict[str, Any],
                            history: List[Dict[str, str]], session_id: str,
-                           execution_id: str, stream: bool) -> Generator[Dict[str, Any], None, None]:
-        """执行计划中的步骤（将完整计划封装到ReAct提示词中，单次调用执行）
+                           execution_id: str, stream: bool, task_id: str = None) -> Generator[Dict[str, Any], None, None]:
+        """执行计划中的步骤（将完整计划封装到 ReAct 提示词中，单次调用执行）
 
         Args:
             plan: 计划步骤列表
-            task: 原始任务文本
+            task: 任务文本
             task_info: 任务信息
             history: 会话历史
-            session_id: 会话ID
-            execution_id: 执行ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
             stream: 是否流式输出
+            task_id: 任务 ID
 
         Yields:
             流式响应块
@@ -200,9 +201,9 @@ class PlanReActCore(ReActCore):
         checkpoint = self.session_manager.restore_checkpoint(session_id) if self.session_manager else None
         
         if checkpoint and checkpoint.get("execution_status") in ["running", "failed"]:
-            self.logger.info(f"从检查点恢复执行，当前步骤: {checkpoint.get('current_step_idx', 0)}/{len(plan)}")
+            self.logger.info(f"从检查点恢复执行，当前步骤：{checkpoint.get('current_step_idx', 0)}/{len(plan)}")
             # 从检查点恢复
-            yield from self._resume_from_checkpoint(checkpoint, task, task_info, history, session_id, execution_id, stream)
+            yield from self._resume_from_checkpoint(checkpoint, task, task_info, history, session_id, execution_id, stream, task_id)
         else:
             # 创建新的检查点
             checkpoint = self._create_initial_checkpoint(task, plan)
@@ -222,11 +223,11 @@ class PlanReActCore(ReActCore):
                 }
 
                 # 调用父类方法执行完整计划
-                # 父类ReActCore会根据提示词中的计划自行按步骤执行
+                # 父类 ReActCore 会根据提示词中的计划自行按步骤执行
                 # 父类 _execute_task_stream 现在返回生成器
                 final_result = None
                 for chunk in super()._execute_task_stream(
-                    task, plan, enhanced_task_info, session_history, session_id, execution_id, stream
+                    task, plan, enhanced_task_info, session_history, session_id, execution_id, stream, task_id
                 ):
                     # 转发所有流式事件
                     if stream:
@@ -255,7 +256,7 @@ class PlanReActCore(ReActCore):
 
     def _resume_from_checkpoint(self, checkpoint: Dict[str, Any], task: str, task_info: Dict[str, Any],
                                 history: List[Dict[str, str]], session_id: str,
-                                execution_id: str, stream: bool) -> Generator[Dict[str, Any], None, None]:
+                                execution_id: str, stream: bool, task_id: str = None) -> Generator[Dict[str, Any], None, None]:
         """从检查点恢复执行
 
         Args:
@@ -263,9 +264,10 @@ class PlanReActCore(ReActCore):
             task: 原始任务文本
             task_info: 任务信息
             history: 会话历史
-            session_id: 会话ID
-            execution_id: 执行ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
             stream: 是否流式输出
+            task_id: 任务 ID
 
         Yields:
             流式响应块
@@ -298,10 +300,10 @@ class PlanReActCore(ReActCore):
             }
 
             # 调用父类方法执行完整计划
-            # 父类ReActCore会根据提示词中的计划自行按步骤执行
+            # 父类 ReActCore 会根据提示词中的计划自行按步骤执行
             final_result = None
             for chunk in super()._execute_task_stream(
-                task, plan, enhanced_task_info, session_history, session_id, execution_id, stream
+                task, plan, enhanced_task_info, session_history, session_id, execution_id, stream, task_id
             ):
                 # 转发所有流式事件
                 if stream:
@@ -372,16 +374,17 @@ class PlanReActCore(ReActCore):
         return self.llm_client.complete(prompt, task_level="simple")
 
     def _execute_task_stream(self, task: str, task_info: Dict[str, Any], history: List[Dict[str, str]],
-                           session_id: str, execution_id: str, stream: bool) -> Generator[Dict[str, Any], None, None]:
+                           session_id: str, execution_id: str, stream: bool, task_id: str = None) -> Generator[Dict[str, Any], None, None]:
         """执行任务（流式）- 统一入口，智能路由
 
         Args:
             task: 任务文本
             task_info: 任务信息
             history: 会话历史
-            session_id: 会话ID
-            execution_id: 执行ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
             stream: 是否启用流式输出
+            task_id: 任务 ID
 
         Yields:
             流式响应块
@@ -396,7 +399,7 @@ class PlanReActCore(ReActCore):
         
         if not analysis:
             self.logger.warning("任务分析失败，降级为父类执行")
-            for chunk in super()._execute_task_stream(task, task_info, history, session_id, execution_id, stream):
+            for chunk in super()._execute_task_stream(task, task_info, history, session_id, execution_id, stream, task_id):
                 yield chunk
             return
         analyzed_level = analysis.get("level", "simple")
@@ -406,9 +409,9 @@ class PlanReActCore(ReActCore):
         self.logger.debug(f"分析结果: level={analyzed_level}, has_next_action={next_action is not None}, plan_steps={len(plan)}")
 
         if analyzed_level == "simple" and next_action:
-            self.logger.debug("简单任务，直接执行next_action")
+            self.logger.debug("简单任务，直接执行 next_action")
 
-            for chunk in self._execute_direct_action(next_action, session_id, execution_id, task, stream):
+            for chunk in self._execute_direct_action(next_action, session_id, execution_id, task, stream, task_id):
                 yield chunk
         elif plan:
             self.logger.debug("复杂任务，执行计划")
@@ -421,24 +424,25 @@ class PlanReActCore(ReActCore):
 
             # 调用 _execute_plan_steps 并透传所有 chunk
             for chunk in self._execute_plan_steps(
-                plan_descriptions, task, task_info, history, session_id, execution_id, stream
+                plan_descriptions, task, task_info, history, session_id, execution_id, stream, task_id
             ):
                 yield chunk
         else:
             self.logger.warning("无法处理任务，降级为父类执行")
-            for chunk in super()._execute_task_stream(task, task_info, history, session_id, execution_id, stream):
+            for chunk in super()._execute_task_stream(task, task_info, history, session_id, execution_id, stream, task_id):
                 yield chunk
 
     def _execute_direct_action(self, action_data: Dict[str, Any], session_id: str, 
-                               execution_id: str, task: str, stream: bool) -> Generator[Dict[str, Any], None, None]:
-        """直接执行分析结果中的行动（减少简单任务的LLM调用）
+                               execution_id: str, task: str, stream: bool, task_id: str = None) -> Generator[Dict[str, Any], None, None]:
+        """直接执行分析结果中的行动（减少简单任务的 LLM 调用）
 
         Args:
             action_data: 行动数据（包含 thought, action, action_input）
-            session_id: 会话ID
-            execution_id: 执行ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
             task: 原始任务
             stream: 是否流式输出
+            task_id: 任务 ID
 
         Yields:
             流式响应块
@@ -454,29 +458,30 @@ class PlanReActCore(ReActCore):
 
         if action == "finish":
             result = action_input if isinstance(action_input, str) else str(action_input)
-            self._publish_task_end(session_id, execution_id, result)
+            self._publish_task_end(session_id, execution_id, result, task_id)
             if stream:
                 yield {"type": "task_end", "result": result}
         else:
             observation = self._execute_action(action, action_input)
             self._publish_step_end(
                 session_id, execution_id, 0,
-                "completed", None, observation, thought, action
+                "completed", None, observation, thought, action, task_id
             )
             final_result = self._generate_final_response(task, [{"thought": thought, "action": action, "observation": observation}], "simple")
-            self._publish_task_end(session_id, execution_id, final_result)
+            self._publish_task_end(session_id, execution_id, final_result, task_id)
             if stream:
                 yield {"type": "task_end", "result": final_result}
 
     def _resume_from_checkpoint(self, checkpoint: Dict[str, Any], history: List[Dict[str, str]] = None,
-                               session_id: str = "default", stream: bool = False) -> Union[str, Generator[Dict[str, Any], None, None]]:
+                               session_id: str = "default", stream: bool = False, task_id: str = None) -> Union[str, Generator[Dict[str, Any], None, None]]:
         """从检查点恢复执行
 
         Args:
             checkpoint: 检查点状态
             history: 会话历史
-            session_id: 会话ID
+            session_id: 会话 ID
             stream: 是否启用流式输出
+            task_id: 任务 ID
 
         Returns:
             执行结果（非流式）或流式响应生成器（流式）
@@ -497,14 +502,14 @@ class PlanReActCore(ReActCore):
             # 流式模式：返回生成器
             return self._execute_plan_steps(
                 remaining_plan, task, task_info, history or [],
-                session_id, execution_id, stream
+                session_id, execution_id, stream, task_id
             )
         else:
             # 非流式模式：直接执行并返回结果
             final_result = "任务恢复执行完成"
             result_gen = self._execute_plan_steps(
                 remaining_plan, task, task_info, history or [],
-                session_id, execution_id, stream
+                session_id, execution_id, stream, task_id
             )
             # 消费生成器获取结果
             try:
