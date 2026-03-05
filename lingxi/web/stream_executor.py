@@ -97,52 +97,102 @@ class StreamEventCollector:
     def _handle_think_start(self, session_id: str, execution_id: str, **kwargs):
         """处理思考开始事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("think_start", kwargs))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("think_start", kwargs))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("think_start", kwargs))
 
     def _handle_think_final(self, session_id: str, execution_id: str, content: str, **kwargs):
         """处理思考完成事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("think_final", {"content": content, **kwargs}))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("think_final", {"content": content, **kwargs}))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("think_final", {"content": content, **kwargs}))
 
     def _handle_think_stream(self, session_id: str, execution_id: str, content: str, **kwargs):
         """处理思考流式事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("think_stream", {"content": content, **kwargs}))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("think_stream", {"content": content, **kwargs}))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("think_stream", {"content": content, **kwargs}))
 
     def _handle_plan_start(self, session_id: str, execution_id: str, **kwargs):
         """处理计划开始事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("plan_start", kwargs))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("plan_start", kwargs))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("plan_start", kwargs))
 
     def _handle_plan_final(self, session_id: str, execution_id: str, plan: list, **kwargs):
         """处理计划完成事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("plan_final", {"plan": plan, **kwargs}))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("plan_final", {"plan": plan, **kwargs}))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("plan_final", {"plan": plan, **kwargs}))
 
     def _handle_step_start(self, session_id: str, execution_id: str, step_index: int, **kwargs):
         """处理步骤开始事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("step_start", {"step_index": step_index, **kwargs}))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("step_start", {"step_index": step_index, **kwargs}))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("step_start", {"step_index": step_index, **kwargs}))
 
     def _handle_step_end(self, session_id: str, execution_id: str, step_index: int, result: str, **kwargs):
         """处理步骤结束事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("step_end", {"step_index": step_index, "result": result, **kwargs}))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("step_end", {"step_index": step_index, "result": result, **kwargs}))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("step_end", {"step_index": step_index, "result": result, **kwargs}))
 
     def _handle_task_start(self, session_id: str, execution_id: str, **kwargs):
         """处理任务开始事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("task_start", kwargs))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("task_start", kwargs))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("task_start", kwargs))
 
     def _handle_task_end(self, session_id: str, execution_id: str, result: str, **kwargs):
         """处理任务结束事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("task_end", {"result": result, **kwargs}))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("task_end", {"result": result, **kwargs}))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("task_end", {"result": result, **kwargs}))
 
     def _handle_task_failed(self, session_id: str, execution_id: str, error: str, **kwargs):
         """处理任务失败事件"""
         if self._filter_event(session_id, execution_id):
-            asyncio.create_task(self._put_event("task_failed", {"error": error, **kwargs}))
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._put_event("task_failed", {"error": error, **kwargs}))
+            except RuntimeError:
+                if self._event_queue:
+                    self._event_queue.put_nowait(("task_failed", {"error": error, **kwargs}))
 
     async def events(self) -> Generator[Dict[str, Any], None, None]:
         """生成事件流
