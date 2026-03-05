@@ -1,22 +1,41 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
 import type {
+  ApiResponse,
   Session,
-  HistoryResponse,
+  SessionDetail,
+  HistoryItem,
   ExecutionResult,
   ExecutionStatus,
   Checkpoint,
   Skill,
-  InstallResult,
+  SkillManifest,
   DiagnosticResult,
   ResourceUsage,
   Config
-} from '../types'
+} from '../../src/types'
 
 export class ApiClient {
   private client: AxiosInstance
   private baseUrl: string
   private maxRetries: number = 3
   private timeout: number = 30000
+
+  private sseConfig = {
+    connectionTimeout: 30000,
+    heartbeatTimeout: 90000,
+    maxRetries: 3,
+    retryDelay: 1000,
+    enableBuffer: true,
+    bufferSize: 100,
+    flushInterval: 100
+  }
+
+  private sseConnectionStatus = {
+    connected: false,
+    lastHeartbeat: null as number | null,
+    retryCount: 0,
+    bufferedEvents: 0
+  }
 
   constructor(baseUrl: string, timeout?: number) {
     this.baseUrl = baseUrl
@@ -63,114 +82,175 @@ export class ApiClient {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  async getSessions(): Promise<Session[]> {
-    const response = await this.client.get('/api/sessions')
-    // 转换后端返回的会话数据格式为前端期望的格式
-    return response.sessions.map((session: any) => ({
-      id: session.session_id,
-      name: session.first_message || '新会话'
-    }))
+  async getSessions(params?: {
+    page?: number
+    page_size?: number
+    user_name?: string
+    sort_by?: string
+    order?: string
+  }): Promise<ApiResponse<{total: number; page: number; page_size: number; sessions: Session[]}>> {
+    return this.client.get('/api/sessions', { params })
   }
 
-  async getSessionHistory(sessionId: string, maxTurns?: number): Promise<HistoryResponse> {
-    const params = maxTurns ? { maxTurns } : {}
+  async getSession(sessionId: string): Promise<ApiResponse<SessionDetail>> {
+    return this.client.get(`/api/sessions/${sessionId}`)
+  }
+
+  async getSessionHistory(sessionId: string, params?: {
+    max_turns?: number
+    include_steps?: boolean
+    task_status?: string
+  }): Promise<ApiResponse<{session_id: string; total_turns: number; history: HistoryItem[]}>> {
     return this.client.get(`/api/sessions/${sessionId}/history`, { params })
   }
 
-  async createSession(userName?: string): Promise<Session> {
-    return this.client.post('/api/sessions', { userName })
+  async createSession(data: {
+    user_name?: string
+    title?: string
+  }): Promise<ApiResponse<Session>> {
+    return this.client.post('/api/sessions', data)
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
+  async deleteSession(sessionId: string): Promise<ApiResponse<{success: boolean; deleted_tasks_count: number; deleted_steps_count: number}>> {
     return this.client.delete(`/api/sessions/${sessionId}`)
   }
 
-  async updateSessionName(sessionId: string, name: string): Promise<void> {
-    return this.client.patch(`/api/sessions/${sessionId}`, { name })
+  async updateSessionName(sessionId: string, name: string): Promise<ApiResponse<{success: boolean; message: string; updated_at: string}>> {
+    return this.client.patch(`/api/sessions/${sessionId}`, { title: name })
   }
 
-  async clearSessionHistory(sessionId: string): Promise<void> {
+  async clearSessionHistory(sessionId: string): Promise<ApiResponse<{success: boolean; deleted_turns_count: number}>> {
     return this.client.delete(`/api/sessions/${sessionId}/history`)
   }
 
-  async executeTask(
-    task: string,
-    sessionId: string,
-    modelOverride?: string
-  ): Promise<ExecutionResult> {
-    return this.client.post('/api/tasks/execute', {
-      task,
-      sessionId,
-      modelOverride
-    })
+  async executeTask(data: {
+    task: string
+    session_id: string
+    model_override?: string | null
+  }): Promise<ApiResponse<ExecutionResult>> {
+    return this.client.post('/api/tasks/execute', data)
   }
 
-  async getTaskStatus(executionId: string): Promise<ExecutionStatus> {
-    return this.client.get(`/api/tasks/${executionId}/status`)
+  async getTaskStatus(taskId: string): Promise<ApiResponse<ExecutionStatus>> {
+    return this.client.get(`/api/tasks/${taskId}/status`)
   }
 
-  async retryTask(
-    executionId: string,
-    stepIndex?: number,
-    userInput?: string
-  ): Promise<void> {
-    return this.client.post(`/api/tasks/${executionId}/retry`, {
-      stepIndex,
-      userInput
-    })
+  async retryTask(taskId: string, data?: {
+    step_index?: number
+    user_input?: string | null
+  }): Promise<ApiResponse<{success: boolean; message: string; execution_id: string; retry_from_step: number}>> {
+    return this.client.post(`/api/tasks/${taskId}/retry`, data)
   }
 
-  async cancelTask(executionId: string): Promise<void> {
-    return this.client.post(`/api/tasks/${executionId}/cancel`)
+  async cancelTask(taskId: string): Promise<ApiResponse<{success: boolean; message: string; cancelled_at: number}>> {
+    return this.client.post(`/api/tasks/${taskId}/cancel`)
   }
 
-  async getCheckpoints(): Promise<Checkpoint[]> {
-    return this.client.get('/api/checkpoints')
+  async executeTaskStream(data: {
+    task: string
+    session_id: string
+    model_override?: string | null
+    enable_heartbeat?: boolean
+    heartbeat_interval?: number
+  }, options?: {
+    timeout?: number
+    maxRetries?: number
+    retryDelay?: number
+  }): Promise<Response> {
+    const config: RequestInit = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    }
+
+    if (options?.timeout) {
+      config.signal = AbortSignal.timeout(options.timeout)
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/tasks/stream`, config)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    return response
   }
 
-  async resumeCheckpoint(sessionId: string): Promise<ExecutionResult> {
-    return this.client.post(`/api/checkpoints/${sessionId}/resume`)
+  setSSEConfig(config: {
+    connectionTimeout?: number
+    heartbeatTimeout?: number
+    maxRetries?: number
+    retryDelay?: number
+    enableBuffer?: boolean
+    bufferSize?: number
+    flushInterval?: number
+  }): void {
+    this.sseConfig = { ...this.sseConfig, ...config }
   }
 
-  async deleteCheckpoint(sessionId: string): Promise<void> {
-    return this.client.delete(`/api/checkpoints/${sessionId}`)
+  getSSEConnectionStatus(): {
+    connected: boolean
+    lastHeartbeat: number | null
+    retryCount: number
+    bufferedEvents: number
+  } {
+    return { ...this.sseConnectionStatus }
   }
 
-  async getSkills(): Promise<Skill[]> {
-    return this.client.get('/api/skills')
+  async getCheckpoints(params?: {
+    status?: string
+    page?: number
+    page_size?: number
+  }): Promise<ApiResponse<{total: number; checkpoints: Checkpoint[]}>> {
+    return this.client.get('/api/checkpoints', { params })
   }
 
-  async installSkill(
-    skillData: any,
-    skillFiles: Record<string, string>
-  ): Promise<InstallResult> {
-    return this.client.post('/api/skills/install', {
-      skillData,
-      skillFiles
-    })
+  async resumeCheckpoint(taskId: string): Promise<ApiResponse<{execution_id: string; task: string; status: string; message: string; resumed_from_step: number}>> {
+    return this.client.post(`/api/checkpoints/${taskId}/resume`)
   }
 
-  async diagnoseSkill(skillId: string): Promise<DiagnosticResult> {
+  async deleteCheckpoint(taskId: string): Promise<ApiResponse<{success: boolean; deleted_steps_count: number}>> {
+    return this.client.delete(`/api/checkpoints/${taskId}`)
+  }
+
+  async getSkills(params?: {
+    status?: string
+    page?: number
+    page_size?: number
+    keyword?: string
+  }): Promise<ApiResponse<{total: number; skills: Skill[]}>> {
+    return this.client.get('/api/skills', { params })
+  }
+
+  async installSkill(data: {
+    skill_data: SkillManifest
+    skill_files: Record<string, string>
+    auto_fix?: boolean
+  }): Promise<ApiResponse<{skill_id: string; status: string; message: string; installed_at: string}>> {
+    return this.client.post('/api/skills/install', data)
+  }
+
+  async diagnoseSkill(skillId: string): Promise<ApiResponse<DiagnosticResult>> {
     return this.client.get(`/api/skills/${skillId}/diagnose`)
   }
 
-  async reloadSkill(skillId: string): Promise<void> {
+  async reloadSkill(skillId: string): Promise<ApiResponse<{success: boolean; message: string; reloaded_at: string}>> {
     return this.client.post(`/api/skills/${skillId}/reload`)
   }
 
-  async getResourceUsage(): Promise<ResourceUsage> {
+  async getResourceUsage(): Promise<ApiResponse<ResourceUsage>> {
     return this.client.get('/api/resources')
   }
 
-  async getConfig(): Promise<Config> {
+  async getConfig(): Promise<ApiResponse<Config>> {
     return this.client.get('/api/config')
   }
 
-  async updateConfig(config: Partial<Config>): Promise<void> {
+  async updateConfig(config: Partial<Config>): Promise<ApiResponse<{success: boolean; message: string; updated_at: string}>> {
     return this.client.patch('/api/config', config)
   }
 
-  async getSessionInfo(sessionId: string): Promise<any> {
-    return this.client.get(`/api/sessions/${sessionId}`)
+  updateSSEConnectionStatus(status: Partial<typeof this.sseConnectionStatus>): void {
+    this.sseConnectionStatus = { ...this.sseConnectionStatus, ...status }
   }
 }

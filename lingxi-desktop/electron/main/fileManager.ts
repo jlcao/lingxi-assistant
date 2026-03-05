@@ -1,5 +1,5 @@
 import { dialog, shell } from 'electron'
-import type { FileFilter } from '../types'
+import type { FileFilter } from '../../src/types'
 
 export class FileManager {
   async selectFile(filters?: FileFilter[]): Promise<string | null> {

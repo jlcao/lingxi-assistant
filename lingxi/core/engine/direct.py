@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, List, Optional, Any, Union
 from lingxi.core.llm_client import LLMClient
+from lingxi.core.prompts import PromptTemplates
 
 
 class DirectEngine:
@@ -64,15 +65,4 @@ class DirectEngine:
         Returns:
             历史上下文字符串
         """
-        if not session_history:
-            return "无历史对话"
-
-        context = ""
-        for msg in session_history[-5:]:
-            role = msg.get("role", "")
-            content = msg.get("content", "")
-            if role and content:
-                role_name = "用户" if role == "user" else "助手"
-                context += f"{role_name}: {content}\n"
-
-        return context
+        return PromptTemplates.format_history_context(session_history, max_count=5)

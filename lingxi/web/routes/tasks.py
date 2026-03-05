@@ -1,10 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-from lingxi.web.state import get_assistant, get_websocket_manager
+from lingxi.web.state import get_assistant
+from lingxi.web.streaming import StreamEvent, EventType, create_heartbeat_sse
+from lingxi.web.stream_executor import execute_with_stream_events
+from lingxi.core.exceptions import map_exception_to_error_code
 import uuid
 import time
 import traceback
+import asyncio
 
 router = APIRouter()
 
@@ -36,6 +41,22 @@ class TaskStatusResponse(BaseModel):
     updated_at: float
 
 
+class StreamTaskRequest(BaseModel):
+    """流式执行任务请求模型"""
+    task: str
+    session_id: str = "default"
+    model_override: Optional[str] = None
+    enable_heartbeat: bool = True
+    heartbeat_interval: int = 30
+
+
+class ConfirmationResponseRequest(BaseModel):
+    """确认响应请求模型"""
+    request_id: str
+    confirmed: bool
+    reason: Optional[str] = None
+
+
 @router.post("/tasks/execute")
 async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
     """执行任务
@@ -47,7 +68,6 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
         任务执行信息
     """
     assistant = get_assistant()
-    websocket_manager = get_websocket_manager()
     if not assistant:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
@@ -70,14 +90,6 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
             "updated_at": time.time()
         }
 
-        if websocket_manager:
-            await websocket_manager.send_model_route_event(
-                request.session_id,
-                task_level,
-                model,
-                f"任务级别: {task_level}"
-            )
-
         response = assistant.process_input(request.task, request.session_id)
 
         task_info.update({
@@ -86,32 +98,12 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
             "updated_at": time.time()
         })
 
-        if websocket_manager:
-            await websocket_manager.send_task_completed_event(
-                request.session_id,
-                execution_id,
-                request.task,
-                {"content": response}
-            )
-
         return task_info
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"执行任务失败 - 错误类型: {type(e).__name__}")
         print(f"错误信息: {str(e)}")
         print(f"错误堆栈:\n{error_trace}")
-        
-        if websocket_manager:
-            await websocket_manager.send_task_failed_event(
-                request.session_id,
-                execution_id,
-                request.task,
-                {
-                    "type": "execution_error",
-                    "message": str(e),
-                    "traceback": error_trace
-                }
-            )
         raise HTTPException(status_code=500, detail=f"执行任务失败: {str(e)}\n{error_trace}")
 
 
@@ -164,7 +156,6 @@ async def retry_task(execution_id: str, request: RetryTaskRequest) -> Dict[str, 
         重试结果
     """
     assistant = get_assistant()
-    websocket_manager = get_websocket_manager()
     if not assistant:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
@@ -177,16 +168,6 @@ async def retry_task(execution_id: str, request: RetryTaskRequest) -> Dict[str, 
             checkpoint["user_input"] = request.user_input
 
         assistant.session_manager.save_checkpoint(execution_id, checkpoint)
-
-        if websocket_manager:
-            await websocket_manager.broadcast({
-                "event_type": "task_retried",
-                "data": {
-                    "execution_id": execution_id,
-                    "step_index": request.step_index,
-                    "timestamp": time.time()
-                }
-            })
 
         return {
             "success": True,
@@ -210,7 +191,6 @@ async def cancel_task(execution_id: str) -> Dict[str, Any]:
         取消结果
     """
     assistant = get_assistant()
-    websocket_manager = get_websocket_manager()
     if not assistant:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
@@ -222,15 +202,6 @@ async def cancel_task(execution_id: str) -> Dict[str, Any]:
         checkpoint["execution_status"] = "cancelled"
         assistant.session_manager.save_checkpoint(execution_id, checkpoint)
 
-        if websocket_manager:
-            await websocket_manager.broadcast({
-                "event_type": "task_cancelled",
-                "data": {
-                    "execution_id": execution_id,
-                    "timestamp": time.time()
-                }
-            })
-
         return {
             "success": True,
             "message": "任务已取消",
@@ -240,3 +211,221 @@ async def cancel_task(execution_id: str) -> Dict[str, Any]:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"取消任务失败: {str(e)}")
+
+
+@router.post("/tasks/stream")
+async def stream_task(request: Request, task_request: StreamTaskRequest):
+    """流式执行任务
+
+    Args:
+        request: FastAPI请求对象
+        task_request: 流式任务请求
+
+    Returns:
+        流式响应（SSE格式）
+    """
+    assistant = get_assistant()
+    if not assistant:
+        raise HTTPException(status_code=503, detail="助手服务未初始化")
+
+    execution_id = str(uuid.uuid4())
+
+    async def event_generator():
+        """事件生成器"""
+        try:
+            if not task_request.task:
+                yield StreamEvent.create_task_failed(
+                    execution_id,
+                    "任务内容不能为空",
+                    "INVALID_INPUT",
+                    recoverable=False
+                ).to_sse()
+                yield StreamEvent.create_stream_end().to_sse()
+                return
+
+            task_level = assistant.classifier.classify(task_request.task).get("level", "simple")
+            model = task_request.model_override or assistant.classifier.llm_client.select_model(task_level)
+
+            yield StreamEvent.create_task_start(
+                execution_id,
+                task_request.task,
+                task_level,
+                model,
+                task_request.session_id
+            ).to_sse()
+
+            session_history = assistant.session_manager.get_history(task_request.session_id) if assistant.session_manager else []
+            task_info = {
+                "level": task_level,
+                "description": task_request.task
+            }
+
+            engine = assistant.mode_selector.get_engine(mode="plan_react", session_manager=assistant.session_manager)
+
+            async for event in execute_with_stream_events(
+                engine,
+                task_request.task,
+                task_info,
+                session_history,
+                task_request.session_id,
+                execution_id,
+                stream=True
+            ):
+                if await request.is_disconnected():
+                    yield StreamEvent.create_task_cancelled(
+                        execution_id,
+                        reason="client_abort",
+                        current_step=0,
+                        completed_steps=0
+                    ).to_sse()
+                    break
+
+                event_type = event.get("type", "")
+                if event_type == "think_start":
+                    yield StreamEvent.create_think_start(
+                        execution_id,
+                        event.get("step_id", 0),
+                        event.get("content", "")
+                    ).to_sse()
+                elif event_type == "think_stream":
+                    yield StreamEvent.create_think_stream(
+                        execution_id,
+                        event.get("content", ""),
+                        event.get("step_id", 0)
+                    ).to_sse()
+                elif event_type == "think_final":
+                    yield StreamEvent.create_think_final(
+                        execution_id,
+                        event.get("content", ""),
+                        event.get("step_id", 0)
+                    ).to_sse()
+                elif event_type == "plan_start":
+                    yield StreamEvent.create_plan_start(
+                        execution_id,
+                        event.get("task_id")
+                    ).to_sse()
+                elif event_type == "plan_final":
+                    yield StreamEvent.create_plan_final(
+                        execution_id,
+                        event.get("plan", []),
+                        event.get("task_id")
+                    ).to_sse()
+                elif event_type == "step_start":
+                    yield StreamEvent.create_step_start(
+                        execution_id,
+                        event.get("step_index", 0),
+                        event.get("description", ""),
+                        event.get("task_id")
+                    ).to_sse()
+                elif event_type == "step_end":
+                    yield StreamEvent.create_step_end(
+                        execution_id,
+                        event.get("step_index", 0),
+                        event.get("result", {}),
+                        event.get("status", "success"),
+                        event.get("task_id")
+                    ).to_sse()
+                elif event_type == "task_end":
+                    yield StreamEvent.create_task_end(
+                        execution_id,
+                        event.get("result", {}),
+                        event.get("status", "completed")
+                    ).to_sse()
+                elif event_type == "task_failed":
+                    yield StreamEvent.create_task_failed(
+                        execution_id,
+                        event.get("error", "未知错误"),
+                        "EXECUTION_ERROR",
+                        event.get("traceback"),
+                        event.get("recoverable", True)
+                    ).to_sse()
+                elif event_type == "error":
+                    yield StreamEvent.create_task_failed(
+                        execution_id,
+                        event.get("message", "未知错误"),
+                        "EXECUTION_ERROR",
+                        event.get("traceback"),
+                        recoverable=True
+                    ).to_sse()
+
+            yield StreamEvent.create_stream_end().to_sse()
+
+        except asyncio.CancelledError:
+            yield StreamEvent.create_task_cancelled(
+                execution_id,
+                reason="server_abort",
+                current_step=0,
+                completed_steps=0
+            ).to_sse()
+            yield StreamEvent.create_stream_end().to_sse()
+
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            error_code, recoverable = map_exception_to_error_code(e)
+            yield StreamEvent.create_task_failed(
+                execution_id,
+                str(e),
+                error_code,
+                error_trace,
+                recoverable
+            ).to_sse()
+            yield StreamEvent.create_stream_end().to_sse()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/tasks/confirm")
+async def respond_confirmation(request: ConfirmationResponseRequest) -> Dict[str, Any]:
+    """响应对确认请求（V4.0新增）
+
+    Args:
+        request: 确认响应请求数据
+
+    Returns:
+        响应结果
+    """
+    assistant = get_assistant()
+    if not assistant:
+        raise HTTPException(status_code=503, detail="助手服务未初始化")
+
+    try:
+        # 获取当前引擎
+        engine = assistant.mode_selector.get_engine(mode="plan_react", session_manager=assistant.session_manager)
+        
+        # 处理确认响应
+        success = engine.handle_confirmation_response(
+            request.request_id,
+            request.confirmed,
+            request.reason
+        )
+        
+        if success:
+            return {
+                "success": True,
+                "message": "确认响应处理成功",
+                "request_id": request.request_id,
+                "confirmed": request.confirmed
+            }
+        else:
+            return {
+                "success": False,
+                "message": "确认响应处理失败",
+                "request_id": request.request_id
+            }
+            
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"处理确认响应失败: {str(e)}\n{error_trace}"
+        )

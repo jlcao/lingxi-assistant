@@ -1,13 +1,11 @@
 import logging
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from lingxi.__main__ import LingxiAssistant
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
-from lingxi.web.websocket import WebSocketManager
 from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions
-from lingxi.web.state import set_assistant, set_websocket_manager, get_assistant, get_websocket_manager
-from lingxi.core.event.websocket_subscriber import WebSocketSubscriber
+from lingxi.web.state import set_assistant, get_assistant
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 
 def get_config():
@@ -23,8 +21,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="灵犀智能助手",
-    description="基于FastAPI和WebSocket的智能助手服务",
-    version="0.2.0"
+    description="基于FastAPI和流式响应的智能助手服务（V4.0）",
+    version="4.0.0"
 )
 
 app.add_middleware(
@@ -53,16 +51,11 @@ async def startup_event():
     setup_logging(config)
 
     assistant = LingxiAssistant(config)
-    websocket_manager = WebSocketManager(assistant)
-    
-    # 初始化WebSocket事件订阅者
-    websocket_subscriber = WebSocketSubscriber(websocket_manager)
     
     # 初始化会话存储事件订阅者
     session_store_subscriber = SessionStoreSubscriber(assistant.session_manager)
 
     set_assistant(assistant)
-    set_websocket_manager(websocket_manager)
 
     logger.info("初始化FastAPI服务器")
     logger.info(f"服务器配置: host={config.get('web', {}).get('host')}, port={config.get('web', {}).get('port')}")
@@ -78,54 +71,15 @@ def init_app(config=None):
     pass
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket端点"""
-    websocket_manager = get_websocket_manager()
-    if not websocket_manager:
-        await websocket.close(code=1011, reason="服务器未初始化")
-        return
-
-    connection_id = await websocket_manager.connect(websocket)
-    logger.info(f"WebSocket连接建立: {connection_id}")
-
-    try:
-        while True:
-            try:
-                data = await websocket.receive_json()
-                await websocket_manager.handle_message(connection_id, data)
-            except WebSocketDisconnect as e:
-                logger.info(f"WebSocket连接断开: {connection_id}, code: {e.code}")
-                break
-            except Exception as e:
-                logger.error(f"处理消息时出错: {e}", exc_info=True)
-                try:
-                    error_msg = {
-                        "type": "error",
-                        "success": False,
-                        "error": str(e)
-                    }
-                    await websocket.send_json(error_msg)
-                except:
-                    break
-    except Exception as e:
-        logger.error(f"WebSocket连接异常: {e}", exc_info=True)
-    finally:
-        await websocket_manager.disconnect(connection_id)
-
-
 @app.get("/api/status")
 async def get_status():
     """获取服务器状态"""
     assistant = get_assistant()
-    websocket_manager = get_websocket_manager()
 
     return {
         "status": "running",
         "assistant": assistant.config.get('system', {}).get('name', '灵犀') if assistant else None,
-        "version": assistant.config.get('system', {}).get('version', '0.2.0') if assistant else None,
-        "connections": websocket_manager.get_connection_count() if websocket_manager else 0,
-        "sessions": websocket_manager.get_session_count() if websocket_manager else 0
+        "version": assistant.config.get('system', {}).get('version', '0.2.0') if assistant else None
     }
 
 
@@ -149,7 +103,6 @@ def run_server(config=None):
     port = web_config.get('port', 5000)
 
     logger.info(f"启动FastAPI服务器: http://{host}:{port}")
-    logger.info(f"WebSocket端点: ws://{host}:{port}/ws")
 
     uvicorn.run(
         "lingxi.web.fastapi_server:app",

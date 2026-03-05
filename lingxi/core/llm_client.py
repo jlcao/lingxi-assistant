@@ -29,6 +29,9 @@ class LLMClient:
         self.retry_count = self.llm_config.get("retry_count", 2)
         self.retry_delay = self.llm_config.get("retry_delay", 1)
 
+        # 存储最近的 Token 使用信息
+        self.last_usage = None
+
         self._init_client()
 
         self.logger.debug(f"初始化LLM客户端: {self.provider}")
@@ -72,9 +75,14 @@ class LLMClient:
         """
         if task_level in self.models_config:
             model_config = self.models_config[task_level]
-            model_name = model_config.get("model", self.default_model)
-            self.logger.debug(f"任务级别: {task_level}, 选择模型: {model_name}")
-            return model_name
+            if isinstance(model_config, dict):
+                model_name = model_config.get("model", self.default_model)
+                self.logger.debug(f"任务级别: {task_level}, 选择模型: {model_name}")
+                return model_name
+            else:
+                model_name = str(model_config)
+                self.logger.debug(f"任务级别: {task_level}, 选择模型: {model_name}")
+                return model_name
         self.logger.debug(f"任务级别: {task_level}, 使用默认模型: {self.default_model}")
         return self.default_model
 
@@ -88,9 +96,13 @@ class LLMClient:
             模型配置字典
         """
         if task_level in self.models_config:
-            config = self.models_config[task_level].copy()
-            config["model"] = config.get("model", self.default_model)
-            return config
+            config = self.models_config[task_level]
+            if isinstance(config, dict):
+                config = config.copy()
+                config["model"] = config.get("model", self.default_model)
+                return config
+            else:
+                return {"model": str(config)}
         return {"model": self.default_model}
 
     def complete(self, prompt: str, task_level: str = None, stream: bool = False, **kwargs) -> Union[str, Any]:
@@ -192,7 +204,7 @@ class LLMClient:
         """
         return self.chat_complete(messages, task_level, stream=True, **kwargs)
 
-    def chat_complete_with_cache(self, messages: List[Union[Dict[str, str], Dict[str, Any]]], task_level: str = None, stream: bool = False, **kwargs) -> Union[str, Any]:
+    def chat_complete_with_cache(self, messages: List[Union[Dict[str, str], Dict[str, Any]]], task_level: str = None, stream: bool = False, **kwargs) -> Union[str, Any, tuple]:
         """聊天完成（支持上下文缓存）
 
         Args:
@@ -203,6 +215,8 @@ class LLMClient:
 
         Returns:
             生成的文本（非流式）或流式响应对象（流式）
+            如果 stream=False，返回 (content, usage) 元组
+            如果 stream=True，返回流式响应对象
 
         Raises:
             Exception: 当API调用失败时
@@ -211,15 +225,23 @@ class LLMClient:
 
         try:
             if self.provider == "openai":
-                return self._openai_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
+                result = self._openai_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
             elif self.provider == "dashscope":
-                return self._dashscope_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
+                result = self._dashscope_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
             elif self.provider == "azure":
-                return self._azure_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
+                result = self._azure_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
             elif self.provider == "google":
-                return self._google_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
+                result = self._google_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
             else:
-                return self._mock_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
+                result = self._mock_chat_complete_with_cache(messages, task_level, stream=stream, **kwargs)
+
+            # 如果不是流式模式，且返回的是元组，则提取 usage
+            if not stream and isinstance(result, tuple):
+                content, usage = result
+                self.last_usage = usage
+                return content
+
+            return result
 
         except Exception as e:
             self.logger.error(f"聊天完成（带缓存）失败: {e}")
@@ -551,7 +573,7 @@ class LLMClient:
             return response.choices[0].message.content
         return response
 
-    def _openai_chat_complete_with_cache(self, messages: List[Union[Dict[str, str], Dict[str, Any]]], task_level: str = None, stream: bool = False, **kwargs) -> Union[str, Any]:
+    def _openai_chat_complete_with_cache(self, messages: List[Union[Dict[str, str], Dict[str, Any]]], task_level: str = None, stream: bool = False, **kwargs) -> Union[str, Any, tuple]:
         """使用OpenAI API聊天完成（支持上下文缓存）
 
         Args:
@@ -562,6 +584,8 @@ class LLMClient:
 
         Returns:
             生成的文本（非流式）或流式响应对象（流式）
+            如果 stream=False，返回 (content, usage) 元组
+            如果 stream=True，返回流式响应对象
         """
         model = self.select_model(task_level) if task_level else self.model
         model_config = self.get_model_config(task_level) if task_level else {}
@@ -584,7 +608,11 @@ class LLMClient:
         )
 
         if not stream:
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            usage = response.usage if hasattr(response, 'usage') else None
+            if usage:
+                self.logger.debug(f"Token 使用: input={usage.prompt_tokens}, output={usage.completion_tokens}, total={usage.total_tokens}")
+            return (content, usage)
         return response
 
     def _dashscope_chat_complete(self, messages: List[Dict[str, str]], task_level: str = None, stream: bool = False, **kwargs) -> Union[str, Any]:

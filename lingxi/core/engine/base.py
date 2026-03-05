@@ -3,6 +3,7 @@ import time
 import json
 import uuid
 import threading
+import asyncio
 from typing import Dict, List, Optional, Any, Union, Generator
 from lingxi.core.llm_client import LLMClient
 from lingxi.core.skill_caller import SkillCaller
@@ -10,6 +11,8 @@ from lingxi.core.session import SessionManager
 from lingxi.core.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.context import set_ids, local_context
+from lingxi.core.security import SecurityError
+from lingxi.core.confirmation import ConfirmationManager, DangerousSkillChecker, RiskLevel
 from .utils import parse_llm_response, parse_action_parameters, process_parameters, calculate_expression
 from lingxi.utils.json_parser import stream_with_thought_only
 
@@ -31,6 +34,13 @@ class BaseEngine:
         self.websocket_manager = websocket_manager
         self.llm_client = LLMClient(config)
         self.logger = logging.getLogger(__name__)
+        
+        # 初始化确认管理器（V4.0新增）
+        security_config = config.get("security", {})
+        self.confirmation_manager = ConfirmationManager(
+            timeout=security_config.get("confirmation_timeout", 60),
+            auto_reject_timeout=security_config.get("auto_reject_timeout", True)
+        )
 
     def process(self, user_input: str, task_info: Dict[str, Any], session_history: List[Dict[str, str]] = None, 
                 session_id: str = "default", stream: bool = False) -> Union[str, Generator[Dict[str, Any], None, None]]:
@@ -101,12 +111,71 @@ class BaseEngine:
                 # action_input 已经是字典（对象）
                 parameters = action_input if isinstance(action_input, dict) else {}
             
-            result = self.skill_caller.call(action, parameters)
+            # 检查是否为高危操作（V4.0新增）
+            skill_risk = DangerousSkillChecker.check_skill_risk(action)
+            command_risk = RiskLevel.LOW
+            
+            if action == "system.exec" and isinstance(parameters.get("command"), str):
+                command_risk = DangerousSkillChecker.check_command_risk(parameters["command"])
+            
+            # 如果是高危操作，需要用户确认
+            if skill_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL] or command_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+                self.logger.info(f"检测到高危操作: {action}, 风险级别: {skill_risk.value if skill_risk != RiskLevel.LOW else command_risk.value}")
+                
+                # 创建确认请求
+                request = self.confirmation_manager.create_request(
+                    operation=action,
+                    description=f"参数: {parameters}",
+                    risk_level=skill_risk if skill_risk != RiskLevel.LOW else command_risk,
+                    metadata={"parameters": parameters}
+                )
+                
+                # 发送确认请求事件
+                global_event_publisher.publish(
+                    "require_confirmation",
+                    {
+                        "request_id": request.request_id,
+                        "operation": action,
+                        "description": f"参数: {parameters}",
+                        "risk_level": request.risk_level.value,
+                        "timeout": request.timeout
+                    }
+                )
+                
+                # 等待用户确认
+                try:
+                    confirmed = asyncio.run(self.confirmation_manager.wait_for_confirmation(request.request_id))
+                    
+                    if not confirmed:
+                        self.logger.warning(f"用户拒绝高危操作: {action}")
+                        return f"{action} 操作已被用户拒绝"
+                    
+                    self.logger.info(f"用户确认高危操作: {action}")
+                except Exception as e:
+                    self.logger.error(f"等待确认失败: {e}")
+                    return f"{action} 确认失败: {str(e)}"
+            
+            # 使用带安全检查的技能调用
+            result = self.skill_caller.call_with_security_check(
+                action,
+                parameters,
+                require_confirmation=False
+            )
 
             if result.get("success"):
                 return action + " " + result.get("result", "执行成功")
             else:
-                return action + " " + f"执行失败: {result.get('error', '未知错误')}"
+                error_msg = result.get('error', '未知错误')
+                error_code = result.get('error_code', '')
+                
+                # 如果是安全错误，返回详细信息
+                if error_code:
+                    return f"{action} 执行失败: {error_msg} (错误码: {error_code})"
+                else:
+                    return action + " " + f"执行失败: {error_msg}"
+        except SecurityError as e:
+            self.logger.error(f"安全检查失败: {e}")
+            return f"{action} 安全检查失败: {str(e)} (错误码: {e.error_code})"
         except Exception as e:
             self.logger.error(f"执行行动失败: {e}")
             return action + " " + f"执行失败: {str(e)}"
@@ -350,6 +419,30 @@ class BaseEngine:
             error=error
         )
 
+    def handle_confirmation_response(self, request_id: str, confirmed: bool, reason: Optional[str] = None) -> bool:
+        """处理客户端确认响应（V4.0新增）
+
+        Args:
+            request_id: 确认请求ID
+            confirmed: 是否确认
+            reason: 拒绝原因（可选）
+
+        Returns:
+            是否成功处理
+        """
+        if not hasattr(self, 'confirmation_manager'):
+            self.logger.warning("确认管理器未初始化")
+            return False
+        
+        success = self.confirmation_manager.respond_confirmation(request_id, confirmed, reason)
+        
+        if success:
+            self.logger.info(f"确认响应处理成功: request_id={request_id}, confirmed={confirmed}")
+        else:
+            self.logger.warning(f"确认响应处理失败: request_id={request_id}")
+        
+        return success
+
     def _process_llm_response(self, messages: List[Dict[str, Any]], task_level: str, stream: bool) -> Generator[Dict[str, Any], None, None]:
         """处理LLM响应
 
@@ -400,10 +493,20 @@ class BaseEngine:
                 "response": full_response
             }
         else:
-            response = self.llm_client.chat_complete_with_cache(messages, task_level=task_level)
+            result = self.llm_client.chat_complete_with_cache(messages, task_level=task_level)
+            
+            # 如果返回的是元组，说明包含 usage 信息
+            if isinstance(result, tuple):
+                response, usage = result
+                self.logger.debug(f"LLM 响应包含 Token 使用信息: {usage}")
+            else:
+                response = result
+                usage = None
+            
             yield {
                 "type": "complete",
-                "response": response
+                "response": response,
+                "usage": usage
             }
 
     def _handle_finish_action(self, parsed: Dict[str, Any], steps: List[Dict[str, Any]]):

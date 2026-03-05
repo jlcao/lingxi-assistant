@@ -1,3 +1,13 @@
+export interface ApiResponse<T> {
+  code: number
+  message: string
+  data: T
+  error?: {
+    error_code: string
+    error_detail: string
+  }
+}
+
 export interface Session {
   id: string
   name: string
@@ -51,17 +61,6 @@ export interface ModelRoute {
   canOverride: boolean
 }
 
-export interface Step {
-  stepIndex: number
-  name: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
-  retryCount: number
-  maxRetries: number
-  startTime?: number
-  endTime?: number
-  error?: StepError
-}
-
 export interface StepError {
   message: string
   type: string
@@ -69,45 +68,110 @@ export interface StepError {
   requiresIntervention: boolean
 }
 
+export type UUID = string
+export type Timestamp = number
+export type DateTime = string
+
+export interface SessionDetail {
+  session_id: UUID
+  user_name: string
+  title: string
+  current_task_id: UUID | null
+  total_tokens: number
+  created_at: DateTime
+  updated_at: DateTime
+  current_task?: TaskSummary
+}
+
+export interface TaskSummary {
+  task_id: UUID
+  task_type: 'simple' | 'complex' | 'trivial'
+  user_input: string
+  status: 'running' | 'completed' | 'failed' | 'paused'
+  current_step_idx: number
+  total_steps: number
+  created_at: DateTime
+}
+
+export interface HistoryItem {
+  task_id: UUID
+  role: 'user' | 'assistant'
+  content: string
+  task_type: 'simple' | 'complex' | 'trivial'
+  status: string
+  timestamp: Timestamp
+  steps?: Step[]
+}
+
 export interface ExecutionResult {
-  executionId: string
-  sessionId: string
-  status: 'running' | 'completed' | 'failed' | 'cancelled'
-  result?: string
-  error?: string
+  execution_id: UUID
+  task: string
+  task_level: 'trivial' | 'simple' | 'complex'
+  model: string
+  status: 'running' | 'queued' | 'completed' | 'failed'
+  estimated_duration: number
+  created_at: Timestamp
 }
 
 export interface ExecutionStatus {
-  executionId: string
-  sessionId: string
-  status: 'running' | 'completed' | 'failed' | 'cancelled'
+  execution_id: UUID
+  task: string
+  task_level: 'trivial' | 'simple' | 'complex'
+  model: string
+  status: 'running' | 'completed' | 'failed' | 'paused' | 'cancelled'
+  current_step: number
+  total_steps: number
   progress: number
-  currentStep?: number
-  totalSteps?: number
-  result?: string
-  error?: string
+  result?: {
+    content: string
+    thought_chain: any[]
+    steps: any[]
+  }
+  error?: {
+    error: string
+    error_code: string
+    traceback: string
+  }
+  input_tokens: number
+  output_tokens: number
+  created_at: Timestamp
+  updated_at: Timestamp
+}
+
+export interface Step {
+  step_id: UUID
+  step_index: number
+  step_type: 'thinking' | 'action'
+  description: string
+  thought: string
+  result: string
+  skill_call: string | null
+  status: 'completed' | 'failed' | 'running'
+  created_at: DateTime
 }
 
 export interface Checkpoint {
-  sessionId: string
-  sessionName: string
-  createdAt: number
-  expiresAt: number
-  executionId: string
-  stepIndex: number
-  context: Record<string, any>
+  session_id: UUID
+  task_id: UUID
+  task: string
+  task_level: 'simple' | 'complex'
+  current_step: number
+  total_steps: number
+  execution_status: 'paused' | 'running'
+  paused_reason: 'user_request' | 'error' | 'timeout'
+  created_at: DateTime
+  updated_at: DateTime
 }
 
 export interface Skill {
-  id: string
+  skill_id: string
   name: string
   description: string
   version: string
   author: string
-  icon?: string
-  status: 'available' | 'error' | 'loading'
+  status: 'available' | 'error' | 'installed'
   manifest: SkillManifest
-  lastUsed?: number
+  installed_at?: DateTime
 }
 
 export interface SkillManifest {
@@ -116,72 +180,73 @@ export interface SkillManifest {
   description: string
   author: string
   dependencies?: string[]
-  parameters?: SkillParameter[]
-}
-
-export interface SkillParameter {
-  name: string
-  type: string
-  required: boolean
-  description: string
-  default?: any
-}
-
-export interface InstallResult {
-  success: boolean
-  skillId: string
-  error?: string
+  entry_point: string
 }
 
 export interface DiagnosticResult {
-  skillId: string
-  status: 'healthy' | 'warning' | 'error'
-  issues: DiagnosticIssue[]
-  suggestions: string[]
+  skill_id: string
+  status: 'error' | 'healthy'
+  diagnostic_result: {
+    error_type: 'missing_dependency' | 'invalid_manifest' | 'runtime_error'
+    error_message: string
+    fix_suggestion: string
+    can_auto_fix: boolean
+    dependencies?: Dependency[]
+  }
 }
 
-export interface DiagnosticIssue {
-  severity: 'error' | 'warning' | 'info'
-  message: string
-  location?: string
+export interface Dependency {
+  name: string
+  required: string
+  installed: boolean
 }
 
 export interface ResourceUsage {
-  cpu: number
-  memory: number
-  disk: number
-  tokens: TokenUsage
-  network?: NetworkUsage
-}
-
-export interface TokenUsage {
-  current: number
-  limit: number
-  percentage: number
-  breakdown: TokenBreakdown[]
-}
-
-export interface TokenBreakdown {
-  category: string
-  count: number
-  percentage: number
-}
-
-export interface NetworkUsage {
-  upload: number
-  download: number
+  system: {
+    cpu_percent: number
+    memory_percent: number
+    disk_percent: number
+  }
+  token_usage: {
+    current: number
+    limit: number
+    percent: number
+    daily_limit: number
+    daily_used: number
+  }
+  tasks: {
+    running: number
+    queued: number
+    completed_today: number
+  }
+  skills: {
+    total: number
+    available: number
+    error: number
+  }
 }
 
 export interface Config {
-  apiUrl: string
-  wsUrl: string
-  model: string
-  maxTokens: number
-  timeout: number
-  theme: 'light' | 'dark' | 'auto'
-  language: string
-  autoSave: boolean
-  checkpointExpiry: number
+  llm: {
+    model: string
+    api_key: string
+    base_url: string
+    timeout: number
+    max_retries: number
+  }
+  execution: {
+    max_steps: number
+    max_replan_count: number
+    enable_streaming: boolean
+  }
+  storage: {
+    db_path: string
+    enable_checkpoint: boolean
+  }
+  logging: {
+    level: string
+    log_file: string
+  }
 }
 
 export interface FileFilter {
@@ -226,3 +291,167 @@ export interface TaskFailedData {
   error: string
   stepIndex?: number
 }
+
+export interface TaskStartEvent {
+  event_type: 'task_start'
+  data: {
+    execution_id: UUID
+    task: string
+    task_level: 'trivial' | 'simple' | 'complex'
+    model: string
+  }
+}
+
+export interface PlanStartEvent {
+  event_type: 'plan_start'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+  }
+}
+
+export interface ThinkStartEvent {
+  event_type: 'think_start'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    step_id: UUID
+    content: string
+  }
+}
+
+export interface ThinkStreamEvent {
+  event_type: 'think_stream'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    step_id: UUID
+    content: string
+  }
+}
+
+export interface ThinkFinalEvent {
+  event_type: 'think_final'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    step_id: UUID
+    thought: string
+  }
+}
+
+export interface PlanFinalEvent {
+  event_type: 'plan_final'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    plan: any[]
+  }
+}
+
+export interface StepStartEvent {
+  event_type: 'step_start'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    step_id: UUID
+    step_index: number
+    description: string
+  }
+}
+
+export interface StepEndEvent {
+  event_type: 'step_end'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    step_id: UUID
+    step_index: number
+    result: any
+    status: string
+  }
+}
+
+export interface TaskEndEvent {
+  event_type: 'task_end'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    result: any
+    status: string
+  }
+}
+
+export interface TaskFailedEvent {
+  event_type: 'task_failed'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    error: string
+    error_code: string
+    traceback?: string
+    recoverable?: boolean
+  }
+}
+
+export interface TaskCancelledEvent {
+  event_type: 'task_cancelled'
+  data: {
+    execution_id: UUID
+    task_id: UUID
+    cancelled_at: Timestamp
+    reason: 'client_abort' | 'server_abort' | 'timeout' | 'resource_limit'
+    current_step: number
+    completed_steps: number
+    can_resume: boolean
+  }
+}
+
+export interface PingEvent {
+  event_type: 'ping'
+  data: {
+    timestamp: number
+  }
+}
+
+export interface StreamEndEvent {
+  event_type: 'stream_end'
+  data: {}
+}
+
+export type SSEEvent =
+  | TaskStartEvent
+  | PlanStartEvent
+  | ThinkStartEvent
+  | ThinkStreamEvent
+  | ThinkFinalEvent
+  | PlanFinalEvent
+  | StepStartEvent
+  | StepEndEvent
+  | TaskEndEvent
+  | TaskFailedEvent
+  | TaskCancelledEvent
+  | PingEvent
+  | StreamEndEvent
+
+export type CommonErrorCode =
+  | 'INVALID_PARAMETER'
+  | 'RESOURCE_NOT_FOUND'
+  | 'INTERNAL_ERROR'
+  | 'UNAUTHORIZED'
+
+export type TaskErrorCode =
+  | 'LLM_RATE_LIMIT'
+  | 'LLM_TIMEOUT'
+  | 'SKILL_EXECUTION'
+  | 'DATABASE_LOCKED'
+  | 'TASK_CANCELLED'
+  | 'UNKNOWN'
+
+export type SkillErrorCode =
+  | 'SKILL_NOT_FOUND'
+  | 'SKILL_ALREADY_INSTALLED'
+  | 'MISSING_DEPENDENCY'
+  | 'INVALID_MANIFEST'
+
+export type ErrorCode = CommonErrorCode | TaskErrorCode | SkillErrorCode

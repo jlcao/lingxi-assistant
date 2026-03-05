@@ -1,4 +1,4 @@
-import { BrowserWindow, app, screen, Tray, nativeImage } from 'electron'
+import { BrowserWindow, screen, Tray, nativeImage } from 'electron'
 import path from 'path'
 
 export class WindowManager {
@@ -9,8 +9,6 @@ export class WindowManager {
   private edgeHideTimeout: NodeJS.Timeout | null = null
 
   createMainWindow(): BrowserWindow {
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize
-
     this.mainWindow = new BrowserWindow({
       width: 1200,
       height: 900,

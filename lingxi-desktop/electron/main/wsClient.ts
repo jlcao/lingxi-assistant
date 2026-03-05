@@ -4,10 +4,8 @@ import type {
   ThoughtChainData,
   StepStatusData,
   SkillCallData,
-  ModelRouteData,
-  TaskCompletedData,
-  TaskFailedData
-} from '../types'
+  ModelRouteData
+} from '../../src/types'
 
 export class WsClient extends EventEmitter {
   private ws: WebSocket | null = null
@@ -254,7 +252,8 @@ export class WsClient extends EventEmitter {
     this.on('task_failed', callback)
   }
 
-  off(eventType: string, callback: Function): void {
+  off(eventType: string, callback: (...args: any[]) => void): this {
     this.removeListener(eventType, callback)
+    return this
   }
 }

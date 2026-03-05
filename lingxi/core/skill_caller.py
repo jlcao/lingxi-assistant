@@ -3,6 +3,7 @@ import json
 from typing import Dict, List, Optional, Any
 from lingxi.skills.registry import SkillRegistry
 from lingxi.skills.builtin import BuiltinSkills
+from lingxi.core.security import SecuritySandbox, SecurityError
 
 
 class SkillCaller:
@@ -26,6 +27,15 @@ class SkillCaller:
         self.builtin_skills = BuiltinSkills(config)
         # 使用技能管理器的注册表，避免创建两个独立的实例
         self.skill_registry = self.builtin_skills.registry
+
+        # 初始化安全沙箱（V4.0新增）
+        security_config = config.get("security", {})
+        self.sandbox = SecuritySandbox(
+            workspace_root=security_config.get("workspace_root", "./workspace"),
+            max_file_size=security_config.get("max_file_size", 10 * 1024 * 1024),
+            allowed_commands=security_config.get("allowed_commands"),
+            safety_mode=security_config.get("safety_mode", True)
+        )
 
         self.logger.debug("初始化能力调用层")
 
@@ -97,6 +107,113 @@ class SkillCaller:
             技能列表
         """
         return self.skill_registry.list_skills(enabled_only=enabled_only)
+
+    def call_with_security_check(
+        self,
+        skill_name: str,
+        parameters: Dict[str, Any] = None,
+        require_confirmation: bool = False
+    ) -> Dict[str, Any]:
+        """调用技能（带安全检查）
+
+        Args:
+            skill_name: 技能名称
+            parameters: 技能参数
+            require_confirmation: 是否需要确认
+
+        Returns:
+            调用结果
+
+        Raises:
+            SecurityError: 安全检查失败
+        """
+        if parameters is None:
+            parameters = {}
+
+        self.logger.debug(f"调用技能（安全检查）: {skill_name} - {parameters}")
+
+        skill_info = self.skill_registry.get_skill(skill_name)
+
+        if not skill_info:
+            error_msg = f"技能不存在: {skill_name}"
+            self.logger.warning(error_msg)
+            return {"success": False, "error": error_msg}
+
+        if not skill_info.get("enabled", True):
+            error_msg = f"技能未启用: {skill_name}"
+            self.logger.warning(error_msg)
+            return {"success": False, "error": error_msg}
+
+        try:
+            result = self._execute_with_security_check(
+                skill_name,
+                parameters,
+                require_confirmation
+            )
+            return {"success": True, "result": result}
+        except SecurityError as e:
+            self.logger.error(f"安全检查失败: {e}")
+            return {"success": False, "error": str(e), "error_code": e.error_code}
+        except Exception as e:
+            self.logger.error(f"技能调用失败: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _execute_with_security_check(
+        self,
+        skill_name: str,
+        parameters: Dict[str, Any],
+        require_confirmation: bool
+    ) -> str:
+        """执行技能（带安全检查）
+
+        Args:
+            skill_name: 技能名称
+            parameters: 技能参数
+            require_confirmation: 是否需要确认
+
+        Returns:
+            执行结果
+
+        Raises:
+            SecurityError: 安全检查失败
+        """
+        from lingxi.core.confirmation import DangerousSkillChecker, RiskLevel
+
+        skill_risk = DangerousSkillChecker.check_skill_risk(skill_name)
+
+        if skill_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
+            if not require_confirmation:
+                error_msg = (
+                    f"高危操作需要用户确认：{skill_name}\n"
+                    f"风险级别：{DangerousSkillChecker.get_risk_description(skill_risk)}"
+                )
+                raise SecurityError(error_msg, "DANGEROUS_OPERATION")
+
+        if skill_name == "file.read":
+            file_path = parameters.get("file_path")
+            if file_path:
+                return self.sandbox.safe_read(file_path)
+
+        elif skill_name == "file.write":
+            file_path = parameters.get("file_path")
+            content = parameters.get("content", "")
+            overwrite = parameters.get("overwrite", False)
+            if file_path:
+                return self.sandbox.safe_write(file_path, content, overwrite)
+
+        elif skill_name == "file.delete":
+            file_path = parameters.get("file_path")
+            if file_path:
+                return self.sandbox.safe_delete(file_path)
+
+        elif skill_name == "system.exec":
+            command = parameters.get("command")
+            timeout = parameters.get("timeout", 30)
+            cwd = parameters.get("cwd")
+            if command:
+                return self.sandbox.safe_exec(command, timeout, cwd)
+
+        return self._execute_with_retry(skill_name, parameters)
 
     def get_skill_info(self, skill_name: str) -> Optional[Dict[str, Any]]:
         """获取技能信息

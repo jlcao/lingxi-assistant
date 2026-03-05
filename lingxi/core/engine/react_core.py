@@ -119,7 +119,7 @@ finish(answer) - 完成任务并返回答案
 
     def _execute_step(self, step: int, messages: List[Dict[str, Any]], task_level: str,
                       session_id: str, execution_id: str, steps: List[Dict[str, Any]],
-                      stream: bool = True):
+                      stream: bool = True) -> Dict[str, Any]:
         """执行单个步骤
 
         Args:
@@ -130,17 +130,22 @@ finish(answer) - 完成任务并返回答案
             execution_id: 执行ID
             steps: 已执行步骤
             stream: 是否流式输出
+
+        Returns:
+            包含解析结果和 Token 使用信息的字典
         """
         self._build_step_messages(messages, steps)
         self.logger.debug(f"生成思考和行动（stream={stream}")
 
         full_response = ""
+        usage = None
         for response_chunk in self._process_llm_response(messages, task_level, stream):
             if response_chunk["type"] == "thought_chunk":
                 content = response_chunk["content"]
                 self._publish_think_stream(session_id, execution_id, step, content)
             elif response_chunk["type"] == "complete":
                 full_response = response_chunk["response"]
+                usage = response_chunk.get("usage")
                 break
 
         parsed = self._parse_response(full_response)
@@ -150,7 +155,7 @@ finish(answer) - 完成任务并返回答案
             self._publish_step_end(session_id, execution_id, step, "failed", None, "无法解析LLM响应",
                                    parsed.get("thought", ""), parsed.get("description", ""))
             self._publish_task_failed(session_id, execution_id, "无法解析LLM响应")
-            return parsed
+            return {"parsed": parsed, "usage": usage}
 
         if parsed.get("action") == "finish":
             final_answer = parsed.get("action_input", "")
@@ -159,28 +164,29 @@ finish(answer) - 完成任务并返回答案
             # 注意：task_end 事件由调用方 _execute_task_stream 统一发布，这里不再重复发布
 
             self._handle_finish_action(parsed, steps)
-            return parsed
+            return {"parsed": parsed, "usage": usage}
 
         chunk = self._handle_step_complete(parsed, step)
         observation = chunk.get("observation", "")
         self._publish_step_end(session_id, execution_id, step, "completed", None, observation, parsed.get("thought"),
                                parsed.get("description"))
-        return parsed
+        return {"parsed": parsed, "usage": usage}
 
-    def _execute_task_stream(self, user_input: str,task_plan: List[str], task_info: Dict[str, Any], history: List[Dict[str, str]],
-                             session_id: str, execution_id: str, stream: bool) -> dict:
+    def _execute_task_stream(self, user_input: str, task_plan: List[str], task_info: Dict[str, Any], history: List[Dict[str, str]],
+                             session_id: str, execution_id: str, stream: bool) -> Generator[Dict[str, Any], None, None]:
         """执行任务（流式）
 
         Args:
             user_input: 用户输入
+            task_plan: 任务计划列表
             task_info: 任务信息
             history: 会话历史
             session_id: 会话ID
             execution_id: 执行ID
             stream: 是否启用流式输出
 
-        Returns:
-            流式响应生成器
+        Yields:
+            流式响应块
         """
         self.logger.debug(f"ReAct处理任务: {task_info.get('task_type')} (stream={stream})")
         self.logger.debug(f"用户输入: {user_input}")
@@ -191,18 +197,44 @@ finish(answer) - 完成任务并返回答案
 
         messages = self._build_initial_messages(user_input, task_plan, task_info, history_context)
         steps = []
+        
+        # Token 统计
+        total_input_tokens = 0
+        total_output_tokens = 0
 
         for step in range(self.max_steps):
             self.logger.debug(f"步骤 {step + 1}/{self.max_steps}")
             self._publish_step_start(session_id, execution_id, step, self.max_steps)
-            res = self._execute_step(step, messages, task_level, session_id, execution_id, steps, stream=stream)
+            step_result = self._execute_step(step, messages, task_level, session_id, execution_id, steps, stream=stream)
+            
+            # 收集 Token 使用信息
+            if step_result and "usage" in step_result:
+                usage = step_result["usage"]
+                if usage:
+                    input_tokens = getattr(usage, "prompt_tokens", 0)
+                    output_tokens = getattr(usage, "completion_tokens", 0)
+                    total_input_tokens += input_tokens
+                    total_output_tokens += output_tokens
+                    self.logger.debug(f"步骤 {step + 1} Token 使用: input={input_tokens}, output={output_tokens}")
+            
+            # 提取 parsed 结果
+            res = step_result.get("parsed") if step_result else None
             steps.append(res)
 
             # 如果已经执行了finish动作，结束循环
             if res and res.get("action") == "finish":
                 self.logger.debug("检测到finish动作，结束任务执行")
                 self._publish_task_end(session_id, execution_id, res.get("action_input", ""))
-                return {"session_id": session_id, "execution_id": execution_id, "final_response": res.get("action_input", "")}    
+                
+                # 更新 Token 统计
+                task_id = task_info.get("task_id")
+                if task_id:
+                    self.session_manager.update_task_tokens(task_id, total_input_tokens, total_output_tokens)
+                    self.session_manager.update_session_tokens(session_id, total_input_tokens, total_output_tokens)
+                    self.logger.debug(f"任务 Token 总计: input={total_input_tokens}, output={total_output_tokens}")
+                
+                yield {"type": "task_end", "result": res.get("action_input", "")}
+                return    
       
 
     def process(self, user_input: str, task_info: Dict[str, Any], session_history: List[Dict[str, str]] = None,
