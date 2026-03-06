@@ -39,7 +39,7 @@
           <div class="steps-list">
             <div v-for="(step, index) in turn.steps" :key="index" class="step-item" :class="step.status">
               <div class="step-header" @click="toggleStepExpand(turn.id, index)">
-                <span class="step-index">{{ step.step_index + 1 }}.</span>
+                <span class="step-index">{{ (step.step_index ?? index) + 1 }}.</span>
                 <span class="step-description">{{ step.description }}</span>
                 <span class="step-status">{{ step.status === 'running' ? '执行中' : step.status === 'completed' ? '已完成' : '失败' }}</span>
                 <span class="step-expand-icon">{{ isStepExpanded(turn.id, index) ? '▼' : '▶' }}</span>

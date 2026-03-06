@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-灵犀智能助手 - WebSocket服务器启动脚本
+灵犀智能助手 - 异步 WebSocket 服务器启动脚本
+
+全链路异步架构，支持高并发 WebSocket 连接
 """
+
 import sys
 import os
 import argparse
@@ -19,14 +22,22 @@ from lingxi.core.event.websocket_subscriber import WebSocketSubscriber
 
 
 def main():
-    """启动WebSocket服务器"""
-    parser = argparse.ArgumentParser(description="灵犀智能助手 - WebSocket服务器")
+    """启动异步 WebSocket 服务器"""
+    parser = argparse.ArgumentParser(description="灵犀智能助手 - 异步 WebSocket 服务器")
     parser.add_argument("--reload", action="store_true", help="启用自动重载（开发模式）")
+    parser.add_argument("--host", type=str, help="服务器地址")
+    parser.add_argument("--port", type=int, help="服务器端口")
     args = parser.parse_args()
 
     print("=" * 60)
-    print("灵犀智能助手 - WebSocket服务器")
+    print("灵犀智能助手 - 异步 WebSocket 服务器")
     print("=" * 60)
+    print()
+    print("🚀 全链路异步架构")
+    print("   • 异步 LLM 客户端 (httpx)")
+    print("   • 异步引擎核心 (asyncio)")
+    print("   • 异步 WebSocket 处理")
+    print("   • 支持高并发连接")
     print()
 
     config = get_config()
@@ -34,23 +45,30 @@ def main():
     host = web_config.get('host', 'localhost')
     port = web_config.get('port', 5000)
 
-    # 如果命令行参数指定了reload，覆盖配置文件中的设置
+    # 命令行参数优先
+    if args.host:
+        host = args.host
+    if args.port:
+        port = args.port
+
+    # 如果命令行参数指定了 reload，覆盖配置文件中的设置
     if args.reload:
         web_config['debug'] = True
-        print("开发模式已启用：文件修改后会自动重载")
+        print("🔧 开发模式已启用：文件修改后会自动重载")
         print()
 
-    print(f"服务器地址: http://{host}:{port}")
-    print(f"WebSocket 端点：ws://{host}:{port}/ws")
-    print(f"Web 界面：http://{host}:{port}/static/index.html")
-    print(f"API 文档：http://{host}:{port}/docs")
+    print(f"🌐 服务器地址：http://{host}:{port}")
+    print(f"📡 WebSocket 端点：ws://{host}:{port}/ws")
+    print(f"🖥️  Web 界面：http://{host}:{port}/static/index.html")
+    print(f"📚 API 文档：http://{host}:{port}/docs")
     print()
     print("按 Ctrl+C 停止服务器")
     print("=" * 60)
     print()
 
-    # 初始化助手和 WebSocket 管理器
+    # 初始化异步助手和 WebSocket 管理器
     try:
+        print("正在初始化异步组件...")
         assistant = AsyncLingxiAssistant(config)
         set_assistant(assistant)
         
@@ -61,21 +79,25 @@ def main():
         # 初始化 WebSocket 事件订阅者
         websocket_subscriber = WebSocketSubscriber(websocket_manager)
         
-        print("异步助手已初始化")
-        print("WebSocket 事件推送：已启用（全异步）")
+        print("✅ 异步助手已初始化")
+        print("✅ WebSocket 事件推送：已启用（全异步）")
+        print("✅ 事件循环：非阻塞")
         print()
     except Exception as e:
-        print(f"初始化失败：{e}")
+        print(f"❌ 初始化失败：{e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
 
     try:
+        print("正在启动服务器...")
         run_server(config)
     except KeyboardInterrupt:
         print("\n\n服务器已停止")
     except Exception as e:
-        print(f"\n\n服务器启动失败：{e}")
+        print(f"\n\n❌ 服务器启动失败：{e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

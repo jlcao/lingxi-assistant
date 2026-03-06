@@ -3,7 +3,7 @@ import json
 import asyncio
 from typing import Dict, Set, Any, Optional, Callable
 from fastapi import WebSocket, WebSocketDisconnect
-from lingxi.__main__ import LingxiAssistant
+from lingxi.core.async_main import AsyncLingxiAssistant
 
 logger = logging.getLogger(__name__)
 
@@ -149,13 +149,13 @@ class WebSocketConnection:
 
 
 class WebSocketManager:
-    """WebSocket连接管理器（增强版）"""
+    """WebSocket 连接管理器（增强版，支持异步）"""
 
-    def __init__(self, assistant: LingxiAssistant):
-        """初始化WebSocket管理器
+    def __init__(self, assistant: AsyncLingxiAssistant):
+        """初始化 WebSocket 管理器
 
         Args:
-            assistant: 灵犀助手实例
+            assistant: 异步灵犀助手实例
         """
         self.active_connections: Dict[str, WebSocketConnection] = {}
         self.session_connections: Dict[str, Set[str]] = {}
@@ -163,24 +163,28 @@ class WebSocketManager:
         self.connection_counter = 0
         self.stream_callbacks: Dict[str, Callable] = {}
 
-    async def connect(self, websocket: WebSocket) -> str:
-        """接受WebSocket连接
+    async def connect(self, websocket: WebSocket, session_id: str = None) -> str:
+        """接受 WebSocket 连接
 
         Args:
-            websocket: WebSocket连接对象
+            websocket: WebSocket 连接对象
+            session_id: 会话 ID（从查询参数传入）
 
         Returns:
-            连接ID
+            连接 ID
         """
-        await websocket.accept()
         self.connection_counter += 1
         connection_id = f"conn_{self.connection_counter}"
 
         connection = WebSocketConnection(websocket, connection_id)
+        
+        # 如果传入了 session_id，则使用它
+        if session_id:
+            connection.session_id = session_id
         self.active_connections[connection_id] = connection
         self.session_connections.setdefault(connection.session_id, set()).add(connection_id)
 
-        logger.info(f"新WebSocket连接: {connection_id}")
+        logger.info(f"新 WebSocket 连接：{connection_id} (session: {connection.session_id})")
         await self._send_welcome(connection)
 
         return connection_id
@@ -568,28 +572,30 @@ class WebSocketManager:
     async def _send_stream_response(self, connection: WebSocketConnection, message: str, session_id: str):
         """发送流式响应
 
-        通过事件系统发送响应，生成器仅用于驱动执行流程。
-        所有数据通过事件发布机制传递到前端。
+        使用完全异步的助手类，直接 await 异步生成器：
+        1. 调用异步助手的 stream_process_input 方法
+        2. 直接遍历异步生成器并发送消息
+        3. 完全非阻塞，支持高并发
 
         Args:
-            connection: WebSocket连接
+            connection: WebSocket 连接
             message: 消息内容
-            session_id: 会话ID
+            session_id: 会话 ID
         """
         try:
+            # 调用异步助手，获取异步生成器
+            # 注意：stream_process_input 是异步生成器函数，直接返回异步生成器对象
             response_generator = self.assistant.stream_process_input(message, session_id)
-
-            if hasattr(response_generator, '__iter__'):
-                for _ in response_generator:
-                    # 让出事件循环，让异步任务有机会执行
-                    await asyncio.sleep(0.001)
+            
+            # 遍历异步生成器并发送消息
+            async for chunk in response_generator:
+                await connection.send_json(chunk)
+                
         except Exception as e:
-            logger.error(f"流式响应处理失败: {e}", exc_info=True)
-            error_msg = WebSocketMessage.create_error(
-                "stream_error",
-                f"流式响应处理失败: {str(e)}"
-            )
-            await connection.send_json(error_msg)
+            logger.error(f"流式响应失败：{e}", exc_info=True)
+            if connection.is_connected:
+                error_msg = WebSocketMessage.create_error("stream_error", f"流式响应失败：{str(e)}")
+                await connection.send_json(error_msg)
 
     async def _send_command_response(self, connection: WebSocketConnection, command: str, result: Any):
         """发送命令响应

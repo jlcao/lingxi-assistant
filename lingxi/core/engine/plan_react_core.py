@@ -8,6 +8,7 @@ from lingxi.core.engine.utils import parse_plan
 from lingxi.core.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.session import SessionManager
+from lingxi.core.context import TaskContext
 from lingxi.utils.json_parser import extract_partial_json_field
 
 

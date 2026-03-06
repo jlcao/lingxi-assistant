@@ -237,11 +237,19 @@ Shell类型: {system_info['shell_type']}
 {skills_list}
 finish(answer) - 完成任务并返回答案
 
-【重要】必须严格按照以下JSON格式输出，不要包含任何其他文字：
-{{"thought": "你的思考过程", "description": "当前步骤简单描述", "action": "行动名称", "action_input": {{"参数名": "参数值"}}}}
+【重要】必须严格按照以下 JSON 格式输出，不要包含任何其他文字：
+{{"thought": "你的思考过程", "description": "当前步骤的摘要", "action": "行动名称", "action_input": {{"参数名": "参数值"}}}}
 
-示例：
-{{"thought": "任务已完成，返回最终答案", "description": "当前步骤简单描述", "action": "finish", "action_input": "任务已成功完成"}}
+正确示例：
+{{"thought": "用户要求创建 test.txt 文件并写入内容", "description": "创建文件", "action": "create_file", "action_input": {{"file_path": "test.txt", "content": "hello world!!!"}}}}
+{{"thought": "用户要求读取 data.txt 文件", "description": "读取文件", "action": "read_file", "action_input": {{"file_path": "data.txt"}}}}
+{{"thought": "用户要求分析 Excel 文件", "description": "分析 Excel", "action": "xlsx", "action_input": {{"file_path": "data.xlsx", "operation": "read"}}}}
+{{"thought": "任务已完成，返回最终答案", "description": "完成任务", "action": "finish", "action_input": "任务已成功完成"}}
+
+错误示例（不要这样输出）：
+Thought: 用户要求创建文件...
+Action: create_file
+Action Input: {{"file_path": "test.txt"}}
 
 注意事项：
 - 当任务已经完成时，必须使用finish行动结束任务
@@ -263,7 +271,6 @@ finish(answer) - 完成任务并返回答案
 用户输入:
 {user_input}
 """
-
 
         steps_part = f"""已执行步骤:
 {executed_steps}

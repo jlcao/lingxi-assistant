@@ -1,24 +1,26 @@
 """全局状态管理模块，避免循环导入"""
-from typing import Optional
+from typing import Optional, Union
 from lingxi.__main__ import LingxiAssistant
+from lingxi.core.async_main import AsyncLingxiAssistant
 from lingxi.web.websocket import WebSocketManager
 
 
-assistant: Optional[LingxiAssistant] = None
+# 支持同步和异步助手
+assistant: Optional[Union[LingxiAssistant, AsyncLingxiAssistant]] = None
 websocket_manager: Optional[WebSocketManager] = None
 
 
-def set_assistant(asst: LingxiAssistant):
+def set_assistant(asst: Union[LingxiAssistant, AsyncLingxiAssistant]):
     """设置助手实例
 
     Args:
-        asst: 灵犀助手实例
+        asst: 灵犀助手实例（同步或异步）
     """
     global assistant
     assistant = asst
 
 
-def get_assistant() -> Optional[LingxiAssistant]:
+def get_assistant() -> Optional[Union[LingxiAssistant, AsyncLingxiAssistant]]:
     """获取助手实例
 
     Returns:

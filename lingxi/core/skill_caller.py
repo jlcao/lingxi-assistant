@@ -1,9 +1,14 @@
 import logging
 import json
+import asyncio
 from typing import Dict, List, Optional, Any
+from concurrent.futures import ThreadPoolExecutor
 from lingxi.skills.registry import SkillRegistry
 from lingxi.skills.builtin import BuiltinSkills
 from lingxi.core.security import SecuritySandbox, SecurityError
+
+# 创建线程池用于执行同步技能
+_skill_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="skill-executor")
 
 
 class SkillCaller:
@@ -346,3 +351,41 @@ class SkillCaller:
             "skill_name": skill_name,
             "parameters": parameters
         }
+
+    async def call_async(self, skill_name: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
+        """异步调用技能
+
+        Args:
+            skill_name: 技能名称
+            parameters: 技能参数
+
+        Returns:
+            调用结果
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            _skill_executor,
+            lambda: self.call(skill_name, parameters)
+        )
+
+    async def call_with_security_check_async(
+        self,
+        skill_name: str,
+        parameters: Dict[str, Any] = None,
+        require_confirmation: bool = False
+    ) -> Dict[str, Any]:
+        """异步调用技能（带安全检查）
+
+        Args:
+            skill_name: 技能名称
+            parameters: 技能参数
+            require_confirmation: 是否需要确认
+
+        Returns:
+            调用结果
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            _skill_executor,
+            lambda: self.call_with_security_check(skill_name, parameters, require_confirmation)
+        )

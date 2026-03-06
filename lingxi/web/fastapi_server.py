@@ -1,12 +1,12 @@
 import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from lingxi.__main__ import LingxiAssistant
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
 from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions
 from lingxi.web.state import set_assistant, get_assistant, get_websocket_manager
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
+from lingxi.core.async_main import AsyncLingxiAssistant
 
 def get_config():
     """获取配置
@@ -53,14 +53,13 @@ async def startup_event():
     # 检查助手是否已初始化（由 start_web_server.py 创建）
     assistant = get_assistant()
     if assistant is None:
-        # 如果未初始化，则创建新实例
-        from lingxi.__main__ import LingxiAssistant
-        assistant = LingxiAssistant(config)
+        # 如果未初始化，则创建异步助手实例
+        assistant = AsyncLingxiAssistant(config)
         set_assistant(assistant)
         
         # 初始化会话存储事件订阅者
         session_store_subscriber = SessionStoreSubscriber(assistant.session_manager)
-        logger.info("创建新的助手实例")
+        logger.info("创建新的异步助手实例")
     else:
         logger.info("使用已初始化的助手实例")
 
@@ -91,14 +90,23 @@ async def get_status():
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket 端点"""
+async def websocket_endpoint(websocket: WebSocket, sessionId: str = None):
+    """WebSocket 端点
+    
+    Args:
+        websocket: WebSocket 连接
+        sessionId: 会话 ID（从查询参数获取）
+    """
     websocket_manager = get_websocket_manager()
     if not websocket_manager:
         await websocket.close(code=1011, reason="WebSocket 管理器未初始化")
         return
 
-    connection_id = await websocket_manager.connect(websocket)
+    # 接受连接
+    await websocket.accept()
+    
+    # 创建连接并传递 sessionId
+    connection_id = await websocket_manager.connect(websocket, sessionId)
 
     try:
         while True:
@@ -107,7 +115,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         await websocket_manager.disconnect(connection_id)
     except Exception as e:
-        logger.error(f"WebSocket 连接错误: {e}", exc_info=True)
+        logger.error(f"WebSocket 连接错误：{e}", exc_info=True)
         await websocket_manager.disconnect(connection_id)
 
 

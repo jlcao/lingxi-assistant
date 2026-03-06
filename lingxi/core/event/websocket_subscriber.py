@@ -75,7 +75,6 @@ class WebSocketSubscriber:
             content: 思考内容
             **kwargs: 其他参数
         """
-        self.logger.debug(f"Received think_stream event: session_id={session_id}, execution_id={execution_id}, content={content}, kwargs={kwargs}")
         if self.websocket_manager:
             asyncio.create_task(self.websocket_manager.send_event(
                 session_id=session_id,

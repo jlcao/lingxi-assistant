@@ -214,12 +214,12 @@ function setupWebSocketListeners() {
         }
 
         // 获取当前步骤索引，默认为最后一个步骤
-        const stepIndex = data.step_index || turn.steps.length - 1
+        const stepIndex = data.step_index ?? turn.steps.length - 1
 
         // 确保步骤对象存在
         if (!turn.steps[stepIndex]) {
           turn.steps[stepIndex] = {
-            step_id: stepIndex,
+            step_index: stepIndex,  // 使用 step_index 字段
             description: `步骤 ${stepIndex + 1}`,
             status: 'running',
             thought: ''
@@ -296,8 +296,8 @@ function setupWebSocketListeners() {
           updatedTurns[targetIndex].steps = []
         }
         
-        const stepIndex = data.step_index || 0
-        const existingStepIndex = updatedTurns[targetIndex].steps.findIndex(step => step.stepIndex === stepIndex)
+        const stepIndex = data.step_index ?? 0
+        const existingStepIndex = updatedTurns[targetIndex].steps.findIndex(step => step.step_index === stepIndex)
         
         if (existingStepIndex !== -1) {
           // 更新已存在的步骤
@@ -308,13 +308,14 @@ function setupWebSocketListeners() {
         } else {
           // 添加新步骤
           updatedTurns[targetIndex].steps.push({
-            stepIndex: stepIndex,
+            step_index: stepIndex,  // 使用 step_index 字段
             description: `步骤 ${stepIndex + 1}`,
-            status: 'running'
+            status: 'running',
+            thought: ''  // 初始化 thought 字段
           })
           
-          // 按照 stepIndex 排序步骤
-          updatedTurns[targetIndex].steps.sort((a, b) => a.stepIndex - b.stepIndex)
+          // 按照 step_index 排序步骤
+          updatedTurns[targetIndex].steps.sort((a, b) => (a.step_index ?? 0) - (b.step_index ?? 0))
         }
         
         appStore.setTurns(updatedTurns)
@@ -327,14 +328,18 @@ function setupWebSocketListeners() {
       const updatedTurns = [...appStore.turns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1 && updatedTurns[targetIndex].steps) {
-        const stepIndex = data.step_index || updatedTurns[targetIndex].steps.length - 1
-        if (updatedTurns[targetIndex].steps[stepIndex]) {
+        const stepIndex = data.step_index ?? updatedTurns[targetIndex].steps.length - 1
+        if (updatedTurns[targetIndex].steps[stepIndex] !== undefined) {
+          // 如果后端返回了纯文本 thought，使用它替换流式累积的 JSON
+          const thought = data.thought || ''
+          
           updatedTurns[targetIndex].steps[stepIndex] = {
             ...updatedTurns[targetIndex].steps[stepIndex],
+            step_index: stepIndex,  // 确保 step_index 字段存在
             description: data.description || updatedTurns[targetIndex].steps[stepIndex].description,
             status: data.status || 'completed',
-            step_id: data.step_id || stepIndex,
-            result: data.result
+            result: data.result,
+            thought: thought  // 使用后端返回的纯文本 thought
           }
         }
         appStore.setTurns(updatedTurns)
