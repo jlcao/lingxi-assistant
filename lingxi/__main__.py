@@ -10,6 +10,7 @@ from lingxi.core.mode_selector import ExecutionModeSelector
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.event.console_subscriber import ConsoleSubscriber
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
+from lingxi.core.context import TaskContext
 
 
 class LingxiAssistant:
@@ -72,13 +73,15 @@ class LingxiAssistant:
 
             engine = self.mode_selector.get_engine(mode="plan_react", session_manager=self.session_manager)
 
-            response = engine.process(
+            context = TaskContext(
                 user_input=user_input,
                 task_info={"level": "complex"},
-                session_history=history,
                 session_id=session_id,
+                session_history=history,
                 stream=stream
             )
+
+            response = engine.process(context)
 
             return response
 

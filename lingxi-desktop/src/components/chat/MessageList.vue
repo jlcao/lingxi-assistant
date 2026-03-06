@@ -22,19 +22,24 @@
         </div>
 
         <div v-if="getPlanSteps(turn.plan).length > 0" class="message-plan">
-          <div class="plan-label">执行计划：</div>
-          <div class="plan-steps">
-            <div v-for="(step, index) in getPlanSteps(turn.plan)" :key="index" class="plan-step">
-              {{ index + 1 }}. {{ step }}
-            </div>
+          <div class="plan-header" @click="togglePlanExpand(turn.id)">
+            <span class="plan-label">执行计划：</span>
+            <span class="plan-expand-icon">{{ isPlanExpanded(turn.id) ? '▼' : '▶' }}</span>
           </div>
+          <transition name="plan-collapse">
+            <div v-if="isPlanExpanded(turn.id)" class="plan-steps">
+              <div v-for="(step, index) in getPlanSteps(turn.plan)" :key="index" class="plan-step">
+                {{ index + 1 }}. {{ step }}
+              </div>
+            </div>
+          </transition>
         </div>
         <div v-if="turn.steps && turn.steps.length > 0" class="message-steps">
           <div class="steps-label">执行步骤：</div>
           <div class="steps-list">
             <div v-for="(step, index) in turn.steps" :key="index" class="step-item" :class="step.status">
               <div class="step-header" @click="toggleStepExpand(turn.id, index)">
-                <span class="step-index">{{ Number(step.step_id) + 1 }}.</span>
+                <span class="step-index">{{ step.step_index + 1 }}.</span>
                 <span class="step-description">{{ step.description }}</span>
                 <span class="step-status">{{ step.status === 'running' ? '执行中' : step.status === 'completed' ? '已完成' : '失败' }}</span>
                 <span class="step-expand-icon">{{ isStepExpanded(turn.id, index) ? '▼' : '▶' }}</span>
@@ -58,8 +63,8 @@
           </div>
           <div v-else class="message-text-user" v-html="renderMarkdown(turn.content)" />
         </div>
-        <div v-else-if="turn.isStreaming || hasRunningSteps(turn)" class="message-text-container streaming">
-          <div class="streaming-indicator">
+        <div v-else class="message-text-container streaming">
+          <div v-if="turn.isStreaming && !hasRunningSteps(turn)" class="streaming-indicator">
             <el-icon class="is-loading"><Loading /></el-icon>
             <span>正在生成回复...</span>
           </div>
@@ -78,13 +83,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
-import { useAppStore } from '../../stores/app'
-import { storeToRefs } from 'pinia'
-import { User, ChatDotRound, Loading } from '@element-plus/icons-vue'
+import { ChatDotRound, Loading, User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import StepInterventionCard from './StepInterventionCard.vue'
 import { marked } from 'marked'
+import { storeToRefs } from 'pinia'
+import { nextTick, ref, watch } from 'vue'
+import { useAppStore } from '../../stores/app'
+import StepInterventionCard from './StepInterventionCard.vue'
 
 // 配置marked库
 marked.setOptions({
@@ -118,16 +123,45 @@ function getPlanSteps(plan: any): string[] {
   if (!plan) return []
   
   try {
-    // 如果已经是数组，直接返回
+    let parsed: any[] = []
+    
+    // 如果已经是数组，直接使用
     if (Array.isArray(plan)) {
-      return plan
+      parsed = plan
     }
     // 如果是字符串，尝试解析JSON
-    if (typeof plan === 'string') {
-      const parsed = JSON.parse(plan)
-      return Array.isArray(parsed) ? parsed : []
+    else if (typeof plan === 'string') {
+      parsed = JSON.parse(plan)
+      if (!Array.isArray(parsed)) {
+        return []
+      }
     }
-    return []
+    else {
+      return []
+    }
+    
+    // 处理数组元素，提取描述文本
+    return parsed.map((item: any) => {
+      if (typeof item === 'string') {
+        return item
+      }
+      if (typeof item === 'object' && item !== null) {
+        // 尝试提取 description 字段
+        if (item.description) {
+          return item.description
+        }
+        // 如果没有 description，尝试其他常见字段
+        if (item.content) {
+          return item.content
+        }
+        if (item.text) {
+          return item.text
+        }
+        // 如果都没有，返回整个对象的字符串表示
+        return JSON.stringify(item)
+      }
+      return String(item)
+    })
   } catch (e) {
     console.error('解析执行计划失败:', e)
     return []
@@ -297,6 +331,17 @@ function isStepExpanded(turnId: string, stepIndex: number): boolean {
   return expandedSteps.value[turnId]?.[stepIndex] || false
 }
 
+// 执行计划展开状态管理
+const expandedPlans = ref<Record<string, boolean>>({})
+
+function togglePlanExpand(turnId: string) {
+  expandedPlans.value[turnId] = !expandedPlans.value[turnId]
+}
+
+function isPlanExpanded(turnId: string): boolean {
+  return expandedPlans.value[turnId] || false
+}
+
 // 监听turns变化，处理步骤的自动折叠逻辑
 watch(turns, (newTurns) => {
   newTurns.forEach(turn => {
@@ -454,14 +499,37 @@ watch(turns, (newTurns) => {
   padding: 12px;
   margin-bottom: 12px;
 
+  .plan-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+      background-color: #e6f0ff;
+      margin: -12px;
+      padding: 12px;
+      border-radius: 8px;
+    }
+  }
+
   .plan-label {
     font-weight: 600;
-    margin-bottom: 8px;
     color: #1890ff;
+  }
+
+  .plan-expand-icon {
+    font-size: 12px;
+    color: #1890ff;
+    transition: transform 0.2s;
   }
 
   .plan-steps {
     margin-left: 20px;
+    margin-top: 8px;
+    max-height: 1000px;
+    overflow: hidden;
 
     .plan-step {
       margin-bottom: 4px;
@@ -562,6 +630,23 @@ watch(turns, (newTurns) => {
       }
 
       .step-collapse-leave-to {
+        opacity: 0;
+        max-height: 0;
+        margin-top: 0;
+      }
+
+      .plan-collapse-enter-active,
+      .plan-collapse-leave-active {
+        transition: opacity 0.3s ease, max-height 0.3s ease, margin-top 0.3s ease;
+      }
+
+      .plan-collapse-enter-from {
+        opacity: 0;
+        max-height: 0;
+        margin-top: 0;
+      }
+
+      .plan-collapse-leave-to {
         opacity: 0;
         max-height: 0;
         margin-top: 0;

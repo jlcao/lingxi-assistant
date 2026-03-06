@@ -10,7 +10,7 @@ from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.session import SessionManager
 from lingxi.core.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
-from lingxi.core.context import set_ids, local_context
+from lingxi.core.context import TaskContext
 from lingxi.core.security import SecurityError
 from lingxi.core.confirmation import ConfirmationManager, DangerousSkillChecker, RiskLevel
 from .utils import parse_llm_response, parse_action_parameters, process_parameters, calculate_expression
@@ -42,21 +42,27 @@ class BaseEngine:
             auto_reject_timeout=security_config.get("auto_reject_timeout", True)
         )
 
-    def process(self, user_input: str, task_info: Dict[str, Any], session_history: List[Dict[str, str]] = None, 
-                session_id: str = "default", stream: bool = False) -> Union[str, Generator[Dict[str, Any], None, None]]:
+    def process(self, context: TaskContext) -> Union[str, Generator[Dict[str, Any], None, None]]:
         """处理用户输入
 
         Args:
-            user_input: 用户输入
-            task_info: 任务信息
-            session_history: 会话历史
-            session_id: 会话ID
-            stream: 是否启用流式输出
+            context: 任务上下文对象
 
         Returns:
             系统响应（非流式）或流式响应生成器（流式）
         """
-        raise NotImplementedError("子类必须实现 process 方法")
+        return self._process_with_context(context)
+    
+    def _process_with_context(self, context: TaskContext) -> Union[str, Generator[Dict[str, Any], None, None]]:
+        """使用TaskContext处理用户输入
+
+        Args:
+            context: 任务上下文对象
+
+        Returns:
+            系统响应（非流式）或流式响应生成器（流式）
+        """
+        raise NotImplementedError("子类必须实现 _process_with_context 方法")
 
     def _build_history_context(self, session_history: List[Dict[str, str]]) -> str:
         """构建历史上下文
@@ -366,8 +372,6 @@ class BaseEngine:
             result: 结果
             task_id: 任务 ID
         """
-        if task_id is None:
-            task_id = getattr(local_context, 'task_id', None)
         global_event_publisher.publish(
             'step_end',
             session_id=session_id,
@@ -381,7 +385,7 @@ class BaseEngine:
             description=description
         )
 
-    def _publish_task_end(self, session_id: str, execution_id: str, result: str, task_id: str = None):
+    def _publish_task_end(self, session_id: str, execution_id: str, result: str, task_id: str = None, task: str = None):
         """发布任务结束事件
 
         Args:
@@ -389,10 +393,8 @@ class BaseEngine:
             execution_id: 执行 ID
             result: 结果
             task_id: 任务 ID
+            task: 任务文本
         """
-        if task_id is None:
-            task_id = getattr(local_context, 'task_id', None)
-        task = getattr(local_context, 'task', None)
         global_event_publisher.publish(
             'task_end',
             session_id=session_id,
@@ -415,8 +417,6 @@ class BaseEngine:
             error: 错误信息
             task_id: 任务 ID
         """
-        if task_id is None:
-            task_id = getattr(local_context, 'task_id', None)
         global_event_publisher.publish(
             'task_failed',
             session_id=session_id,
@@ -553,71 +553,46 @@ class BaseEngine:
             "success": True
         }
 
-    def _execute_task_stream(self, task: str, task_info: Dict[str, Any], history: List[Dict[str, str]],
-                           session_id: str, execution_id: str, stream: bool) -> Generator[Dict[str, Any], None, None]:
+    def _execute_task_stream(self, context: TaskContext) -> Generator[Dict[str, Any], None, None]:
         """执行任务
 
         Args:
-            task: 任务文本
-            task_info: 任务信息
-            history: 会话历史
-            session_id: 会话ID
-            execution_id: 执行ID
-            stream: 是否启用流式输出
+            context: 任务上下文对象
 
         Returns:
             响应生成器
         """
         raise NotImplementedError("子类必须实现 _execute_task_stream 方法")
 
-    def _execute_new_task(self, task: str, task_info: Dict[str, Any], history: List[Dict[str, str]] = None,
-                         session_id: str = "default", stream: bool = False, 
-                         execution_id: str = None, task_id: str = None) -> Union[str, Generator[Dict[str, Any], None, None]]:
+    def _execute_new_task(self, context: TaskContext) -> Union[str, Generator[Dict[str, Any], None, None]]:
         """执行新任务（统一使用流式处理逻辑）
 
         Args:
-            task: 任务文本
-            task_info: 任务信息
-            history: 会话历史
-            session_id: 会话 ID
-            stream: 是否启用流式输出
-            execution_id: 执行 ID（可选，外部传入）
-            task_id: 任务 ID（可选，外部传入）
+            context: 任务上下文对象
 
         Returns:
             执行结果（非流式）或流式响应生成器（流式）
         """
         try:
+            task = context.user_input
+            task_info = context.task_info
+            history = context.session_history
+            session_id = context.session_id
+            stream = context.stream
+            task_id = context.task_id
+            execution_id = context.execution_id
+            
             self.logger.debug(f"开始执行新任务：{task} (stream={stream})")
             
-            # 优先从 local_context 获取 ID（外部传入）
-            from lingxi.core.context import local_context
+            self.logger.debug(f"任务 ID：{task_id}")
+            self.logger.debug(f"执行 ID：{execution_id}")
             
-            if task_id is None:
-                task_id = getattr(local_context, 'task_id', None)
-                if task_id is None:
-                    task_id = f"task_{session_id}_{uuid.uuid4().hex[:8]}"
-                    
-            if execution_id is None:
-                execution_id = getattr(local_context, 'execution_id', None)
-                if execution_id is None:
-                    execution_id = f"{self.__class__.__name__.lower()}_{int(time.time())}"
-            
-            # 设置上下文 ID
-            set_ids(session_id, task_id, execution_id, task)
-            
-            self.logger.debug(f"生成任务 ID：{task_id}")
-            self.logger.debug(f"生成执行 ID：{execution_id}")
-            self._publish_task_start(session_id, execution_id, task, task_info)
-
-            def stream_generator():
-                for chunk in self._execute_task_stream(task, task_info, history, session_id, execution_id, stream, task_id):
-                    yield chunk
+            self._publish_task_start(session_id, execution_id, task, task_info, task_id)
 
             if stream:
-                return stream_generator()
+                return self._execute_task_stream(context)
             else:
-                for _ in stream_generator():
+                for _ in self._execute_task_stream(context):
                     pass
                 return ""
 
@@ -689,7 +664,7 @@ class BaseEngine:
         if self.session_manager:
             error_response = self._generate_error_response(task, step_idx, step_result.get("error"))
             
-    def _publish_task_start(self, session_id: str, execution_id: str, task: str, task_info: Dict[str, Any]):
+    def _publish_task_start(self, session_id: str, execution_id: str, task: str, task_info: Dict[str, Any], task_id: str = None):
         """发布任务开始事件
 
         Args:
@@ -697,8 +672,8 @@ class BaseEngine:
             execution_id: 执行ID
             task: 任务文本
             task_info: 任务信息
+            task_id: 任务ID
         """
-        task_id = getattr(local_context, 'task_id', None)
         global_event_publisher.publish(
                 'task_start',
                 session_id=session_id,

@@ -8,12 +8,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed } from 'vue'
-import { useAppStore } from './stores/app'
-import TitleBar from './components/TitleBar.vue'
-import ResumeBanner from './components/ResumeBanner.vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import EdgeWidget from './components/EdgeWidget.vue'
 import LayoutContainer from './components/LayoutContainer.vue'
+import ResumeBanner from './components/ResumeBanner.vue'
+import TitleBar from './components/TitleBar.vue'
+import { useAppStore } from './stores/app'
 
 const appStore = useAppStore()
 
@@ -27,24 +27,22 @@ const activeCheckpoints = computed(() => {
 
 onMounted(async () => {
   await initializeApp()
-  setupSSEListeners()
+  setupWebSocketListeners()
 })
 
 onUnmounted(() => {
-  if (window.electronAPI?.sse) {
-    window.electronAPI.sse.removeAllListeners('sse:task-start')
-    window.electronAPI.sse.removeAllListeners('sse:task-end')
-    window.electronAPI.sse.removeAllListeners('sse:think-start')
-    window.electronAPI.sse.removeAllListeners('sse:think-stream')
-    window.electronAPI.sse.removeAllListeners('sse:think-final')
-    window.electronAPI.sse.removeAllListeners('sse:plan-start')
-    window.electronAPI.sse.removeAllListeners('sse:plan-final')
-    window.electronAPI.sse.removeAllListeners('sse:step-start')
-    window.electronAPI.sse.removeAllListeners('sse:step-end')
-    window.electronAPI.sse.removeAllListeners('sse:task-failed')
-    window.electronAPI.sse.removeAllListeners('sse:task-cancelled')
-    window.electronAPI.sse.removeAllListeners('sse:error')
-    window.electronAPI.sse.removeAllListeners('sse:stream-end')
+  if (window.electronAPI?.ws) {
+    window.electronAPI.ws.removeAllListeners('ws:task-start')
+    window.electronAPI.ws.removeAllListeners('ws:task-end')
+    window.electronAPI.ws.removeAllListeners('ws:think-start')
+    window.electronAPI.ws.removeAllListeners('ws:think-stream')
+    window.electronAPI.ws.removeAllListeners('ws:think-final')
+    window.electronAPI.ws.removeAllListeners('ws:plan-start')
+    window.electronAPI.ws.removeAllListeners('ws:plan-final')
+    window.electronAPI.ws.removeAllListeners('ws:step-start')
+    window.electronAPI.ws.removeAllListeners('ws:step-end')
+    window.electronAPI.ws.removeAllListeners('ws:task-failed')
+    window.electronAPI.ws.removeAllListeners('ws:error')
   }
 })
 
@@ -59,16 +57,24 @@ async function initializeApp() {
         window.electronAPI.api.getResourceUsage()
       ])
 
-      appStore.setSessions(sessions || [])
+      // 转换后端返回的会话数据格式为前端期望的格式
+      const formattedSessions = (sessions || []).map((session: any) => ({
+        id: session.session_id || session.id,
+        name: session.title || session.name || '新会话',
+        createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
+        updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
+      }))
+
+      appStore.setSessions(formattedSessions)
       appStore.setCheckpoints(checkpoints || [])
       appStore.setResourceUsage(resourceUsage)
 
-      if (sessions && sessions.length > 0) {
-        appStore.setCurrentSession(sessions[0].id)
-        const history = await window.electronAPI.api.getSessionHistory(sessions[0].id)
+      if (formattedSessions && formattedSessions.length > 0) {
+        appStore.setCurrentSession(formattedSessions[0].id)
+        const history = await window.electronAPI.api.getSessionHistory(formattedSessions[0].id)
         // 转换后端返回的历史记录格式为前端期望的格式
         const turns = (history || []).map((item: any, index: number) => ({
-          id: `${sessions[0].id}_${index}`,
+          id: `${formattedSessions[0].id}_${index}`,
           role: item.role,
           content: item.content,
           timestamp: item.time || Date.now(),
@@ -82,16 +88,28 @@ async function initializeApp() {
           isThinking: item.isThinking || false
         }))
         appStore.setTurns(turns)
+        
+        // 建立 WebSocket 连接
+        if (window.electronAPI?.ws) {
+          await window.electronAPI.ws.connect(formattedSessions[0].id)
+        }
       } else {
         // 没有会话时，创建一个新会话
         const sessionData = await window.electronAPI.api.createSession()
         const session = {
           id: sessionData.session_id,
-          name: sessionData.first_message || '新会话'
+          name: sessionData.first_message || '新会话',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
         }
         appStore.setSessions([session])
         appStore.setCurrentSession(session.id)
         appStore.setTurns([])
+        
+        // 建立 WebSocket 连接
+        if (window.electronAPI?.ws) {
+          await window.electronAPI.ws.connect(session.id)
+        }
       }
     }
   } catch (error) {
@@ -101,9 +119,9 @@ async function initializeApp() {
   }
 }
 
-function setupSSEListeners() {
-  if (window.electronAPI?.sse) {
-    window.electronAPI.sse.onTaskStart((data) => {
+function setupWebSocketListeners() {
+  if (window.electronAPI?.ws) {
+    window.electronAPI.ws.onTaskStart((data) => {
       console.log('Task started:', data)
       // 查找是否已存在临时助手消息
       const updatedTurns = [...appStore.turns]
@@ -141,7 +159,7 @@ function setupSSEListeners() {
       }
     })
 
-    window.electronAPI.sse.onTaskEnd((data) => {
+    window.electronAPI.ws.onTaskEnd((data) => {
       console.log('Task ended:', data)
       // 更新助手消息的内容
       if (data.result) {
@@ -170,7 +188,7 @@ function setupSSEListeners() {
       }
     })
 
-    window.electronAPI.sse.onThinkStart((data) => {
+    window.electronAPI.ws.onThinkStart((data) => {
       console.log('Think started:', data)
       // 找到对应的助手消息，添加思考开始标记
       const updatedTurns = [...appStore.turns]
@@ -184,11 +202,11 @@ function setupSSEListeners() {
       }
     })
 
-    window.electronAPI.sse.onThinkStream((data) => {
+    window.electronAPI.ws.onThinkStream((data) => {
       console.log('[Renderer] Think stream received:', data)
       // 找到对应的助手消息，将思考内容添加到具体的 step 对象上
       const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.execution_id)
+      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1) {
         const turn = updatedTurns[targetIndex]
         if (!turn.steps) {
@@ -218,12 +236,12 @@ function setupSSEListeners() {
         console.log(`[Renderer] Updated step ${stepIndex} thought, length: ${turn.steps[stepIndex].thought.length}`)
         appStore.setTurns(updatedTurns)
       } else {
-        console.log('[Renderer] No turn found for executionId:', data.execution_id)
+        console.log('[Renderer] No turn found for executionId:', data.executionId)
       }
 
     })
 
-    window.electronAPI.sse.onThinkFinal((data) => {
+    window.electronAPI.ws.onThinkFinal((data) => {
       console.log('Think final:', data)
       // 找到对应的助手消息，完成思考标记并更新步骤的思考内容
       const updatedTurns = [...appStore.turns]
@@ -247,11 +265,11 @@ function setupSSEListeners() {
       }
     })
 
-    window.electronAPI.sse.onPlanStart((data) => {
+    window.electronAPI.ws.onPlanStart((data) => {
       console.log('Plan started:', data)
     })
 
-    window.electronAPI.sse.onPlanFinal((data) => {
+    window.electronAPI.ws.onPlanFinal((data) => {
       console.log('Plan final:', data)
       // 找到对应的助手消息，添加计划信息
       const updatedTurns = [...appStore.turns]
@@ -268,7 +286,7 @@ function setupSSEListeners() {
       }
     })
 
-    window.electronAPI.sse.onStepStart((data) => {
+    window.electronAPI.ws.onStepStart((data) => {
       console.log('Step started:', data)
       // 找到对应的助手消息，添加步骤开始信息
       const updatedTurns = [...appStore.turns]
@@ -303,7 +321,7 @@ function setupSSEListeners() {
       }
     })
 
-    window.electronAPI.sse.onStepEnd((data) => {
+    window.electronAPI.ws.onStepEnd((data) => {
       console.log('Step ended:', data)
       // 找到对应的助手消息，更新步骤状态
       const updatedTurns = [...appStore.turns]
@@ -323,7 +341,7 @@ function setupSSEListeners() {
       }
     })
 
-    window.electronAPI.sse.onTaskFailed((data) => {
+    window.electronAPI.ws.onTaskFailed((data) => {
       console.log('Task failed:', data)
       // 找到对应的助手消息，添加失败信息
       const updatedTurns = [...appStore.turns]

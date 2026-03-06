@@ -38,7 +38,7 @@ class StreamEvent:
             "event_type": self.event_type.value,
             "data": self.data
         }
-        return f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+        return f"event: {self.event_type.value}\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
     @classmethod
     def create_task_start(cls, execution_id: str, task: str, task_level: str, model: str, session_id: str = "default") -> 'StreamEvent':

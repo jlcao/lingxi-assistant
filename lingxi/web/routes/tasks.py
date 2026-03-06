@@ -257,7 +257,8 @@ async def stream_task(request: Request, task_request: StreamTaskRequest):
             session_history = assistant.session_manager.get_history(task_request.session_id) if assistant.session_manager else []
             task_info = {
                 "level": task_level,
-                "description": task_request.task
+                "description": task_request.task,
+                "execution_id": execution_id
             }
 
             engine = assistant.mode_selector.get_engine(mode="plan_react", session_manager=assistant.session_manager)

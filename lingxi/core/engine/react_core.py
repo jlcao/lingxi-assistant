@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Any, Union, Generator
 from lingxi.core.engine.base import BaseEngine
 from lingxi.core.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
+from lingxi.core.context import TaskContext
 
 
 class ReActCore(BaseEngine):
@@ -118,23 +119,24 @@ finish(answer) - 完成任务并返回答案
         )
 
     def _execute_step(self, step: int, messages: List[Dict[str, Any]], task_level: str,
-                      session_id: str, execution_id: str, steps: List[Dict[str, Any]],
-                      stream: bool = True, task_id: str = None) -> Dict[str, Any]:
+                      steps: List[Dict[str, Any]], context: TaskContext) -> Dict[str, Any]:
         """执行单个步骤
 
         Args:
             step: 步骤索引
             messages: 消息列表
             task_level: 任务级别
-            session_id: 会话 ID
-            execution_id: 执行 ID
             steps: 已执行步骤
-            stream: 是否流式输出
-            task_id: 任务 ID
+            context: 任务上下文对象
 
         Returns:
             包含解析结果和 Token 使用信息的字典
         """
+        session_id = context.session_id
+        execution_id = context.execution_id
+        stream = context.stream
+        task_id = context.task_id
+        
         self._build_step_messages(messages, steps)
         self.logger.debug(f"生成思考和行动（stream={stream}")
 
@@ -173,24 +175,24 @@ finish(answer) - 完成任务并返回答案
                                parsed.get("description"), task_id)
         return {"parsed": parsed, "usage": usage}
 
-    def _execute_task_stream(self, user_input: str, task_plan: List[str], task_info: Dict[str, Any], history: List[Dict[str, str]],
-                             session_id: str, execution_id: str, stream: bool, task_id: str = None) -> Generator[Dict[str, Any], None, None]:
+    def _execute_task_stream(self, context: TaskContext) -> Generator[Dict[str, Any], None, None]:
         """执行任务（流式）
 
         Args:
-            user_input: 用户输入
-            task_plan: 任务计划列表
-            task_info: 任务信息
-            history: 会话历史
-            session_id: 会话 ID
-            execution_id: 执行 ID
-            stream: 是否启用流式输出
-            task_id: 任务 ID
-            stream: 是否启用流式输出
+            context: 任务上下文对象
 
         Yields:
             流式响应块
         """
+        user_input = context.user_input
+        task_plan = context.task_info.get("plan", [])
+        task_info = context.task_info
+        history = context.session_history
+        session_id = context.session_id
+        execution_id = context.execution_id
+        stream = context.stream
+        task_id = context.task_id
+        
         self.logger.debug(f"ReAct处理任务: {task_info.get('task_type')} (stream={stream})")
         self.logger.debug(f"用户输入: {user_input}")
 
@@ -208,7 +210,7 @@ finish(answer) - 完成任务并返回答案
         for step in range(self.max_steps):
             self.logger.debug(f"步骤 {step + 1}/{self.max_steps}")
             self._publish_step_start(session_id, execution_id, step, self.max_steps)
-            step_result = self._execute_step(step, messages, task_level, session_id, execution_id, steps, stream=stream, task_id=task_id)
+            step_result = self._execute_step(step, messages, task_level, steps, context)
             
             # 收集 Token 使用信息
             if step_result and "usage" in step_result:
@@ -227,10 +229,9 @@ finish(answer) - 完成任务并返回答案
             # 如果已经执行了finish动作，结束循环
             if res and res.get("action") == "finish":
                 self.logger.debug("检测到finish动作，结束任务执行")
-                self._publish_task_end(session_id, execution_id, res.get("action_input", ""))
+                self._publish_task_end(session_id, execution_id, res.get("action_input", ""), task_id)
                 
                 # 更新 Token 统计
-                task_id = task_info.get("task_id")
                 if task_id:
                     self.session_manager.update_task_tokens(task_id, total_input_tokens, total_output_tokens)
                     self.session_manager.update_session_tokens(session_id, total_input_tokens, total_output_tokens)
@@ -240,18 +241,13 @@ finish(answer) - 完成任务并返回答案
                 return    
       
 
-    def process(self, user_input: str, task_info: Dict[str, Any], session_history: List[Dict[str, str]] = None,
-                session_id: str = "default", stream: bool = False) -> Union[str, Generator[Dict[str, Any], None, None]]:
+    def process(self, context: TaskContext) -> Union[str, Generator[Dict[str, Any], None, None]]:
         """处理用户输入
 
         Args:
-            user_input: 用户输入
-            task_info: 任务信息
-            session_history: 会话历史
-            session_id: 会话ID
-            stream: 是否启用流式输出
+            context: 任务上下文对象
 
         Returns:
             系统响应（非流式）或流式响应生成器（流式）
         """
-        return self._execute_new_task(user_input, task_info, session_history, session_id, stream)
+        return self._execute_new_task(context)

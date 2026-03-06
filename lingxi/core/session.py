@@ -363,7 +363,7 @@ class SessionManager:
             max_turns: 最大返回轮次
 
         Returns:
-            会话历史记录（任务列表）
+            会话历史记录（任务列表，包含步骤信息）
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -378,7 +378,6 @@ class SessionManager:
         """, (session_id,))
         
         rows = cursor.fetchall()
-        conn.close()
         
         tasks = []
         for row in rows:
@@ -398,7 +397,37 @@ class SessionManager:
                 "created_at": row[12],
                 "updated_at": row[13]
             }
+            
+            # 查询该任务的所有步骤
+            cursor.execute("""
+                SELECT step_id, task_id, step_index, step_type, description, 
+                       thought, result, skill_call, status, created_at
+                FROM steps
+                WHERE task_id = ?
+                ORDER BY step_index ASC
+            """, (task_dict["task_id"],))
+            
+            step_rows = cursor.fetchall()
+            steps = []
+            for step_row in step_rows:
+                step_dict = {
+                    "step_id": step_row[0],
+                    "task_id": step_row[1],
+                    "step_index": step_row[2],
+                    "step_type": step_row[3],
+                    "description": step_row[4],
+                    "thought": step_row[5],
+                    "result": step_row[6],
+                    "skill_call": step_row[7],
+                    "status": step_row[8],
+                    "created_at": step_row[9]
+                }
+                steps.append(step_dict)
+            
+            task_dict["steps"] = steps
             tasks.append(task_dict)
+        
+        conn.close()
         
         if max_turns and len(tasks) > max_turns:
             tasks = tasks[:max_turns]
@@ -1157,27 +1186,57 @@ class SessionManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT task_id, task_type, user_input, result, status, created_at, updated_at
+            SELECT task_id, task_type, plan, user_input, result, status, created_at, updated_at
             FROM tasks
             WHERE session_id = ?
             ORDER BY created_at ASC
         """, (session_id,))
         task_rows = cursor.fetchall()
-        conn.close()
         
         # 组装任务列表
         task_list = []
         for task_row in task_rows:
-            task_id, task_type, user_input, result, status, task_created_at, task_updated_at = task_row
+            task_id, task_type, plan, user_input, result, status, task_created_at, task_updated_at = task_row
+            
+            # 查询该任务的所有步骤
+            cursor.execute("""
+                SELECT step_id, task_id, step_index, step_type, description, 
+                       thought, result, skill_call, status, created_at
+                FROM steps
+                WHERE task_id = ?
+                ORDER BY step_index ASC
+            """, (task_id,))
+            
+            step_rows = cursor.fetchall()
+            steps = []
+            for step_row in step_rows:
+                step_dict = {
+                    "step_id": step_row[0],
+                    "task_id": step_row[1],
+                    "step_index": step_row[2],
+                    "step_type": step_row[3],
+                    "description": step_row[4],
+                    "thought": step_row[5],
+                    "result": step_row[6],
+                    "skill_call": step_row[7],
+                    "status": step_row[8],
+                    "created_at": step_row[9]
+                }
+                steps.append(step_dict)
+            
             task_list.append({
                 "task_id": task_id,
                 "task_type": task_type,
+                "plan": plan,
                 "user_input": user_input,
                 "result": result,
                 "status": status,
                 "created_at": task_created_at,
-                "updated_at": task_updated_at
+                "updated_at": task_updated_at,
+                "steps": steps
             })
+        
+        conn.close()
 
         return {
             "session_id": session_id,

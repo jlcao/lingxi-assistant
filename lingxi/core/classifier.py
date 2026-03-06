@@ -106,9 +106,15 @@ class TaskClassifier:
         history_text = PromptTemplates.format_history_context(history)
         
         prompt = f"""你是任务分类器，将用户请求分为三级：
-trivial：无需工具，直接回答（如问候、简单问答）
-simple：单一步骤、单工具调用（如查天气、翻译）
-complex：多步骤、多工具调用（如旅行规划、数据分析）
+trivial：无需工具，直接回答（如问候、简单问答、闲聊）
+simple：单一步骤、单工具调用（如查天气、翻译、简单文件读取）
+complex：多步骤、多工具调用、需要多次交互或数据处理（如旅行规划、数据分析、读取并处理Excel、文件操作后处理数据）
+
+重要判断标准：
+- 如果任务需要读取文件后对数据进行处理（排序、筛选、统计等），必须是 complex
+- 如果任务需要多个步骤完成，必须是 complex
+- 如果任务只是简单查询或翻译，是 simple
+- 如果任务只是问候或闲聊，是 trivial
 
 输出JSON格式：
 {{"level": "trivial|simple|complex", "confidence": 0.0-1.0, "reason": "理由"}}
@@ -132,7 +138,8 @@ complex：多步骤、多工具调用（如旅行规划、数据分析）
         task_text_lower = task_text.lower()
 
         trivial_keywords = ["你好", "谢谢", "再见", "是谁", "什么是", "hello", "hi", "谢谢", "再见"]
-        complex_keywords = ["规划", "分析", "对比", "总结", "多步骤", "plan", "analyze", "compare", "summarize"]
+        complex_keywords = ["规划", "分析", "对比", "总结", "多步骤", "plan", "analyze", "compare", "summarize", 
+                        "读取", "排序", "筛选", "统计", "处理", "解析", "输出", "倒序", "升序", "excel", "xlsx", "csv", "数据"]
 
         if any(kw in task_text for kw in trivial_keywords):
             return {"level": "trivial", "confidence": 0.8, "reason": "规则匹配：问候/闲聊类"}

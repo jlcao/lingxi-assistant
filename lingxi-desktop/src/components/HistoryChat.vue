@@ -1,8 +1,14 @@
 <template>
   <div class="history-chat">
     <div class="history-chat-workspace">
-      <div class="workspace-path">
-        当前工作区路径
+      <div class="workspace-info">
+        <el-icon class="workspace-icon"><FolderOpened /></el-icon>
+        <div class="workspace-details">
+          <div class="workspace-label">当前工作区</div>
+          <div class="workspace-path" :title="appStore.currentWorkspace || '未设置'">
+            {{ appStore.currentWorkspace || '未设置工作区路径' }}
+          </div>
+        </div>
       </div>
       <el-button
         type="primary"
@@ -10,37 +16,53 @@
         class="new-session-btn"
         @click="handleNewSession"
       >
-        + 新建会话
+        <el-icon class="btn-icon"><Plus /></el-icon>
+        新建会话
       </el-button>
     </div>
     <div class="history-chat-list">
+      <div class="history-chat-list-header">
+        <span class="header-title">会话历史</span>
+        <span class="header-count">{{ filteredSessions.length }}</span>
+      </div>
+      <div v-if="filteredSessions.length === 0" class="empty-state">
+        <el-icon class="empty-icon"><Document /></el-icon>
+        <div class="empty-text">暂无会话历史</div>
+        <div class="empty-hint">点击上方"新建会话"开始对话</div>
+      </div>
       <div
+        v-else
         v-for="session in filteredSessions"
         :key="session.id"
         class="history-chat-item"
         :class="{ active: session.id === currentSessionId }"
         @click="session.id && handleSelectSession(session.id)"
       >
-        <div class="history-chat-item-icon">
+        <div class="session-avatar">
           <el-icon><ChatDotRound /></el-icon>
         </div>
-        <div class="history-chat-item-content">
-          <div class="history-chat-item-name">{{ truncateSessionName(session.name) }}</div>
+        <div class="session-content">
+          <div class="session-name" :title="session.name">
+            {{ session.name }}
+          </div>
+          <div class="session-meta">
+            <span class="session-time">{{ formatSessionTime(session.updatedAt || session.createdAt) }}</span>
+          </div>
         </div>
-        <div class="history-chat-item-actions">
-          <el-dropdown @command="(command) => handleCommand(command, session)">
+        <div class="session-actions">
+          <el-dropdown @command="(command) => handleCommand(command, session)" trigger="click">
             <el-button link size="small" class="action-button">
-              <el-icon><More /></el-icon>
+              <el-icon><MoreFilled /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="rename">
-                  <el-icon class="mr-2"><Edit /></el-icon>
-                  重命名
+                  <el-icon class="menu-icon"><Edit /></el-icon>
+                  <span>重命名</span>
                 </el-dropdown-item>
-                <el-dropdown-item command="delete" type="danger">
-                  <el-icon class="mr-2"><Delete /></el-icon>
-                  删除
+                <el-dropdown-item command="delete" divided>
+                  <el-icon class="menu-icon danger-icon"><Delete /></el-icon>
+                  <span class="danger-text">删除会话</span>
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -52,33 +74,39 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useAppStore } from '@/stores/app'
-import { storeToRefs } from 'pinia'
+import { ChatDotRound, Delete, Document, Edit, FolderOpened, MoreFilled, Plus } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
-import { ChatDotRound, More, Edit, Delete } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 
 const appStore = useAppStore()
 const { sessions, currentSessionId } = storeToRefs(appStore)
 
 const filteredSessions = computed(() => {
-  // 过滤掉没有有效 id 的会话
   return sessions.value.filter(session => session && session.id)
 })
 
-function truncateSessionName(name: string, maxLength: number = 10): string {
-  if (!name) return '新会话'
-  if (name.length <= maxLength) return name
-  return name.substring(0, maxLength) + '...'
+function formatSessionTime(timestamp?: number): string {
+  if (!timestamp) return '刚刚'
+  const now = Date.now()
+  const diff = now - timestamp
+  
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)} 天前`
+  return new Date(timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
 async function handleNewSession() {
   try {
     const sessionData = await window.electronAPI.api.createSession()
-    // 转换后端返回的会话数据格式为前端期望的格式
-    const session = {
+      const session = {
       id: sessionData.session_id,
-      name: sessionData.first_message || '新会话'
+      name: sessionData.first_message || '新会话',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     }
     appStore.setSessions([...sessions.value, session])
     await handleSelectSession(session.id)
@@ -88,27 +116,22 @@ async function handleNewSession() {
 }
 
 async function handleSelectSession(sessionId: string) {
-  console.log('handleSelectSession called with sessionId:', sessionId)
-  
-  // 检查 sessionId 是否有效
+  console.log('handleSelectSession called with sessionId:', sessionId)  
   if (!sessionId) {
     console.error('Invalid sessionId')
     appStore.setTurns([])
     return
   }
   
-  appStore.setCurrentSession(sessionId)
-  
+  appStore.setCurrentSession(sessionId)  
   try {
     console.log('Calling getSessionInfo for sessionId:', sessionId)
     const sessionInfo = await window.electronAPI.api.getSessionInfo(sessionId)
     console.log('Received sessionInfo:', sessionInfo)
     
-    // 从 sessionInfo.task_list 中构建 turns
     const turns = []
     if (sessionInfo.task_list && Array.isArray(sessionInfo.task_list)) {
       sessionInfo.task_list.forEach((task: any, taskIndex: number) => {
-        // 添加用户输入
         if (task.user_input) {
           turns.push({
             id: `${sessionId}_${taskIndex}_user`,
@@ -123,7 +146,6 @@ async function handleSelectSession(sessionId: string) {
           })
         }
         
-        // 添加助手响应
         if (task.result) {
           turns.push({
             id: `${sessionId}_${taskIndex}_assistant`,
@@ -142,15 +164,15 @@ async function handleSelectSession(sessionId: string) {
     appStore.setTurns(turns)
   } catch (error: any) {
     console.error('Failed to load session info:', error)
-    // 检查是否是 404 错误（会话不存在）
     if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
       console.log('Session does not exist, creating new session')
-      // 会话不存在，创建新会话
       try {
         const sessionData = await window.electronAPI.api.createSession()
         const session = {
           id: sessionData.session_id,
-          name: sessionData.first_message || '新会话'
+          name: sessionData.first_message || '新会话',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
         }
         appStore.setSessions([...sessions.value, session])
         appStore.setCurrentSession(session.id)
@@ -160,7 +182,6 @@ async function handleSelectSession(sessionId: string) {
         appStore.setTurns([])
       }
     } else {
-      // 其他错误，将 turns 设置为空数组
       appStore.setTurns([])
     }
   }
@@ -172,17 +193,17 @@ async function handleCommand(command: string, session: any) {
       const { value } = await ElMessageBox.prompt('请输入新名称', '重命名会话', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
-        inputValue: session.name
+        inputValue: session.name,
+        inputPattern: /^.{1,50}$/,
+        inputErrorMessage: '名称长度为 1-50 个字符'
       })
       
       if (value) {
-        // 调用后端 API 更新会话名称
         if (window.electronAPI.api.updateSessionName) {
           await window.electronAPI.api.updateSessionName(session.id, value)
         }
-        // 更新前端会话列表
         const updatedSessions = sessions.value.map(s =>
-          s.id === session.id ? { ...s, name: value } : s
+          s.id === session.id ? { ...s, name: value, updatedAt: Date.now() } : s
         )
         appStore.setSessions(updatedSessions)
       }
@@ -191,11 +212,16 @@ async function handleCommand(command: string, session: any) {
     }
   } else if (command === 'delete') {
     try {
-      await ElMessageBox.confirm('确定要删除此会话吗？', '确认删除', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      })
+      await ElMessageBox.confirm(
+        '确定要删除此会话吗？删除后将无法恢复。',
+        '确认删除',
+        {
+          confirmButtonText: '删除',
+          cancelButtonText: '取消',
+          type: 'warning',
+          confirmButtonClass: 'el-button--danger'
+        }
+      )
       
       if (window.electronAPI.api.deleteSession) {
         await window.electronAPI.api.deleteSession(session.id)
@@ -229,27 +255,125 @@ async function handleCommand(command: string, session: any) {
   border-bottom: 1px solid #e8e8e8;
 }
 
+.workspace-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.workspace-icon {
+  font-size: 18px;
+  color: #1890ff;
+}
+
+.workspace-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.workspace-label {
+  font-size: 11px;
+  color: #999999;
+  margin-bottom: 2px;
+}
+
 .workspace-path {
   font-size: 12px;
   color: #666666;
-  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .new-session-btn {
   width: 100%;
+  height: 32px;
   border-radius: 4px;
+  font-size: 13px;
+}
+
+.btn-icon {
+  margin-right: 4px;
 }
 
 .history-chat-list {
   flex: 1;
   overflow-y: auto;
+  padding: 0 12px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+
+    &:hover {
+      background: #b8c2cc;
+    }
+  }
+}
+
+.history-chat-list-header {
+  padding: 12px 12px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #333333;
+}
+
+.header-count {
+  font-size: 12px;
+  color: #999999;
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #999999;
+}
+
+.empty-icon {
+  font-size: 48px;
+  color: #d1d5db;
+  margin-bottom: 12px;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: #666666;
+  margin-bottom: 4px;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: #999999;
 }
 
 .history-chat-item {
   display: flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
   cursor: pointer;
+  border-radius: 4px;
   transition: background-color 0.2s;
 
   &:hover {
@@ -258,53 +382,92 @@ async function handleCommand(command: string, session: any) {
 
   &.active {
     background-color: #e6f7ff;
+
+    .session-name {
+      color: #1890ff;
+      font-weight: 500;
+    }
   }
 }
 
-.history-chat-item-icon {
-  margin-right: 8px;
-  color: #1890ff;
+.session-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background-color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  flex-shrink: 0;
 
   .el-icon {
     font-size: 16px;
+    color: #1890ff;
   }
 }
 
-.history-chat-item-content {
+.session-content {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.history-chat-item-name {
-  font-size: 14px;
+.session-name {
+  font-size: 13px;
   color: #333333;
-  line-height: 20px;
+  line-height: 18px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.2s;
 }
 
-.history-chat-item-actions {
+.session-meta {
+  display: flex;
+  align-items: center;
+}
+
+.session-time {
+  font-size: 11px;
+  color: #999999;
+}
+
+.session-actions {
   margin-left: 8px;
-
-  .action-button {
-    opacity: 0;
-    transition: opacity 0.2s;
-    padding: 0;
-    width: 24px;
-    height: 24px;
-  }
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
-.history-chat-item:hover .history-chat-item-actions .action-button {
+.history-chat-item:hover .session-actions {
   opacity: 1;
 }
 
-.action-button .el-icon {
-  font-size: 14px;
-  color: #666666;
+.action-button {
+  padding: 2px;
+  width: 24px;
+  height: 24px;
+
+  .el-icon {
+    font-size: 14px;
+    color: #666666;
+  }
 }
 
-.action-button:hover .el-icon {
-  color: #1890ff;
+.menu-icon {
+  margin-right: 6px;
+  font-size: 14px;
+  color: #666666;
+
+  &.danger-icon {
+    color: #f56c6c;
+  }
+}
+
+.danger-text {
+  color: #f56c6c;
 }
 </style>

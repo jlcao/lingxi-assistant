@@ -1,11 +1,11 @@
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from lingxi.__main__ import LingxiAssistant
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
 from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions
-from lingxi.web.state import set_assistant, get_assistant
+from lingxi.web.state import set_assistant, get_assistant, get_websocket_manager
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 
 def get_config():
@@ -88,6 +88,27 @@ async def get_status():
         "assistant": assistant.config.get('system', {}).get('name', '灵犀') if assistant else None,
         "version": assistant.config.get('system', {}).get('version', '0.2.0') if assistant else None
     }
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket 端点"""
+    websocket_manager = get_websocket_manager()
+    if not websocket_manager:
+        await websocket.close(code=1011, reason="WebSocket 管理器未初始化")
+        return
+
+    connection_id = await websocket_manager.connect(websocket)
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            await websocket_manager.handle_message(connection_id, data)
+    except WebSocketDisconnect:
+        await websocket_manager.disconnect(connection_id)
+    except Exception as e:
+        logger.error(f"WebSocket 连接错误: {e}", exc_info=True)
+        await websocket_manager.disconnect(connection_id)
 
 
 def run_server(config=None):

@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, Generator, Callable
 from lingxi.core.event import global_event_publisher
 from lingxi.core.engine.base import BaseEngine
 from lingxi.core.exceptions import map_exception_to_error_code
+from lingxi.core.context import TaskContext
 
 
 class StreamEventCollector:
@@ -91,6 +92,7 @@ class StreamEventCollector:
             event_type: 事件类型
             data: 事件数据
         """
+        self.logger.debug("_put_event "+ event_type)
         if self._event_queue:
             await self._event_queue.put((event_type, data))
 
@@ -98,6 +100,7 @@ class StreamEventCollector:
         """处理思考开始事件"""
         if self._filter_event(session_id, execution_id):
             try:
+               
                 loop = asyncio.get_running_loop()
                 asyncio.create_task(self._put_event("think_start", kwargs))
             except RuntimeError:
@@ -119,6 +122,7 @@ class StreamEventCollector:
         if self._filter_event(session_id, execution_id):
             try:
                 loop = asyncio.get_running_loop()
+                self.logger.debug("_handle_think_stream"+ session_id)
                 asyncio.create_task(self._put_event("think_stream", {"content": content, **kwargs}))
             except RuntimeError:
                 if self._event_queue:
@@ -238,13 +242,26 @@ async def execute_with_stream_events(
     # 生成 task_id
     task_id = f"task_{session_id}_{execution_id[:8]}" if len(execution_id) > 8 else f"task_{session_id}_{execution_id}"
     
-    # 在线程函数内部设置 local_context（因为 threading.local 是线程隔离的）
+    # 在线程函数内部执行引擎
     def run_engine():
-        from lingxi.core.context import set_ids
-        # 设置当前线程的上下文 ID
-        set_ids(session_id, task_id, execution_id, task)
+        # 创建 TaskContext 对象
+        context = TaskContext(
+            user_input=task,
+            task_info=task_info,
+            session_id=session_id,
+            session_history=history,
+            stream=stream,
+            task_id=task_id,
+            execution_id=execution_id
+        )
         # 执行引擎
-        return engine.process(task, task_info, history, session_id, stream)
+        result = engine.process(context)
+        # 如果返回的是生成器，需要消费它以触发实际执行
+        if hasattr(result, '__iter__'):
+            # 消费生成器以触发实际执行
+            for _ in result:
+                pass
+        return result
     
     async with StreamEventCollector(session_id, execution_id) as collector:
         task_executor = asyncio.create_task(

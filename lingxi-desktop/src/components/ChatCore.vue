@@ -310,10 +310,10 @@ async function handleSend() {
 
     inputText.value = ''
 
-    // 通过 SSE 发送消息到后端
-    if (window.electronAPI?.api && appStore.currentSessionId) {
+    // 通过 WebSocket 发送消息到后端
+    if (window.electronAPI?.ws && appStore.currentSessionId) {
       try {
-        await window.electronAPI.api.executeTaskStream(
+        await window.electronAPI.ws.sendMessage(
           userMessage,
           appStore.currentSessionId
         )

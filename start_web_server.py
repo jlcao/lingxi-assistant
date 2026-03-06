@@ -15,6 +15,7 @@ from lingxi.utils.config import get_config
 from lingxi.web.websocket import WebSocketManager
 from lingxi.web.state import set_websocket_manager, set_assistant
 from lingxi.__main__ import LingxiAssistant
+from lingxi.core.event.websocket_subscriber import WebSocketSubscriber
 
 
 def main():
@@ -53,17 +54,15 @@ def main():
         assistant = LingxiAssistant(config)
         set_assistant(assistant)
         
-        # 可选：是否启用 WebSocket 事件推送（默认禁用，避免与 HTTP SSE 冲突）
-        enable_websocket_events = web_config.get('enable_websocket_events', False)
+        # 初始化 WebSocket 管理器和订阅者
+        websocket_manager = WebSocketManager(assistant)
+        set_websocket_manager(websocket_manager)
         
-        if enable_websocket_events:
-            websocket_manager = WebSocketManager(assistant)
-            set_websocket_manager(websocket_manager)
-            print("WebSocket 事件推送：已启用")
-        else:
-            print("WebSocket 事件推送：已禁用（使用 HTTP SSE 流式响应）")
+        # 初始化 WebSocket 事件订阅者
+        websocket_subscriber = WebSocketSubscriber(websocket_manager)
         
         print("助手已初始化")
+        print("WebSocket 事件推送：已启用")
         print()
     except Exception as e:
         print(f"初始化失败：{e}")
