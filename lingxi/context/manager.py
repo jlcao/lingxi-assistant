@@ -77,7 +77,7 @@ class ContextManager:
             )
 
         self.logger = logging.getLogger(__name__)
-        self.logger.info(f"初始化上下文管理器，会话ID: {session_id}")
+        self.logger.debug(f"初始化上下文管理器，会话ID: {session_id}")
 
     def add_message(self, role: str, content: str,
                    content_type: ContentType = None,
@@ -140,7 +140,7 @@ class ContextManager:
             "archived_count": 0
         }
 
-        self.logger.info(f"触发上下文压缩，策略: {strategy}")
+        self.logger.debug(f"触发上下文压缩，策略: {strategy}")
 
         if strategy == "hybrid":
             stats.update(self._compress_thinking())
@@ -157,7 +157,7 @@ class ContextManager:
         stats["after_tokens"] = self.token_usage
         stats["compression_ratio"] = 1 - (stats["after_tokens"] / stats["before_tokens"]) if stats["before_tokens"] > 0 else 0
 
-        self.logger.info(f"压缩完成，节省token: {stats['before_tokens'] - stats['after_tokens']} ({stats['compression_ratio']:.1%})")
+        self.logger.debug(f"压缩完成，节省token: {stats['before_tokens'] - stats['after_tokens']} ({stats['compression_ratio']:.1%})")
 
         return stats
 
@@ -363,7 +363,7 @@ class ContextManager:
             task_id: 任务ID
         """
         self.current_task_id = task_id
-        self.logger.info(f"设置当前任务ID: {task_id}")
+        self.logger.debug(f"设置当前任务ID: {task_id}")
 
     def retrieve_relevant_history(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """检索相关历史记忆

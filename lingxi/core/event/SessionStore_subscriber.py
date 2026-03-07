@@ -55,7 +55,7 @@ class SessionStoreSubscriber:
         task_id = kwargs.get('task_id')
         user_input = kwargs.get('user_input', '')
         task_level = kwargs.get('task_level', 'none')
-        self.logger.info(f"收到 task_start 事件：session={session_id}, task_id={task_id}")
+        self.logger.debug(f"收到 task_start 事件：session={session_id}, task_id={task_id}")
         if not task_id:
             self.logger.warning(f"处理 task_start 事件时缺少 task_id: {session_id}, kwargs={kwargs}")
             return
@@ -63,7 +63,7 @@ class SessionStoreSubscriber:
         if self.sessionManage:
             session_info = self.sessionManage.get_session_info(session_id)
             if not session_info:
-                self.logger.info(f"会话不存在，创建新会话：session={session_id}")
+                self.logger.debug(f"会话不存在，创建新会话：session={session_id}")
                 self.sessionManage.create_session_by_id(session_id=session_id)
             
             existing_task = self.sessionManage.get_task(session_id, task_id)
@@ -71,7 +71,6 @@ class SessionStoreSubscriber:
                 self.logger.debug(f"任务已存在，跳过创建：session={session_id}, task={task_id}")
                 return
             
-            self.logger.info(f"创建任务：session={session_id}, task={task_id}")
             self.sessionManage.create_task(
                 session_id=session_id,
                 task_id=task_id,
@@ -79,7 +78,6 @@ class SessionStoreSubscriber:
                 user_input=user_input,
                 task_level=task_level
             )
-            self.logger.info(f"任务创建成功")
         else:
             self.logger.warning("sessionManage 未初始化")
 
@@ -94,7 +92,7 @@ class SessionStoreSubscriber:
         task_id = kwargs.get('task_id')
         task_input = kwargs.get('task_info', {}).get('description', '')
         task_level = kwargs.get('task_level', 'none')
-        self.logger.info(f"收到 plan_start 事件：session={session_id}, task_id={task_id}")
+        self.logger.debug(f"收到 plan_start 事件：session={session_id}, task_id={task_id}")
         if not task_id:
             self.logger.warning(f"处理 plan_start 事件时缺少 task_id: {session_id}, kwargs={kwargs}")
             return
@@ -103,7 +101,6 @@ class SessionStoreSubscriber:
             # 检查会话是否存在，不存在则创建
             session_info = self.sessionManage.get_session_info(session_id)
             if not session_info:
-                self.logger.info(f"会话不存在，创建新会话：session={session_id}")
                 self.sessionManage.create_session_by_id(session_id=session_id)
             else:
                 self.logger.debug(f"会话已存在：session={session_id}")
@@ -115,7 +112,6 @@ class SessionStoreSubscriber:
                 return
             
             # 创建任务
-            self.logger.info(f"创建任务：session={session_id}, task={task_id}")
             self.sessionManage.create_task(
                 session_id=session_id,
                 task_id=task_id,
@@ -123,18 +119,16 @@ class SessionStoreSubscriber:
                 user_input=task_input,
                 task_level=task_level
             )
-            self.logger.info(f"任务创建成功")
         else:
             self.logger.warning("sessionManage 未初始化")
     def handle_task_failed(self, session_id: str, execution_id: str, **kwargs):
         task_id = kwargs.get('task_id')
-        self.logger.info(f"收到 task_failed 事件：session={session_id}, task_id={task_id}")
+        self.logger.debug(f"收到 task_failed 事件：session={session_id}, task_id={task_id}")
         if not task_id:
             self.logger.warning(f"处理 task_failed 事件时缺少 task_id: {session_id}, kwargs={kwargs}")
             return
             
         if self.sessionManage:
-            self.logger.info(f"保存任务失败状态：session={session_id}, task={task_id}")
             self.sessionManage.set_task_result(
                 session_id=session_id,
                 task_id=task_id,
@@ -142,7 +136,6 @@ class SessionStoreSubscriber:
                 user_input=kwargs.get('task_input', ''),
                 status='failed'
             )
-            self.logger.info(f"任务失败状态已保存")
         else:
             self.logger.warning("sessionManage 未初始化")
 
@@ -180,7 +173,7 @@ class SessionStoreSubscriber:
             **kwargs: 其他参数
         """
         task_id = kwargs.get('task_id')
-        self.logger.info(f"收到 step_end 事件：session={session_id}, task_id={task_id}, step={step_index}")
+        self.logger.debug(f"收到 step_end 事件：session={session_id}, task_id={task_id}, step={step_index}")
         if not task_id:
             self.logger.warning(f"处理 step_end 事件时缺少 task_id: {session_id}, kwargs={kwargs}")
             return
@@ -190,7 +183,6 @@ class SessionStoreSubscriber:
             result = json.dumps(result, ensure_ascii=False)
             
         if self.sessionManage:
-            self.logger.info(f"保存步骤：session={session_id}, task={task_id}, step={step_index}")
             self.sessionManage.add_step(
                 session_id=session_id,
                 task_id=task_id,
@@ -202,7 +194,6 @@ class SessionStoreSubscriber:
                 action_input=kwargs.get('action_input', ''),
                 description=kwargs.get('description', '')
             )
-            self.logger.info(f"步骤保存成功")
         else:
             self.logger.warning("sessionManage 未初始化")
 
@@ -216,7 +207,7 @@ class SessionStoreSubscriber:
             **kwargs: 其他参数
         """
         task_id = kwargs.get('task_id')
-        self.logger.info(f"收到 task_end 事件：session={session_id}, task_id={task_id}")
+        self.logger.debug(f"收到 task_end 事件：session={session_id}, task_id={task_id}")
         if not task_id:
             self.logger.warning(f"处理 task_end 事件时缺少 task_id: {session_id}, kwargs={kwargs}")
             return
@@ -225,7 +216,6 @@ class SessionStoreSubscriber:
             result = json.dumps(result, ensure_ascii=False)
             
         if self.sessionManage:
-            self.logger.info(f"保存任务结果：session={session_id}, task={task_id}")
             self.sessionManage.set_task_result(
                 session_id=session_id,
                 task_id=task_id,
@@ -241,7 +231,6 @@ class SessionStoreSubscriber:
                 self.sessionManage.update_session_tokens(session_id, input_tokens, output_tokens)
                 self.logger.debug(f"任务 Token 总计：input={input_tokens}, output={output_tokens}")
             
-            self.logger.info(f"任务结果保存成功")
         else:
             self.logger.warning("sessionManage 未初始化")
 

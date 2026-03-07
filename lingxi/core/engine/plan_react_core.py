@@ -175,9 +175,9 @@ class PlanReActCore(ReActCore):
             checkpoint_task = checkpoint.get("task", "")
             if checkpoint_task == task:
                 should_resume = True
-                self.logger.info(f"从检查点恢复执行，当前步骤：{checkpoint.get('current_step_idx', 0)}/{len(plan)}")
+                self.logger.debug(f"从检查点恢复执行，当前步骤：{checkpoint.get('current_step_idx', 0)}/{len(plan)}")
             else:
-                self.logger.info(f"检查点任务不匹配，创建新任务。检查点任务：{checkpoint_task[:50]}...，当前任务：{task[:50]}...")
+                self.logger.debug(f"检查点任务不匹配，创建新任务。检查点任务：{checkpoint_task[:50]}...，当前任务：{task[:50]}...")
         
         if should_resume:
             # 从检查点恢复

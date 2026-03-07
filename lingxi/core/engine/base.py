@@ -477,7 +477,7 @@ class BaseEngine:
         success = self.confirmation_manager.respond_confirmation(request_id, confirmed, reason)
         
         if success:
-            self.logger.info(f"确认响应处理成功: request_id={request_id}, confirmed={confirmed}")
+            self.logger.debug(f"确认响应处理成功: request_id={request_id}, confirmed={confirmed}")
         else:
             self.logger.warning(f"确认响应处理失败: request_id={request_id}")
         

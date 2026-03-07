@@ -95,7 +95,7 @@ class ConfirmationManager:
         self._pending_requests[request_id] = request
         self._responses[request_id] = asyncio.Future()
         
-        self.logger.info(
+        self.logger.debug(
             f"创建确认请求: id={request_id}, operation={operation}, "
             f"risk={risk_level}, timeout={request.timeout}s"
         )
@@ -133,7 +133,7 @@ class ConfirmationManager:
                 self._responses[request_id],
                 timeout=wait_timeout
             )
-            self.logger.info(f"确认结果: id={request_id}, confirmed={confirmed}")
+            self.logger.debug(f"确认结果: id={request_id}, confirmed={confirmed}")
             return confirmed
         except asyncio.TimeoutError:
             if self.auto_reject_timeout:
@@ -183,7 +183,7 @@ class ConfirmationManager:
         
         self._responses[request_id].set_result(confirmed)
         
-        self.logger.info(
+        self.logger.debug(
             f"确认响应: id={request_id}, confirmed={confirmed}, "
             f"reason={reason}"
         )
@@ -204,7 +204,7 @@ class ConfirmationManager:
             return False
         
         self._cleanup_request(request_id)
-        self.logger.info(f"取消确认请求: {request_id}")
+        self.logger.debug(f"取消确认请求: {request_id}")
         return True
     
     def get_pending_requests(self) -> Dict[str, ConfirmationRequest]:
@@ -244,7 +244,7 @@ class ConfirmationManager:
             self.cancel_request(request_id)
         
         if expired_ids:
-            self.logger.info(f"清理过期请求: {len(expired_ids)}个")
+            self.logger.debug(f"清理过期请求: {len(expired_ids)}个")
     
     def _cleanup_request(self, request_id: str):
         """清理确认请求

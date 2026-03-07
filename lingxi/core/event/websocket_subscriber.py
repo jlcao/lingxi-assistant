@@ -20,7 +20,7 @@ class WebSocketSubscriber:
         if websocket_manager:
             self._subscribe_to_events()
         else:
-            self.logger.info("WebSocket 管理器未提供，跳过事件订阅")
+            self.logger.debug("WebSocket 管理器未提供，跳过事件订阅")
 
     def _subscribe_to_events(self):
         """订阅事件"""

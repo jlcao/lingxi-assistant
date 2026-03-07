@@ -196,17 +196,14 @@ class SessionManager:
         
         # 如果表存在但缺少 title 列，添加该列
         if columns and 'title' not in columns:
-            self.logger.info("检测到旧版数据库表结构，添加 title 列")
             cursor.execute("ALTER TABLE sessions ADD COLUMN title TEXT NOT NULL DEFAULT '新会话'")
         
         # 如果表存在但缺少 current_task_id 列，添加该列
         if columns and 'current_task_id' not in columns:
-            self.logger.info("检测到旧版数据库表结构，添加 current_task_id 列")
             cursor.execute("ALTER TABLE sessions ADD COLUMN current_task_id TEXT")
         
         # 如果表存在但缺少 total_tokens 列，添加该列
         if columns and 'total_tokens' not in columns:
-            self.logger.info("检测到旧版数据库表结构，添加 total_tokens 列")
             cursor.execute("ALTER TABLE sessions ADD COLUMN total_tokens INTEGER NOT NULL DEFAULT 0")
         
         # 检查 tasks 表结构
@@ -215,17 +212,14 @@ class SessionManager:
         
         # 如果 tasks 表存在但缺少 input_tokens 列，添加该列
         if task_columns and 'input_tokens' not in task_columns:
-            self.logger.info("检测到旧版数据库表结构，添加 input_tokens 列")
             cursor.execute("ALTER TABLE tasks ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0")
         
         # 如果 tasks 表存在但缺少 output_tokens 列，添加该列
         if task_columns and 'output_tokens' not in task_columns:
-            self.logger.info("检测到旧版数据库表结构，添加 output_tokens 列")
             cursor.execute("ALTER TABLE tasks ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0")
         
         # 如果 tasks 表存在但缺少 task_level 列，添加该列
         if task_columns and 'task_level' not in task_columns:
-            self.logger.info("检测到旧版数据库表结构，添加 task_level 列")
             cursor.execute("ALTER TABLE tasks ADD COLUMN task_level TEXT NOT NULL DEFAULT 'none'")
         
         cursor.execute("""
