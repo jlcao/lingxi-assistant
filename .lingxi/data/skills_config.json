@@ -1,0 +1,338 @@
+{
+  "skills": {
+    "create_file": {
+      "skill_id": "create_file",
+      "skill_name": "create_file",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Create a new file with specified content. Use this skill when the user needs to create a new file, write content to a file, or save text to a file.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "create_file",
+        "skill_name": "create_file",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Create a new file with specified content. Use this skill when the user needs to create a new file, write content to a file, or save text to a file.",
+        "mcp_config": {
+          "name": "create_file",
+          "description": "Create a new file with specified content. Use this skill when the user needs to create a new file, write content to a file, or save text to a file.",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求创建文件、保存内容到文件、写入文本到文件时触发",
+          "execution_guidelines": "1. 验证file_path参数是否为绝对路径\n2. 自动创建父目录（如果不存在）\n3. 使用UTF-8编码写入文件\n4. 返回创建成功消息和文件大小",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "delete_file": {
+      "skill_id": "delete_file",
+      "skill_name": "delete_file",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Delete a file. Use this skill when the user needs to remove or delete a file from the filesystem.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "delete_file",
+        "skill_name": "delete_file",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Delete a file. Use this skill when the user needs to remove or delete a file from the filesystem.",
+        "mcp_config": {
+          "name": "delete_file",
+          "description": "Delete a file. Use this skill when the user needs to remove or delete a file from the filesystem.",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求删除文件、移除文件时触发",
+          "execution_guidelines": "1. 验证file_path参数是否为绝对路径\n2. 检查文件是否存在\n3. 执行删除操作\n4. 返回删除结果",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "execute_command": {
+      "skill_id": "execute_command",
+      "skill_name": "execute_command",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Execute Linux Shell or PowerShell commands. Use this skill when the user needs to run terminal commands, execute scripts, or perform system operations.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "execute_command",
+        "skill_name": "execute_command",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Execute Linux Shell or PowerShell commands. Use this skill when the user needs to run terminal commands, execute scripts, or perform system operations.",
+        "mcp_config": {
+          "name": "execute_command",
+          "description": "Execute Linux Shell or PowerShell commands. Use this skill when the user needs to run terminal commands, execute scripts, or perform system operations.",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求执行命令、运行脚本、执行系统操作时触发",
+          "execution_guidelines": "1. 自动检测操作系统并选择合适的shell\n2. Windows使用PowerShell，Linux/Mac使用Bash\n3. 支持指定工作目录\n4. 设置30秒超时\n5. 返回命令输出或错误信息",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "fetch_webpage": {
+      "skill_id": "fetch_webpage",
+      "skill_name": "fetch_webpage",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Fetch webpage content and optionally save to a local file. Use this skill when the user needs to retrieve web content, download web pages, or save web content to a file.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "fetch_webpage",
+        "skill_name": "fetch_webpage",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Fetch webpage content and optionally save to a local file. Use this skill when the user needs to retrieve web content, download web pages, or save web content to a file.",
+        "mcp_config": {
+          "name": "fetch_webpage",
+          "description": "Fetch webpage content and optionally save to a local file. Use this skill when the user needs to retrieve web content, download web pages, or save web content to a file.",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求获取网页内容、下载网页、保存网页到文件时触发",
+          "execution_guidelines": "1. 验证url参数\n2. 使用requests库获取网页内容\n3. 使用html2text将HTML转换为Markdown\n4. 如果提供save_path，保存到文件\n5. 返回网页内容或保存结果",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "modify_file": {
+      "skill_id": "modify_file",
+      "skill_name": "modify_file",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Modify file content by replacing old content with new content. Use this skill when the user needs to update, edit, or replace content in an existing file.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "modify_file",
+        "skill_name": "modify_file",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Modify file content by replacing old content with new content. Use this skill when the user needs to update, edit, or replace content in an existing file.",
+        "mcp_config": {
+          "name": "modify_file",
+          "description": "Modify file content by replacing old content with new content. Use this skill when the user needs to update, edit, or replace content in an existing file.",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求修改文件、更新文件内容、替换文件中的文本时触发",
+          "execution_guidelines": "1. 验证file_path参数是否为绝对路径\n2. 验证old_content和new_content参数\n3. 检查文件是否存在\n4. 替换所有匹配的文本\n5. 返回替换次数",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "read_file": {
+      "skill_id": "read_file",
+      "skill_name": "read_file",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Read text-based file content with optional search functionality. Use this skill when the user needs to read plain text files (.txt, .py, .js, .md, .json, .yaml, .csv, etc.) or search for specific text within them. Note: This skill CANNOT read binary formats or other specialized file formats",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "read_file",
+        "skill_name": "read_file",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Read text-based file content with optional search functionality. Use this skill when the user needs to read plain text files (.txt, .py, .js, .md, .json, .yaml, .csv, etc.) or search for specific text within them. Note: This skill CANNOT read binary formats or other specialized file formats",
+        "mcp_config": {
+          "name": "read_file",
+          "description": "Read text-based file content with optional search functionality. Use this skill when the user needs to read plain text files (.txt, .py, .js, .md, .json, .yaml, .csv, etc.) or search for specific text within them. Note: This skill CANNOT read binary formats or other specialized file formats",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求读取文件、查看文件内容、搜索文件中的文本时触发",
+          "execution_guidelines": "1. 验证file_path参数是否为绝对路径\n2. 如果提供search_text，执行搜索并返回上下文\n3. 如果未提供search_text，返回整个文件内容\n4. 使用UTF-8编码读取文件",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "search": {
+      "skill_id": "search",
+      "skill_name": "search",
+      "version": "2.0.0",
+      "type": "mcp",
+      "description": "Search for information on the internet. Use this skill when the user asks to search for information, look up facts, find resources, or research topics online.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "search",
+        "skill_name": "search",
+        "version": "2.0.0",
+        "type": "mcp",
+        "description": "Search for information on the internet. Use this skill when the user asks to search for information, look up facts, find resources, or research topics online.",
+        "mcp_config": {
+          "name": "search",
+          "description": "Search for information on the internet. Use this skill when the user asks to search for information, look up facts, find resources, or research topics online.",
+          "version": "2.0.0",
+          "trigger_conditions": "用户请求搜索信息、查找事实、研究主题、查询网络时触发",
+          "execution_guidelines": "1. 验证query参数\n2. 支持多站点搜索（CSDN、百度百科、腾讯新闻）\n3. 可指定搜索站点和结果数量\n4. 返回格式化的搜索结果",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "docx": {
+      "skill_id": "docx",
+      "skill_name": "docx",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "docx",
+        "skill_name": "docx",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+        "mcp_config": {
+          "name": "docx",
+          "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求创建Word文档、编辑Word文档、处理修订、添加注释时触发",
+          "execution_guidelines": "1. 返回docx技能的完整使用说明\n2. 提供解包、打包、验证等工具脚本\n3. 支持修订和注释处理\n4. 保留格式和文本结构",
+          "author": "Anthropic",
+          "license": "Proprietary. LICENSE.txt has complete terms"
+        },
+        "parameters": []
+      }
+    },
+    "pdf": {
+      "skill_id": "pdf",
+      "skill_name": "pdf",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "pdf",
+        "skill_name": "pdf",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+        "mcp_config": {
+          "name": "pdf",
+          "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求填写PDF表单、批量处理PDF、生成PDF、合并拆分PDF时触发",
+          "execution_guidelines": "1. 返回pdf技能的完整使用说明\n2. 提供PDF转图像、提取表单字段、填写表单等工具\n3. 支持批量PDF操作\n4. 提供边界框检查工具",
+          "author": "Anthropic",
+          "license": "Proprietary. LICENSE.txt has complete terms"
+        },
+        "parameters": []
+      }
+    },
+    "xlsx": {
+      "skill_id": "xlsx",
+      "skill_name": "xlsx",
+      "version": "2.1.0",
+      "type": "mcp",
+      "description": "Comprehensive spreadsheet operations including read, analyze, merge, create, edit, and sort. Supports Excel files (.xlsx, .xlsm) and CSV files (.csv, .tsv).",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "xlsx",
+        "skill_name": "xlsx",
+        "version": "2.1.0",
+        "type": "mcp",
+        "description": "Comprehensive spreadsheet operations including read, analyze, merge, create, edit, and sort. Supports Excel files (.xlsx, .xlsm) and CSV files (.csv, .tsv).",
+        "mcp_config": {
+          "name": "xlsx",
+          "description": "Comprehensive spreadsheet operations including read, analyze, merge, create, edit, and sort. Supports Excel files (.xlsx, .xlsm) and CSV files (.csv, .tsv).",
+          "version": "2.1.0",
+          "trigger_conditions": "用户请求读取Excel文件、分析数据、合并表格、创建新表格、编辑表格或排序表格时触发",
+          "execution_guidelines": "1. 根据operation参数执行相应操作\n2. 返回操作结果或错误信息\n3. 支持多种Excel操作：读取、分析、合并、创建、编辑、排序",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "extract_news": {
+      "skill_id": "extract_news",
+      "skill_name": "extract_news",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Extract news content from webpage using trafilatura. Use this skill when user needs to extract main content from news articles, blog posts, or web pages.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "extract_news",
+        "skill_name": "extract_news",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Extract news content from webpage using trafilatura. Use this skill when user needs to extract main content from news articles, blog posts, or web pages.",
+        "mcp_config": {
+          "name": "extract_news",
+          "description": "Extract news content from webpage using trafilatura. Use this skill when user needs to extract main content from news articles, blog posts, or web pages.",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求从网页提取新闻内容、文章正文、去除广告和导航栏时触发",
+          "execution_guidelines": "1. 验证url参数\n2. 使用trafilatura提取网页主要内容\n3. 支持提取标题、正文、作者、发布日期等\n4. 如果提供save_path，保存到文件\n5. 返回提取的新闻内容",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    },
+    "skill-creator": {
+      "skill_id": "skill-creator",
+      "skill_name": "skill-creator",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "skill-creator",
+        "skill_name": "skill-creator",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+        "mcp_config": {
+          "name": "skill-creator",
+          "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+          "license": "Complete terms in LICENSE.txt"
+        },
+        "parameters": []
+      }
+    },
+    "financial_news": {
+      "skill_id": "financial_news",
+      "skill_name": "financial_news",
+      "version": "1.0.0",
+      "type": "mcp",
+      "description": "Get latest financial news headlines from CaiLian She (财联社). Use this skill when user asks for financial news, stock market news, or economic headlines.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "skill_id": "financial_news",
+        "skill_name": "financial_news",
+        "version": "1.0.0",
+        "type": "mcp",
+        "description": "Get latest financial news headlines from CaiLian She (财联社). Use this skill when user asks for financial news, stock market news, or economic headlines.",
+        "mcp_config": {
+          "name": "financial_news",
+          "description": "Get latest financial news headlines from CaiLian She (财联社). Use this skill when user asks for financial news, stock market news, or economic headlines.",
+          "version": "1.0.0",
+          "trigger_conditions": "用户请求获取财经新闻、股市新闻、经济头条时触发",
+          "execution_guidelines": "1. 验证参数\n2. 优先使用Selenium获取新闻（支持动态内容）\n3. 如果Selenium失败，回退到requests方法\n4. 过滤最近24小时的新闻\n5. 返回格式化的新闻列表",
+          "author": "Lingxi Team",
+          "license": "MIT"
+        },
+        "parameters": []
+      }
+    }
+  }
+}

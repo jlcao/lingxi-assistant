@@ -2,7 +2,7 @@
   <div class="history-chat">
     <div class="history-chat-workspace">
       <div class="workspace-info">
-        <el-icon class="workspace-icon"><FolderOpened /></el-icon>
+        <el-icon class="workspace-icon" @click="handleSelectWorkspace"><FolderOpened /></el-icon>
         <div class="workspace-details">
           <div class="workspace-label">当前工作区</div>
           <div class="workspace-path" :title="appStore.currentWorkspace || '未设置'">
@@ -86,6 +86,17 @@ const { sessions, currentSessionId } = storeToRefs(appStore)
 const filteredSessions = computed(() => {
   return sessions.value.filter(session => session && session.id)
 })
+
+async function handleSelectWorkspace() {
+  try {
+    const selectedPath = await window.electronAPI.file.selectDirectory()
+    if (selectedPath) {
+      appStore.setCurrentWorkspace(selectedPath)
+    }
+  } catch (error) {
+    console.error('Failed to select workspace:', error)
+  }
+}
 
 function formatSessionTime(timestamp?: number): string {
   if (!timestamp) return '刚刚'
@@ -256,6 +267,12 @@ async function handleCommand(command: string, session: any) {
 .workspace-icon {
   font-size: 18px;
   color: #1890ff;
+  cursor: pointer;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #40a9ff;
+  }
 }
 
 .workspace-details {

@@ -1,4 +1,12 @@
 declare global {
+  interface FileTreeNode {
+    id: string
+    label: string
+    path: string
+    children?: FileTreeNode[]
+    isDirectory: boolean
+  }
+
   interface Window {
     electronAPI: {
       window: {
@@ -14,6 +22,7 @@ declare global {
         selectFiles: (filters?: any) => Promise<string[]>
         save: (defaultPath?: string, filters?: any) => Promise<string | null>
         openExplorer: (filePath: string) => Promise<void>
+        readDirectoryTree: (dirPath: string, maxDepth?: number) => Promise<FileTreeNode | null>
       }
       api: {
         getSessions: () => Promise<any[]>

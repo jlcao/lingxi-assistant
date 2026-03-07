@@ -14,7 +14,8 @@ const electronAPI = {
     selectDirectory: () => ipcRenderer.invoke('file:select-directory'),
     selectFiles: (filters?: any) => ipcRenderer.invoke('file:select-files', filters),
     save: (defaultPath?: string, filters?: any) => ipcRenderer.invoke('file:save', defaultPath, filters),
-    openExplorer: (filePath: string) => ipcRenderer.invoke('file:open-explorer', filePath)
+    openExplorer: (filePath: string) => ipcRenderer.invoke('file:open-explorer', filePath),
+    readDirectoryTree: (dirPath: string, maxDepth?: number) => ipcRenderer.invoke('file:read-directory-tree', dirPath, maxDepth)
   },
 
   api: {

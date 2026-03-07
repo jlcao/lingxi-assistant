@@ -54,6 +54,9 @@ class App {
     ipcMain.handle('file:open-explorer', async (_, filePath) => {
       return this.fileManager.openInExplorer(filePath)
     })
+    ipcMain.handle('file:read-directory-tree', async (_, dirPath, maxDepth) => {
+      return this.fileManager.readDirectoryTree(dirPath, maxDepth)
+    })
 
     ipcMain.handle('api:get-sessions', async () => {
       const result = await this.apiClient.getSessions()

@@ -4,17 +4,27 @@
       <span class="file-workspace-title">工作区目录</span>
     </div>
     <div class="file-workspace-tree">
+      <div v-if="!appStore.currentWorkspace" class="empty-workspace">
+        <el-icon class="empty-icon"><FolderOpened /></el-icon>
+        <div class="empty-text">未设置工作区</div>
+        <div class="empty-hint">点击左侧工作区图标选择目录</div>
+      </div>
+      <div v-else-if="loading" class="loading-workspace">
+        <el-icon class="loading-icon"><Loading /></el-icon>
+        <div class="loading-text">加载中...</div>
+      </div>
       <el-tree
+        v-else-if="fileTree.length > 0"
         :data="fileTree"
         node-key="id"
-        :default-expanded-keys="['workspace']"
+        :default-expanded-keys="defaultExpandedKeys"
         :expand-on-click-node="false"
         class="file-tree"
       >
         <template #default="{ node, data }">
           <div class="file-tree-node">
             <span class="file-icon">
-              <svg v-if="data.children && data.children.length > 0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon folder-icon" :class="{ 'folder-open': node.expanded }">
+              <svg v-if="data.isDirectory" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon folder-icon" :class="{ 'folder-open': node.expanded }">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
               </svg>
               <svg v-else-if="isImageFile(data.label)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon image-icon">
@@ -42,49 +52,34 @@
           </div>
         </template>
       </el-tree>
+      <div v-else class="empty-workspace">
+        <el-icon class="empty-icon"><FolderOpened /></el-icon>
+        <div class="empty-text">目录为空</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { useAppStore } from '@/stores/app'
+import { FolderOpened, Loading } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
+import { ref, watch } from 'vue'
 
 interface TreeNode {
   id: string
   label: string
+  path: string
   children?: TreeNode[]
+  isDirectory: boolean
 }
 
-const fileTree = ref<TreeNode[]>([
-  {
-    id: 'workspace',
-    label: 'workspace',
-    children: [
-      {
-        id: 'xxxx.docx',
-        label: 'xxxx.docx'
-      },
-      {
-        id: 'xxx.xlsx',
-        label: 'xxx.xlsx'
-      },
-      {
-        id: 'index.html',
-        label: 'index.html'
-      },
-      {
-        id: 'docs',
-        label: 'docs',
-        children: []
-      },
-      {
-        id: 'template',
-        label: 'template',
-        children: []
-      }
-    ]
-  }
-])
+const appStore = useAppStore()
+const { currentWorkspace } = storeToRefs(appStore)
+
+const fileTree = ref<TreeNode[]>([])
+const defaultExpandedKeys = ref<string[]>([])
+const loading = ref(false)
 
 const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']
 const codeExtensions = ['.html', '.css', '.js', '.ts', '.vue', '.jsx', '.tsx', '.json', '.py', '.java', '.c', '.cpp', '.h']
@@ -106,6 +101,32 @@ const isCodeFile = (filename: string): boolean => {
 const isDocFile = (filename: string): boolean => {
   return docExtensions.includes(getFileExtension(filename))
 }
+
+async function loadDirectoryTree(dirPath: string) {
+  loading.value = true
+  try {
+    const treeData = await window.electronAPI.file.readDirectoryTree(dirPath, 3)
+    if (treeData) {
+      fileTree.value = [treeData]
+      defaultExpandedKeys.value = [treeData.id]
+    } else {
+      fileTree.value = []
+    }
+  } catch (error) {
+    console.error('Failed to load directory tree:', error)
+    fileTree.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(currentWorkspace, (newPath) => {
+  if (newPath) {
+    loadDirectoryTree(newPath)
+  } else {
+    fileTree.value = []
+  }
+}, { immediate: true })
 </script>
 
 <style scoped lang="scss">
@@ -211,5 +232,47 @@ const isDocFile = (filename: string): boolean => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.empty-workspace,
+.loading-workspace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #999999;
+}
+
+.empty-icon,
+.loading-icon {
+  font-size: 48px;
+  color: #d1d5db;
+  margin-bottom: 12px;
+}
+
+.loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.empty-text,
+.loading-text {
+  font-size: 14px;
+  color: #666666;
+  margin-bottom: 4px;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: #999999;
 }
 </style>
