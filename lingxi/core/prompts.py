@@ -319,17 +319,8 @@ Action Input: {{"file_path": "test.txt"}}
         if system_info is None:
             system_info = PromptTemplates.get_system_info()
 
-        system_prompt = f"""你是万能的灵犀智能助手，需要使用工具完成用户任务。
-
- ## 你的能力
- - 陪聊天
- - 操作表格
- - 编辑文档
- - 写代码
- - 翻译
- - anything       
-
-
+        system_prompt = f"""你是灵犀智能助手，需要完成用户任务分类。
+  
 系统环境: {system_info['os_info']}
 当前工作目录: {system_info['current_dir']}
 Shell类型: {system_info['shell_type']}
@@ -337,19 +328,13 @@ Shell类型: {system_info['shell_type']}
 可用工具:
 {skills_list}
 
-finish(answer) - 完成任务并返回答案
-
 请严格按照以下JSON格式输出，不要包含任何其他文字：
 {{
+  "thought": "你的思考过程",
   "level": "direct|simple|complex",
   "confidence": 0.0-1.0,
   "reason": "分类理由",
   "direct_answer": "如果是简单问候或可直接回答的问题，在此给出答案",
-  "next_action": {{
-    "thought": "思考过程",
-    "action": "工具名称或finish",
-    "action_input": {{"参数名": "参数值"}} 或 "直接回答字符串"
-  }},
   "plan": [
     {{"step": 1, "description": "步骤描述"}},
     {{"step": 2, "description": "步骤描述"}}
@@ -361,9 +346,9 @@ finish(answer) - 完成任务并返回答案
 - complex: 多步骤、多工具调用、需要规划（如：旅行规划、数据分析、多文件处理）
 
 注意事项：
-- 如果是simple任务，可以使用现有技能一步完成任务填写next_action字段，plan字段可以为空数组
-- 如果是complex任务，必须填写plan字段，next_action可以为空
-- 如果是问候类或可直接回答的问题，level设为direct，action设为finish，action_input为回答内容
+- 如果是simple任务，plan字段可以为空数组
+- 如果是complex任务，必须填写plan字段
+- 如果是问候类或可直接回答的问题，level设为direct，direct_answer为回答内容
 - 如果是complex任务，plan最多{max_plan_steps}个步骤，每个步骤描述要精炼，优先使用已有的技能处理
 - 必须返回有效的JSON格式"""
 

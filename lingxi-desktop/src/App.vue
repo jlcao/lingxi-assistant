@@ -220,7 +220,14 @@ function setupWebSocketListeners() {
         updatedTurns[targetIndex] = {
           ...updatedTurns[targetIndex],
           isThinking: true
+          
         }
+        if (data.step_index === -1) {
+          updatedTurns[targetIndex].planThinking = true
+        } else {
+          updatedTurns[targetIndex].planThinking = false
+        }
+
         appStore.setTurns(updatedTurns)
       }
     })

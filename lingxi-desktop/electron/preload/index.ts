@@ -39,33 +39,7 @@ const electronAPI = {
     getResourceUsage: () => ipcRenderer.invoke('api:get-resource-usage'),
     getConfig: () => ipcRenderer.invoke('api:get-config'),
     updateConfig: (config: any) => ipcRenderer.invoke('api:update-config', config),
-    getSessionInfo: (sessionId: string) => ipcRenderer.invoke('api:get-session-info', sessionId),
-    executeTaskStream: (task: string, sessionId: string, modelOverride?: string | null, enableHeartbeat?: boolean, heartbeatInterval?: number) => ipcRenderer.invoke('api:execute-task-stream', task, sessionId, modelOverride, enableHeartbeat, heartbeatInterval),
-    setSSEConfig: (config: any) => ipcRenderer.invoke('api:set-sse-config', config),
-    getSSEConnectionStatus: () => ipcRenderer.invoke('api:get-sse-connection-status'),
-    abortSSEStream: () => ipcRenderer.invoke('api:abort-sse-stream'),
-    sseReconnect: () => ipcRenderer.invoke('api:sse-reconnect')
-  },
-
-  sse: {
-    onTaskStart: (callback: (data: any) => void) => ipcRenderer.on('sse:task-start', (_, data) => callback(data)),
-    onPlanStart: (callback: (data: any) => void) => ipcRenderer.on('sse:plan-start', (_, data) => callback(data)),
-    onThinkStart: (callback: (data: any) => void) => ipcRenderer.on('sse:think-start', (_, data) => callback(data)),
-    onThinkStream: (callback: (data: any) => void) => ipcRenderer.on('sse:think-stream', (_, data) => callback(data)),
-    onThinkFinal: (callback: (data: any) => void) => ipcRenderer.on('sse:think-final', (_, data) => callback(data)),
-    onPlanFinal: (callback: (data: any) => void) => ipcRenderer.on('sse:plan-final', (_, data) => callback(data)),
-    onStepStart: (callback: (data: any) => void) => ipcRenderer.on('sse:step-start', (_, data) => callback(data)),
-    onStepEnd: (callback: (data: any) => void) => ipcRenderer.on('sse:step-end', (_, data) => callback(data)),
-    onTaskEnd: (callback: (data: any) => void) => ipcRenderer.on('sse:task-end', (_, data) => callback(data)),
-    onTaskFailed: (callback: (data: any) => void) => ipcRenderer.on('sse:task-failed', (_, data) => callback(data)),
-    onTaskCancelled: (callback: (data: any) => void) => ipcRenderer.on('sse:task-cancelled', (_, data) => callback(data)),
-    onPing: (callback: (data: any) => void) => ipcRenderer.on('sse:ping', (_, data) => callback(data)),
-    onStreamEnd: (callback: () => void) => ipcRenderer.on('sse:stream-end', callback),
-    onError: (callback: (error: Error) => void) => ipcRenderer.on('sse:error', (_, error) => callback(error)),
-    onReconnecting: (callback: (attempt: number, maxRetries: number) => void) => ipcRenderer.on('sse:reconnecting', (_, attempt, maxRetries) => callback(attempt, maxRetries)),
-    onReconnectSuccess: (callback: () => void) => ipcRenderer.on('sse:reconnect-success', callback),
-    onReconnectFailed: (callback: () => void) => ipcRenderer.on('sse:reconnect-failed', callback),
-    removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel)
+    getSessionInfo: (sessionId: string) => ipcRenderer.invoke('api:get-session-info', sessionId)
   },
 
   ws: {

@@ -1,17 +1,17 @@
-import axios, { AxiosInstance, AxiosError } from 'axios'
+import axios, { AxiosError, AxiosInstance } from 'axios'
 import type {
   ApiResponse,
-  Session,
-  SessionDetail,
-  HistoryItem,
+  Checkpoint,
+  Config,
+  DiagnosticResult,
   ExecutionResult,
   ExecutionStatus,
-  Checkpoint,
-  Skill,
-  SkillManifest,
-  DiagnosticResult,
+  HistoryItem,
   ResourceUsage,
-  Config
+  Session,
+  SessionDetail,
+  Skill,
+  SkillManifest
 } from '../../src/types'
 
 export class ApiClient {
@@ -19,23 +19,6 @@ export class ApiClient {
   private baseUrl: string
   private maxRetries: number = 3
   private timeout: number = 30000
-
-  private sseConfig = {
-    connectionTimeout: 30000,
-    heartbeatTimeout: 90000,
-    maxRetries: 3,
-    retryDelay: 1000,
-    enableBuffer: true,
-    bufferSize: 100,
-    flushInterval: 100
-  }
-
-  private sseConnectionStatus = {
-    connected: false,
-    lastHeartbeat: null as number | null,
-    retryCount: 0,
-    bufferedEvents: 0
-  }
 
   constructor(baseUrl: string, timeout?: number) {
     this.baseUrl = baseUrl
@@ -88,7 +71,7 @@ export class ApiClient {
     user_name?: string
     sort_by?: string
     order?: string
-  }): Promise<{sessions: Session[]}> {
+  }): Promise<{ sessions: Session[] }> {
     return this.client.get('/api/sessions', { params })
   }
 
@@ -100,26 +83,26 @@ export class ApiClient {
     max_turns?: number
     include_steps?: boolean
     task_status?: string
-  }): Promise<{session_id: string; total_turns: number; history: HistoryItem[]}> {
+  }): Promise<{ session_id: string; total_turns: number; history: HistoryItem[] }> {
     return this.client.get(`/api/sessions/${sessionId}/history`, { params })
   }
 
   async createSession(data: {
     user_name?: string
     title?: string
-  }): Promise<{session_id: string; first_message?: string}> {
+  }): Promise<{ session_id: string; first_message?: string }> {
     return this.client.post('/api/sessions', data)
   }
 
-  async deleteSession(sessionId: string): Promise<ApiResponse<{success: boolean; deleted_tasks_count: number; deleted_steps_count: number}>> {
+  async deleteSession(sessionId: string): Promise<ApiResponse<{ success: boolean; deleted_tasks_count: number; deleted_steps_count: number }>> {
     return this.client.delete(`/api/sessions/${sessionId}`)
   }
 
-  async updateSessionName(sessionId: string, name: string): Promise<ApiResponse<{success: boolean; message: string; updated_at: string}>> {
+  async updateSessionName(sessionId: string, name: string): Promise<ApiResponse<{ success: boolean; message: string; updated_at: string }>> {
     return this.client.patch(`/api/sessions/${sessionId}`, { title: name })
   }
 
-  async clearSessionHistory(sessionId: string): Promise<ApiResponse<{success: boolean; deleted_turns_count: number}>> {
+  async clearSessionHistory(sessionId: string): Promise<ApiResponse<{ success: boolean; deleted_turns_count: number }>> {
     return this.client.delete(`/api/sessions/${sessionId}/history`)
   }
 
@@ -138,11 +121,11 @@ export class ApiClient {
   async retryTask(taskId: string, data?: {
     step_index?: number
     user_input?: string | null
-  }): Promise<ApiResponse<{success: boolean; message: string; execution_id: string; retry_from_step: number}>> {
+  }): Promise<ApiResponse<{ success: boolean; message: string; execution_id: string; retry_from_step: number }>> {
     return this.client.post(`/api/tasks/${taskId}/retry`, data)
   }
 
-  async cancelTask(taskId: string): Promise<ApiResponse<{success: boolean; message: string; cancelled_at: number}>> {
+  async cancelTask(taskId: string): Promise<ApiResponse<{ success: boolean; message: string; cancelled_at: number }>> {
     return this.client.post(`/api/tasks/${taskId}/cancel`)
   }
 
@@ -176,40 +159,19 @@ export class ApiClient {
     return response
   }
 
-  setSSEConfig(config: {
-    connectionTimeout?: number
-    heartbeatTimeout?: number
-    maxRetries?: number
-    retryDelay?: number
-    enableBuffer?: boolean
-    bufferSize?: number
-    flushInterval?: number
-  }): void {
-    this.sseConfig = { ...this.sseConfig, ...config }
-  }
-
-  getSSEConnectionStatus(): {
-    connected: boolean
-    lastHeartbeat: number | null
-    retryCount: number
-    bufferedEvents: number
-  } {
-    return { ...this.sseConnectionStatus }
-  }
-
   async getCheckpoints(params?: {
     status?: string
     page?: number
     page_size?: number
-  }): Promise<ApiResponse<{total: number; checkpoints: Checkpoint[]}>> {
+  }): Promise<ApiResponse<{ total: number; checkpoints: Checkpoint[] }>> {
     return this.client.get('/api/checkpoints', { params })
   }
 
-  async resumeCheckpoint(taskId: string): Promise<ApiResponse<{execution_id: string; task: string; status: string; message: string; resumed_from_step: number}>> {
+  async resumeCheckpoint(taskId: string): Promise<ApiResponse<{ execution_id: string; task: string; status: string; message: string; resumed_from_step: number }>> {
     return this.client.post(`/api/checkpoints/${taskId}/resume`)
   }
 
-  async deleteCheckpoint(taskId: string): Promise<ApiResponse<{success: boolean; deleted_steps_count: number}>> {
+  async deleteCheckpoint(taskId: string): Promise<ApiResponse<{ success: boolean; deleted_steps_count: number }>> {
     return this.client.delete(`/api/checkpoints/${taskId}`)
   }
 
@@ -218,7 +180,7 @@ export class ApiClient {
     page?: number
     page_size?: number
     keyword?: string
-  }): Promise<ApiResponse<{total: number; skills: Skill[]}>> {
+  }): Promise<ApiResponse<{ total: number; skills: Skill[] }>> {
     return this.client.get('/api/skills', { params })
   }
 
@@ -226,7 +188,7 @@ export class ApiClient {
     skill_data: SkillManifest
     skill_files: Record<string, string>
     auto_fix?: boolean
-  }): Promise<ApiResponse<{skill_id: string; status: string; message: string; installed_at: string}>> {
+  }): Promise<ApiResponse<{ skill_id: string; status: string; message: string; installed_at: string }>> {
     return this.client.post('/api/skills/install', data)
   }
 
@@ -234,7 +196,7 @@ export class ApiClient {
     return this.client.get(`/api/skills/${skillId}/diagnose`)
   }
 
-  async reloadSkill(skillId: string): Promise<ApiResponse<{success: boolean; message: string; reloaded_at: string}>> {
+  async reloadSkill(skillId: string): Promise<ApiResponse<{ success: boolean; message: string; reloaded_at: string }>> {
     return this.client.post(`/api/skills/${skillId}/reload`)
   }
 
@@ -246,11 +208,7 @@ export class ApiClient {
     return this.client.get('/api/config')
   }
 
-  async updateConfig(config: Partial<Config>): Promise<ApiResponse<{success: boolean; message: string; updated_at: string}>> {
+  async updateConfig(config: Partial<Config>): Promise<ApiResponse<{ success: boolean; message: string; updated_at: string }>> {
     return this.client.patch('/api/config', config)
-  }
-
-  updateSSEConnectionStatus(status: Partial<typeof this.sseConnectionStatus>): void {
-    this.sseConnectionStatus = { ...this.sseConnectionStatus, ...status }
   }
 }

@@ -44,31 +44,6 @@ declare global {
         getConfig: () => Promise<any>
         updateConfig: (config: any) => Promise<void>
         getSessionInfo: (sessionId: string) => Promise<any>
-        executeTaskStream: (task: string, sessionId: string, modelOverride?: string | null, enableHeartbeat?: boolean, heartbeatInterval?: number) => Promise<{success: boolean}>
-        setSSEConfig: (config: any) => Promise<{success: boolean}>
-        getSSEConnectionStatus: () => Promise<{connected: boolean; lastHeartbeat: number | null; retryCount: number; bufferedEvents: number}>
-        abortSSEStream: () => Promise<{success: boolean}>
-        sseReconnect: () => Promise<{success: boolean}>
-      }
-      sse: {
-        onTaskStart: (callback: (data: any) => void) => void
-        onPlanStart: (callback: (data: any) => void) => void
-        onThinkStart: (callback: (data: any) => void) => void
-        onThinkStream: (callback: (data: any) => void) => void
-        onThinkFinal: (callback: (data: any) => void) => void
-        onPlanFinal: (callback: (data: any) => void) => void
-        onStepStart: (callback: (data: any) => void) => void
-        onStepEnd: (callback: (data: any) => void) => void
-        onTaskEnd: (callback: (data: any) => void) => void
-        onTaskFailed: (callback: (data: any) => void) => void
-        onTaskCancelled: (callback: (data: any) => void) => void
-        onPing: (callback: (data: any) => void) => void
-        onStreamEnd: (callback: () => void) => void
-        onError: (callback: (error: Error) => void) => void
-        onReconnecting: (callback: (attempt: number, maxRetries: number) => void) => void
-        onReconnectSuccess: (callback: () => void) => void
-        onReconnectFailed: (callback: () => void) => void
-        removeAllListeners: (channel: string) => void
       }
       ws: {
         connect: (sessionId?: string) => Promise<void>

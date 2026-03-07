@@ -24,7 +24,7 @@
         <div v-if="turn.planThinking" class="message-plan-thinking">
           <div class="plan-thinking-header">
             <el-icon class="is-loading"><Loading /></el-icon>
-            <span class="plan-thinking-label">正在制定执行计划...</span>
+            <span class="plan-thinking-label">正在思考...</span>
           </div>
           <div v-if="turn.planThinkingContent" class="plan-thinking-content">
             {{ turn.planThinkingContent }}

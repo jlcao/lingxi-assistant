@@ -2,14 +2,12 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { WindowManager } from './windowManager'
 import { ApiClient } from './apiClient'
 import { WsClient } from './wsClient'
-import { SSEClient } from './sseClient'
 import { FileManager } from './fileManager'
 
 class App {
   private windowManager: WindowManager
   private apiClient: ApiClient
-  private wsClient: WsClient | null = null // 改为可选类型，延迟初始化
-  private sseClient: SSEClient | null = null
+  private wsClient: WsClient | null = null
   private fileManager: FileManager
 
   constructor() {
@@ -151,117 +149,7 @@ class App {
       return this.apiClient.getSession(sessionId)
     })
 
-    ipcMain.handle('api:execute-task-stream', async (_, task, sessionId, modelOverride, enableHeartbeat, heartbeatInterval) => {
-      if (!this.sseClient) {
-        this.sseClient = new SSEClient('http://127.0.0.1:5000')
-        this.setupSSEEventHandlers()
-      }
-
-      const mainWindow = this.windowManager.getWindow()
-      if (!mainWindow) {
-        throw new Error('Main window not available')
-      }
-
-      await this.sseClient.executeTaskStream(
-        {
-          task,
-          session_id: sessionId,
-          model_override: modelOverride || null,
-          enable_heartbeat: enableHeartbeat !== false,
-          heartbeat_interval: heartbeatInterval || 30000
-        },
-        {
-          onTaskStart: (data) => {
-            mainWindow.webContents.send('sse:task-start', data)
-          },
-          onPlanStart: (data) => {
-            mainWindow.webContents.send('sse:plan-start', data)
-          },
-          onThinkStart: (data) => {
-            mainWindow.webContents.send('sse:think-start', data)
-          },
-          onThinkStream: (data) => {
-            mainWindow.webContents.send('sse:think-stream', data)
-          },
-          onThinkFinal: (data) => {
-            mainWindow.webContents.send('sse:think-final', data)
-          },
-          onPlanFinal: (data) => {
-            mainWindow.webContents.send('sse:plan-final', data)
-          },
-          onStepStart: (data) => {
-            mainWindow.webContents.send('sse:step-start', data)
-          },
-          onStepEnd: (data) => {
-            mainWindow.webContents.send('sse:step-end', data)
-          },
-          onTaskEnd: (data) => {
-            mainWindow.webContents.send('sse:task-end', data)
-          },
-          onTaskFailed: (data) => {
-            mainWindow.webContents.send('sse:task-failed', data)
-          },
-          onTaskCancelled: (data) => {
-            mainWindow.webContents.send('sse:task-cancelled', data)
-          },
-          onPing: (data) => {
-            mainWindow.webContents.send('sse:ping', data)
-          },
-          onStreamEnd: () => {
-            mainWindow.webContents.send('sse:stream-end')
-          },
-          onError: (error) => {
-            mainWindow.webContents.send('sse:error', error)
-          },
-          onReconnecting: (attempt, maxRetries) => {
-            mainWindow.webContents.send('sse:reconnecting', attempt, maxRetries)
-          },
-          onReconnectSuccess: () => {
-            mainWindow.webContents.send('sse:reconnect-success')
-          },
-          onReconnectFailed: () => {
-            mainWindow.webContents.send('sse:reconnect-failed')
-          }
-        }
-      )
-
-      return { success: true }
-    })
-
-    ipcMain.handle('api:set-sse-config', async (_, config) => {
-      this.apiClient.setSSEConfig(config)
-      return { success: true }
-    })
-
-    ipcMain.handle('api:get-sse-connection-status', async () => {
-      if (!this.sseClient) {
-        return {
-          connected: false,
-          lastHeartbeat: null,
-          retryCount: 0,
-          bufferedEvents: 0
-        }
-      }
-      return this.sseClient.getConnectionStatus()
-    })
-
-    ipcMain.handle('api:abort-sse-stream', async () => {
-      if (this.sseClient) {
-        this.sseClient.abort()
-        return { success: true }
-      }
-      return { success: false }
-    })
-
-    ipcMain.handle('api:sse-reconnect', async () => {
-      if (this.sseClient) {
-        await this.sseClient.reconnectManual()
-        return { success: true }
-      }
-      return { success: false }
-    })
-
-    // ===== WS IPC 逻辑优化（新增错误提示+延迟初始化）=====
+    // ===== WS IPC 逻辑优化（新增错误提示 + 延迟初始化）=====
     ipcMain.handle('ws:connect', async (_, sessionId) => {
       // 延迟初始化WS客户端（首次连接时初始化）
       if (!this.wsClient) {
@@ -430,7 +318,6 @@ class App {
     app.on('window-all-closed', () => {
       if (process.platform !== 'darwin') {
         this.wsClient?.disconnect()
-        this.sseClient?.abort()
         app.quit()
       }
     })
@@ -438,17 +325,6 @@ class App {
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         this.windowManager.createMainWindow()
-      }
-    })
-  }
-
-  private setupSSEEventHandlers(): void {
-    if (!this.sseClient) return
-
-    this.sseClient.on('error', (err: Error) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('sse:error', err)
       }
     })
   }

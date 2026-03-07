@@ -268,9 +268,9 @@ class AsyncReActCore(BaseEngine):
                 usage = response_chunk.get("usage")
                 self.logger.debug(f"收到完整响应，长度：{len(full_response) if full_response else 0}")
                 break
-                
-        self._publish_think_end(session_id, execution_id, step, parsed.get("thought", ""))
+        
         parsed = self._parse_response(full_response)
+        self._publish_think_end(session_id, execution_id, step, parsed.get("thought", "") if parsed else "")
 
         if not parsed:
             self.logger.error(f"LLM 响应解析失败！完整响应：{repr(full_response)}")
