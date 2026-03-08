@@ -80,3 +80,6 @@ dmypy.json
 
 # Skill cache
 .lingxi/skills/*/cache/
+
+.lingxi-desktop/test-results/
+.lingxi-desktop/playwright-report/
