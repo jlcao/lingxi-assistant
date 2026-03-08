@@ -265,9 +265,21 @@ class SecuritySandbox:
         """获取工作空间根目录
 
         Returns:
-            工作空间根目录Path对象
+            工作空间根目录 Path 对象
         """
         return self.workspace_root
+    
+    def update_workspace(self, new_workspace: Path):
+        """更新工作目录根目录
+        
+        Args:
+            new_workspace: 新的工作目录路径
+        """
+        old_workspace = self.workspace_root
+        self.workspace_root = Path(new_workspace).resolve()
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
+        
+        self.logger.info(f"工作目录已更新：{old_workspace} -> {self.workspace_root}")
     
     def is_path_allowed(self, file_path: str) -> bool:
         """检查路径是否在允许范围内

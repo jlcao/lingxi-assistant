@@ -42,7 +42,29 @@ class SkillCaller:
             safety_mode=security_config.get("safety_mode", True)
         )
 
+        # 工作空间管理器（V4.0 新增）
+        self.workspace_manager = None
+        
         self.logger.debug("初始化能力调用层")
+    
+    def set_workspace_manager(self, workspace_manager):
+        """设置工作空间管理器
+        
+        Args:
+            workspace_manager: WorkspaceManager 实例
+        """
+        self.workspace_manager = workspace_manager
+        
+        # 设置资源引用
+        if workspace_manager:
+            workspace_manager.set_resources(
+                sandbox=self.sandbox,
+                skill_caller=self,
+                session_store=None,  # 由外部设置
+                event_publisher=None  # 由外部设置
+            )
+        
+        self.logger.debug("工作空间管理器已设置")
 
     def call(self, skill_name: str, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
         """调用技能

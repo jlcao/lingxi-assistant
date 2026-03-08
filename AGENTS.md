@@ -31,23 +31,13 @@
 
 ### 文档目录说明
 
-`docs/` 目录存放了项目的设计文档，包含以下内容：
-
-- **API接口设计.md**：API 接口设计文档
-- **GUI界面设计图.png**：界面设计图
-- **Lingxi Agent 终端助手界面设计**系列文档：不同版本的界面设计说明
-- **Skill规范.md**：技能开发规范
-- **WebSocket_API.md**：WebSocket API 设计
-- **上下文压缩设计.md**：上下文压缩机制设计
-- **工作目录功能设计.md**：工作目录功能设计
-- **异步改造说明.md**：异步改造相关说明
-- **灵犀个人智能助手详细设计.md**：项目详细设计文档
+`docs/` 目录存放了项目的设计文档
 
 在开发具体功能时，可以参考这些设计文档来了解功能的设计思路和实现要求。
 
 ## task.json 文件生成
 
-对于复杂任务，需要先创建或更新 `task.json` 文件，定义项目的任务结构和步骤。
+重要:对于复杂任务，需要先创建或更新 `task.json` 文件，定义项目的任务结构和步骤。
 
 ### task.json 结构
 
@@ -98,66 +88,8 @@
 2. **基于模板**：基于现有 task.json 模板进行修改
 3. **任务分解**：将复杂任务分解为多个子任务，每个子任务包含具体的执行步骤
 
-### 示例
 
-以下是一个示例 task.json 文件：
-
-```json
-{
-  "project": "灵犀智能助手",
-  "description": "基于 Plan+ReAct 模式的智能助手系统",
-  "tasks": [
-    {
-      "id": 1,
-      "title": "后端核心引擎开发",
-      "description": "实现 PlanReAct 执行引擎和核心功能",
-      "steps": [
-        "实现 PlanReActEngine 核心逻辑",
-        "实现 ReActCore 基础执行逻辑",
-        "实现智能任务分析和计划生成",
-        "编写单元测试"
-      ],
-      "passes": false
-    },
-    {
-      "id": 2,
-      "title": "前端界面开发",
-      "description": "开发 Vue+Electron 桌面应用界面",
-      "steps": [
-        "创建 Vue 3 项目结构",
-        "实现聊天核心组件",
-        "实现技能工作区",
-        "集成 WebSocket 实时通信"
-      ],
-      "passes": false
-    }
-  ]
-}
-```
-
-## 核心模块
-
-1. **执行引擎**：
-   - PlanReActEngine：支持断点重试的智能执行引擎
-   - ReActCore：基础 ReAct 执行逻辑
-   - 智能任务分析和计划生成
-
-2. **技能系统**：
-   - 内置技能（文件操作、命令执行、网页抓取等）
-   - 可安装第三方技能
-   - 技能注册和管理
-
-3. **会话管理**：
-   - 会话历史记录
-   - 检查点系统（支持断点恢复）
-   - 上下文压缩和管理
-
-4. **前端界面**：
-   - Vue 3 + TypeScript
-   - Electron 桌面应用
-   - WebSocket 实时通信
-
-## 强制性：Agent 工作流程
+## 强制性：Agent 开发工作流程
 
 每个新的 agent 会话必须遵循以下工作流程：
 
@@ -288,170 +220,6 @@ chmod +x start_all.sh
    - 验证页面能正确加载和渲染
    - 验证表单提交、按钮点击等交互功能
    - 截图确认 UI 正确显示
-
-### Playwright 配置（Electron 应用测试）
-
-对于 Electron 桌面应用测试，需要特殊的配置：
-
-1. **安装 Playwright**：
-   ```bash
-   cd lingxi-desktop
-   npm install --save-dev @playwright/test
-   npx playwright install
-   ```
-
-2. **配置 Playwright**：创建 `playwright.config.js`
-   ```javascript
-   // @ts-check
-   const { defineConfig, devices } = require('@playwright/test');
-
-   module.exports = defineConfig({
-     testDir: './tests/e2e',
-     timeout: 60 * 1000,
-     expect: {
-       timeout: 10 * 1000
-     },
-     fullyParallel: false,
-     forbidOnly: !!process.env.CI,
-     retries: process.env.CI ? 2 : 0,
-     workers: 1,
-     reporter: [['html'], ['list']],
-     use: {
-       trace: 'on-first-retry',
-       screenshot: 'only-on-failure',
-       video: 'retain-on-failure',
-     },
-     // 只配置一个 chromium 项目，用于 Electron 测试
-     projects: [
-       {
-         name: 'chromium',
-         use: { 
-           ...devices['Desktop Chrome'],
-         },
-       },
-     ],
-   });
-   ```
-
-3. **添加测试脚本**：在 `package.json` 中添加
-   ```json
-   "scripts": {
-     "test:e2e": "npx playwright test"
-   }
-   ```
-
-4. **创建 Electron 测试文件**：`tests/e2e/lingxi.spec.ts`
-   ```typescript
-   import { test, expect, ElectronApplication, Page } from '@playwright/test'
-   import { _electron as electron } from 'playwright'
-   import * as path from 'path'
-
-   let electronApp: ElectronApplication
-   let page: Page
-
-   test.describe('灵犀助手 Electron 应用测试', () => {
-     
-     test.beforeAll(async () => {
-       // 项目根目录
-       const projectRoot = path.resolve(__dirname, '../../')
-       
-       // 启动 Electron 应用
-       electronApp = await electron.launch({
-         // 指向编译后的主进程入口
-         args: [path.join(projectRoot, 'dist-electron/main/index.js')],
-         cwd: projectRoot,
-         env: {
-           ...process.env,
-           NODE_ENV: 'production'
-         }
-       })
-       
-       // 等待窗口出现
-       page = await electronApp.firstWindow()
-       
-       // 等待页面加载完成
-       await page.waitForLoadState('domcontentloaded')
-       
-       // 等待 Vue 应用挂载
-       await page.waitForTimeout(2000)
-     })
-     
-     test.afterAll(async () => {
-       // 关闭应用 - 添加超时和错误处理
-       if (electronApp) {
-         try {
-           // 先关闭所有页面
-           const pages = electronApp.windows()
-           for (const p of pages) {
-             try {
-               await p.close({ timeout: 5000 })
-             } catch (e) {
-               console.log('关闭页面时出错:', e)
-             }
-           }
-           
-           // 然后关闭应用
-           await electronApp.close({ timeout: 10000 })
-         } catch (error) {
-           console.log('关闭应用时出错:', error)
-           // 强制终止应用
-           try {
-             await electronApp.process().kill()
-           } catch (killError) {
-             console.log('强制终止应用时出错:', killError)
-           }
-         }
-       }
-     })
-     
-     test('应用应该正确启动并显示窗口', async () => {
-       // 验证窗口标题
-       const title = await page.title()
-       expect(title).toBe('Lingxi Agent')
-       
-       // 验证窗口可见
-       const isVisible = await page.isVisible('body')
-       expect(isVisible).toBe(true)
-       
-       // 截图保存
-       await page.screenshot({ path: 'test-results/app-startup.png' })
-     })
-     
-     test('应用应该能够输入文本', async () => {
-       // 等待输入框加载
-       const textarea = await page.locator('.chat-input textarea')
-       await textarea.waitFor({ timeout: 10000 })
-       
-       // 验证输入框可见
-       await expect(textarea).toBeVisible()
-       
-       // 输入测试文本
-       await textarea.fill('这是一个测试消息')
-       
-       // 等待 Vue 响应式更新
-       await page.waitForTimeout(2000)
-       
-       // 截图保存输入状态
-       await page.screenshot({ path: 'test-results/input-test.png' })
-       
-       // 验证输入框有内容
-       const hasContent = await textarea.evaluate((el: HTMLTextAreaElement) => {
-         return (el as HTMLTextAreaElement).value.length > 0
-       })
-       expect(hasContent).toBe(true)
-     })
-   })
-   ```
-
-5. **运行 Playwright 测试**：
-   ```bash
-   npm run test:e2e
-   ```
-
-6. **查看测试报告**：
-   ```bash
-   npx playwright show-report
-   ```
 
 
 ### 测试文件结构

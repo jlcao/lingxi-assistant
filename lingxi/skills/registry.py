@@ -248,7 +248,7 @@ class SkillRegistry:
             return [
                 {"skill_id": s["skill_id"], "skill_name": s["skill_name"], "name": s["skill_name"],
                  "description": s["description"], "version": s["version"],
-                 "author": s["author"], "enabled": s["enabled"]}
+                 "author": s["author"], "enabled": s["enabled"], "source": s.get("source", "global")}
                 for s in self.skill_cache.values()
             ]
         else:
@@ -275,9 +275,61 @@ class SkillRegistry:
                     "input_schema": self._parse_json_field(row_dict.get("input_schema")),
                     "description": row_dict.get("description", ""),
                     "author": row_dict.get("author", ""),
-                    "enabled": row_dict.get("enabled", 1)
+                    "enabled": row_dict.get("enabled", 1),
+                    "source": "global"
                 }
                 skills.append(skill)
             
             conn.close()
             return skills
+    
+    def register_skill_from_dir(self, skill_dir: Path, source: str = "global"):
+        """从目录注册技能
+        
+        Args:
+            skill_dir: 技能目录
+            source: 技能来源（global/workspace）
+        """
+        import importlib.util
+        
+        if not (skill_dir / "main.py").exists():
+            raise ValueError(f"技能目录缺少 main.py: {skill_dir}")
+        
+        # 加载技能模块
+        spec = importlib.util.spec_from_file_location(
+            f"skill_{skill_dir.name}",
+            skill_dir / "main.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        # 获取技能信息
+        if hasattr(module, 'get_skill_info'):
+            skill_info = module.get_skill_info()
+            skill_info['source'] = source
+            skill_info['path'] = str(skill_dir)
+            
+            self.skill_cache[skill_info['name']] = skill_info
+            self.logger.info(f"注册技能：{skill_info['name']} (source={source})")
+        else:
+            # 如果没有 get_skill_info，使用默认信息
+            skill_info = {
+                "name": skill_dir.name,
+                "skill_id": skill_dir.name,
+                "description": f"技能：{skill_dir.name}",
+                "source": source,
+                "path": str(skill_dir)
+            }
+            self.skill_cache[skill_dir.name] = skill_info
+            self.logger.info(f"注册技能：{skill_dir.name} (source={source})")
+    
+    def unregister_workspace_skills(self):
+        """注销工作目录级别的技能"""
+        workspace_skills = [
+            name for name, info in self.skill_cache.items()
+            if info.get("source") == "workspace"
+        ]
+        
+        for skill_name in workspace_skills:
+            del self.skill_cache[skill_name]
+            self.logger.debug(f"已注销工作目录技能：{skill_name}")

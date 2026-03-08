@@ -3,7 +3,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
-from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions
+from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions, workspace
 from lingxi.web.state import set_assistant, get_assistant, get_websocket_manager
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 from lingxi.core.async_main import AsyncLingxiAssistant
@@ -34,7 +34,7 @@ app.add_middleware(
 )
 
 # 确保路由在模块加载时就注册
-from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions
+from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions, workspace
 
 app.include_router(tasks.router, prefix="/api", tags=["tasks"])
 app.include_router(checkpoints.router, prefix="/api", tags=["checkpoints"])
@@ -42,6 +42,7 @@ app.include_router(skills.router, prefix="/api", tags=["skills"])
 app.include_router(resources.router, prefix="/api", tags=["resources"])
 app.include_router(config_router.router, prefix="/api", tags=["config"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
+app.include_router(workspace.router, prefix="/api", tags=["workspace"])
 
 
 @app.on_event("startup")

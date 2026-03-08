@@ -1,0 +1,41 @@
+## 2026-03-08 - 任务：工作目录功能开发
+
+### 完成的工作：
+- 创建了 lingxi/management 目录结构和__init__.py 文件
+- 实现了 WorkspaceManager 核心类（初始化、切换、资源配置）
+- 实现了工作目录配置加载和合并逻辑
+- 创建了 WorkspaceError 等异常类
+- 扩展了 SecuritySandbox.update_workspace() 方法
+- 扩展了 SkillRegistry.register_skill_from_dir() 和 unregister_workspace_skills() 方法
+- 创建了 Web API 路由 workspace.py，实现了 4 个端点：
+  - POST /api/workspace/switch - 切换工作目录
+  - GET /api/workspace/current - 获取当前工作目录
+  - POST /api/workspace/initialize - 初始化工作目录
+  - GET /api/workspace/validate - 验证工作目录
+- 在 FastAPI 服务器中注册了 workspace 路由
+- 在 SkillCaller 中集成了 WorkspaceManager
+- 编写了单元测试 test_workspace.py（包含 12 个测试用例）
+
+### 测试：
+- ✅ 运行 pytest 后端测试 - 11 个测试用例全部通过
+  - test_initialize_workspace - PASSED
+  - test_initialize_existing_workspace - PASSED
+  - test_switch_workspace - PASSED
+  - test_switch_workspace_not_exists - PASSED
+  - test_validate_workspace_valid - PASSED
+  - test_validate_workspace_not_exists - PASSED
+  - test_get_current_workspace - PASSED
+  - test_get_lingxi_directory - PASSED
+  - test_config_merge - PASSED
+  - test_default_workspace_config - PASSED
+  - test_load_workspace_config - PASSED
+- ✅ 代码没有语法错误
+- ✅ 构建成功
+
+### 备注：
+- 工作目录功能核心实现已完成
+- 支持.lingxi 目录结构自动初始化
+- 支持配置合并（工作目录配置覆盖全局配置）
+- 支持工作目录级别的技能管理
+- Web API 已注册到 FastAPI 服务器
+- 所有任务已完成，可以提交代码
