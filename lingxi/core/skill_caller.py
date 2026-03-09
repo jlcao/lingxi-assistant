@@ -108,16 +108,22 @@ class SkillCaller:
         Returns:
             执行结果
         """
+        # 处理文件操作类技能，将相对路径转换为绝对路径
+        if skill_name in ["create_file", "delete_file", "read_file", "modify_file"]:
+            if "file_path" in parameters:
+                parameters = parameters.copy()  # 避免修改原始参数
+                parameters["file_path"] = self._normalize_file_path(parameters["file_path"])
+        
         last_error = None
 
         for attempt in range(self.retry_count + 1):
             try:
                 result = self.builtin_skills.execute_skill(skill_name, parameters)
-                self.logger.debug(f"执行技能返回: {skill_name} - {result.replace('\n', '\\n')}")
+                self.logger.debug(f"执行技能返回：{skill_name} - {result.replace('\n', '\\n')}")
                 return result
             except Exception as e:
                 last_error = e
-                self.logger.warning(f"技能调用尝试 {attempt + 1}/{self.retry_count + 1} 失败: {e}")
+                self.logger.warning(f"技能调用尝试 {attempt + 1}/{self.retry_count + 1} 失败：{e}")
 
                 if attempt < self.retry_count:
                     continue
@@ -185,6 +191,25 @@ class SkillCaller:
             self.logger.error(f"技能调用失败: {e}")
             return {"success": False, "error": str(e)}
 
+    def _normalize_file_path(self, file_path: str) -> str:
+        """将文件路径转换为绝对路径（如果是相对路径）
+
+        Args:
+            file_path: 文件路径
+
+        Returns:
+            绝对路径
+        """
+        from pathlib import Path
+        
+        # 如果已经是绝对路径，直接返回
+        if Path(file_path).is_absolute():
+            return file_path
+        
+        # 如果是相对路径，转换为工作区绝对路径
+        normalized_path = self.sandbox.workspace_root / file_path
+        return str(normalized_path)
+
     def _execute_with_security_check(
         self,
         skill_name: str,
@@ -216,6 +241,12 @@ class SkillCaller:
                 )
                 raise SecurityError(error_msg, "DANGEROUS_OPERATION")
 
+        # 处理文件操作类技能，将相对路径转换为绝对路径
+        if skill_name in ["create_file", "delete_file", "read_file", "modify_file"]:
+            if "file_path" in parameters:
+                parameters = parameters.copy()  # 避免修改原始参数
+                parameters["file_path"] = self._normalize_file_path(parameters["file_path"])
+        
         if skill_name == "file.read":
             file_path = parameters.get("file_path")
             if file_path:

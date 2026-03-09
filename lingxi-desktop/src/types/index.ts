@@ -361,3 +361,16 @@ export type SkillErrorCode =
   | 'INVALID_MANIFEST'
 
 export type ErrorCode = CommonErrorCode | TaskErrorCode | SkillErrorCode
+
+export interface FileChange {
+  type: 'created' | 'modified' | 'deleted'
+  path: string
+  timestamp?: string
+}
+
+export interface WorkspaceFilesChangedEvent {
+  source: 'task_end' | 'file_watcher'
+  session_id?: string
+  task_id?: string
+  changes: FileChange[]
+}

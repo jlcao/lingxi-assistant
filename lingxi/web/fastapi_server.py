@@ -63,6 +63,14 @@ async def startup_event():
         logger.info("创建新的异步助手实例")
     else:
         logger.info("使用已初始化的助手实例")
+        # 修复：确保现有实例的 session_store 已设置
+        if hasattr(assistant, 'skill_caller') and hasattr(assistant.skill_caller, 'workspace_manager'):
+            workspace_manager = assistant.skill_caller.workspace_manager
+            if workspace_manager and hasattr(assistant, 'session_manager'):
+                workspace_manager.set_resources(
+                    session_store=assistant.session_manager
+                )
+                logger.info("已修复现有实例的 workspace_manager.session_store")
 
     logger.info("初始化 FastAPI 服务器")
     logger.info(f"服务器配置：host={config.get('web', {}).get('host')}, port={config.get('web', {}).get('port')}")

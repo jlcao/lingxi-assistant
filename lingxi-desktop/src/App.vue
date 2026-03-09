@@ -18,8 +18,10 @@ import TitleBar from './components/TitleBar.vue'
 import WorkspaceSwitchDialog from './components/WorkspaceSwitchDialog.vue'
 import WorkspaceInitializer from './components/WorkspaceInitializer.vue'
 import { useAppStore } from './stores/app'
+import { useWorkspaceStore } from './stores/workspace'
 
 const appStore = useAppStore()
+const workspaceStore = useWorkspaceStore()
 
 const isEdgeHidden = computed(() => {
   return window.electronAPI?.window?.edgeCheck?.() || false
@@ -54,6 +56,11 @@ async function initializeApp() {
   appStore.setLoading(true)
 
   try {
+    // 首先加载工作区信息
+    if (window.electronAPI?.workspace) {
+      await workspaceStore.loadCurrentWorkspace()
+    }
+
     if (window.electronAPI?.api) {
       const [sessions, checkpoints, resourceUsage] = await Promise.all([
         window.electronAPI.api.getSessions(),

@@ -49,6 +49,8 @@ const openSwitchDialog = () => {
 }
 
 const handleClick = () => {
+  // 点击工作区状态时打开切换对话框
+  openSwitchDialog()
 }
 
 onMounted(() => {

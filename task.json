@@ -96,6 +96,21 @@
         "运行前端测试，验证工作目录功能"
       ],
       "passes": true
+    },
+    {
+      "id": 8,
+      "title": "目录树自动刷新机制",
+      "description": "实现前端目录树自动刷新机制，采用事件驱动为主、文件监控为辅的混合方案",
+      "steps": [
+        "扩展 types/index.ts - 添加 FileChange 和 WorkspaceFilesChangedEvent 类型定义",
+        "扩展 wsClient.ts - 添加 workspace_files_changed 事件处理",
+        "扩展 electron/main/index.ts - 添加 workspace_files_changed 事件转发",
+        "扩展 preload/index.ts - 添加 onWorkspaceFilesChanged 事件监听 API",
+        "扩展 stores/workspace.ts - 添加文件变动监听和刷新逻辑（防抖、节流）",
+        "扩展 FileWorkspace.vue - 添加刷新回调和事件监听",
+        "运行构建验证代码正确性"
+      ],
+      "passes": true
     }
   ]
 }

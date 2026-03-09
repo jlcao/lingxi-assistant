@@ -18,6 +18,18 @@ def set_assistant(asst: Union[LingxiAssistant, AsyncLingxiAssistant]):
     """
     global assistant
     assistant = asst
+    
+    # 修复：将 session_manager 设置到 workspace_manager 中
+    # 检查是否是异步助手
+    if hasattr(asst, 'skill_caller') and hasattr(asst.skill_caller, 'workspace_manager'):
+        workspace_manager = asst.skill_caller.workspace_manager
+        if workspace_manager and hasattr(asst, 'session_manager'):
+            workspace_manager.set_resources(
+                session_store=asst.session_manager
+            )
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug("workspace_manager.session_store 已设置（通过 set_assistant）")
 
 
 def get_assistant() -> Optional[Union[LingxiAssistant, AsyncLingxiAssistant]]:

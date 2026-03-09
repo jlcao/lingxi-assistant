@@ -64,9 +64,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { Star, Search, Folder, Setting, Minus, Close, FullScreen, ZoomIn } from '@element-plus/icons-vue'
 import WorkspaceStatus from './WorkspaceStatus.vue'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { ElMessage } from 'element-plus'
 
 const searchText = ref('')
 const isMaximized = ref(false)
+const workspaceStore = useWorkspaceStore()
 
 function handleMinimize() {
   window.electronAPI.window.minimize()
@@ -85,8 +88,45 @@ function handleSettings() {
   console.log('Open settings')
 }
 
-function handleFolder() {
-  console.log('Open folder')
+async function handleFolder() {
+  try {
+    // 打开文件夹选择器
+    const selectedPath = await window.electronAPI.file.selectDirectory()
+    
+    if (selectedPath) {
+      // 验证工作目录
+      const validationResult = await window.electronAPI.workspace.validate(selectedPath)
+      
+      // 检查验证结果
+      if (!validationResult) {
+        throw new Error('验证返回数据为空')
+      }
+      
+      if (validationResult.valid) {
+        // 询问用户是否切换到此工作目录
+        const confirmSwitch = confirm(
+          `是否切换到以下工作目录？\n\n${selectedPath}\n\n状态：${validationResult.message}`
+        )
+        
+        if (confirmSwitch) {
+          // 调用后台切换工作区接口
+          const switchResult = await window.electronAPI.workspace.switch(selectedPath, false)
+          
+          if (switchResult && switchResult.success) {
+            ElMessage.success('工作目录切换成功')
+            // 重新加载工作区信息
+            await workspaceStore.loadCurrentWorkspace()
+          } else {
+            ElMessage.error('切换失败：' + (switchResult?.error || '未知错误'))
+          }
+        }
+      } else {
+        ElMessage.warning('该目录不是有效的工作目录：' + validationResult.message)
+      }
+    }
+  } catch (error) {
+    ElMessage.error('选择工作目录失败：' + (error as Error).message)
+  }
 }
 
 async function updateMaximizedState() {

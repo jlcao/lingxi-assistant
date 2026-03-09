@@ -57,8 +57,20 @@ async def switch_workspace(request: WorkspaceSwitchRequest):
     """
     try:
         from lingxi.management.workspace import get_workspace_manager
+        from lingxi.web.state import get_assistant
         
+        # 获取全局的 workspace_manager
         workspace_manager = get_workspace_manager()
+        
+        # 修复：确保全局的 workspace_manager 的 session_store 已设置
+        assistant = get_assistant()
+        if assistant and hasattr(assistant, 'session_manager'):
+            if workspace_manager and workspace_manager.session_store is None:
+                workspace_manager.set_resources(
+                    session_store=assistant.session_manager
+                )
+                logger.info(f"已修复全局 workspace_manager.session_store")
+        
         result = await workspace_manager.switch_workspace(
             request.workspace_path,
             force=request.force

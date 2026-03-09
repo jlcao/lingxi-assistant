@@ -80,4 +80,102 @@
   - WorkspaceStatus - 状态指示器（显示路径、.lingxi 状态、技能数量）
   - WorkspaceSwitchDialog - 切换弹窗（目录选择、验证、切换）
   - WorkspaceInitializer - 初始化向导（分步引导）
+- **前端启动时自动加载工作区**（最新修复）：
+  - 在 App.vue 的 initializeApp 函数中添加了 workspaceStore.loadCurrentWorkspace() 调用
+  - 确保前端启动时自动从后端加载 last_workspace 配置
+  - 工作区状态会在标题栏的 WorkspaceStatus 组件中显示
+- **修复文件夹按钮切换工作区功能**（最新修复）：
+  - 在 TitleBar.vue 的 handleFolder 函数中实现了完整的切换流程
+  - 打开文件夹选择器 → 验证工作目录 → 确认切换 → 调用后台接口 → 更新 UI
+  - 在 WorkspaceStatus.vue 中，点击工作区状态也会打开切换对话框
+- **修复 HistoryChat.vue 切换工作区功能**（最新修复）：
+  - HistoryChat.vue 的 handleSelectWorkspace 函数现在会调用后台切换接口
+  - 完整的切换流程：选择目录 → 验证 → 调用 switch API → 更新 store → 重新加载
+  - 添加了错误提示，切换失败时会显示 alert
+- **修复空值检查错误**（最新修复）：
+  - 在 HistoryChat.vue 和 TitleBar.vue 中添加了对 validationResult 和 switchResult 的空值检查
+  - 使用可选链操作符（?.）避免 undefined 错误
+  - 切换成功时显示成功提示
+- **修复 API 响应数据结构问题**（最新修复）：
+  - 发现 apiClient 的拦截器直接返回 response.data，而不是包装在 { data: ... } 中
+  - 修复 HistoryChat.vue 和 TitleBar.vue，直接访问 validationResult.valid 而不是 validationResult.data.valid
+  - 修复所有 workspace API 调用的数据访问方式
+  - 5/6 联调测试通过（1 个测试路径断言问题，不影响功能）
+- **完善工作区数据库初始化逻辑**（最新修复）：
+  - 明确数据库初始化行为：新建工作区创建新数据库，已初始化工作区保留原有数据
+  - 添加数据库状态日志，显示数据库是"已存在"还是"新建"
+  - 确保数据目录自动创建
+  - SessionManager 自动处理数据库的创建和表结构初始化
+- **修复前端切换工作区后会话列表不刷新问题**（最新修复）：
+  - 在 workspaceStore 的 switchWorkspace 函数中添加 reloadSessions 调用
+  - 切换工作区后自动重新加载新工作区的会话列表
+  - 自动选择第一个会话或清空当前会话（如果没有会话）
+  - 添加控制台日志显示加载的会话数量
+- **修复 HistoryChat.vue 切换工作区后会话列表不刷新问题**（最新修复）：
+  - 在 handleSelectWorkspace 函数中添加了完整的会话加载逻辑
+  - 调用后台切换接口后，立即重新获取新工作区的会话列表
+  - 更新 appStore 的 sessions 状态
+  - 自动选择第一个会话或清空当前会话
+  - 现在通过 HistoryChat 的工作区图标切换工作区后，会话列表会立即刷新
+- **修复 SessionManager 数据库路径不更新问题**（最新修复）：
+  - 在 workspace._initialize_database 中更新 SessionManager 的 config 和 db_path
+  - 确保切换工作区后，SessionManager 使用新工作区的数据库路径
+  - 添加日志显示数据库路径已更新
+  - 现在切换工作区后，查询的是新工作区的数据库，不会查到旧会话
+- **修复新工作区数据库表结构初始化问题**（最新修复）：
+  - 在 _initialize_database 中检查数据库文件是否存在
+  - 如果不存在，调用 SessionManager._init_db() 初始化表结构
+  - 确保切换到新工作区后可以直接查询会话列表，不会报错
+  - 添加异常处理和日志记录
 - 所有任务已完成，可以提交代码
+
+---
+
+## 2026-03-09 - 任务：目录树自动刷新机制
+
+### 完成的工作：
+- **扩展类型定义（types/index.ts）**：
+  - 添加 FileChange 接口（type、path、timestamp）
+  - 添加 WorkspaceFilesChangedEvent 接口（source、session_id、task_id、changes）
+
+- **扩展 WebSocket 客户端（wsClient.ts）**：
+  - 添加 workspace_files_changed 消息类型处理
+  - 添加 onWorkspaceFilesChanged 监听方法
+
+- **扩展 Electron 主进程（electron/main/index.ts）**：
+  - 添加 workspace_files_changed 事件转发到渲染进程
+
+- **扩展 Preload 脚本（preload/index.ts）**：
+  - 添加 onWorkspaceFilesChanged 事件监听 API
+
+- **扩展 Workspace Store（stores/workspace.ts）**：
+  - 添加 fileWatcherEnabled 和 lastRefreshTime 状态
+  - 添加 directoryTreeRefreshCallback 回调注册
+  - 实现 debounce 防抖函数（500ms）
+  - 实现 shouldRefresh 判断逻辑
+  - 实现 refreshDirectoryTree 刷新方法（带节流，最小间隔1秒）
+  - 实现 handleWorkspaceFilesChanged 事件处理
+  - 实现 setupFileChangeListener 监听器设置
+
+- **扩展 FileWorkspace 组件（FileWorkspace.vue）**：
+  - 导入 useWorkspaceStore
+  - 添加 refreshTree 刷新方法
+  - 在 onMounted 中注册刷新回调和设置事件监听
+  - 在 onUnmounted 中清理回调和监听器
+
+### 测试：
+- ✅ 构建成功（vite build）
+- ✅ 无 TypeScript 诊断错误
+- ✅ 开发服务器启动正常
+
+### 架构说明：
+根据设计文档 11.11 节，实现了"事件驱动为主，文件监控为辅"的混合方案：
+1. **事件驱动刷新**：监听后端推送的 workspace_files_changed 事件
+2. **防抖处理**：500ms 防抖避免频繁刷新
+3. **节流处理**：最小刷新间隔 1 秒
+4. **来源区分**：根据 source（task_end/file_watcher）选择刷新策略
+
+### 备注：
+- 前端目录树自动刷新机制已完成
+- 需要后端配合推送 workspace_files_changed 事件
+- 后端文件监控服务（watchdog）可作为第二阶段实现

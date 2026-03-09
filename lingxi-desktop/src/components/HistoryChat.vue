@@ -91,10 +91,58 @@ async function handleSelectWorkspace() {
   try {
     const selectedPath = await window.electronAPI.file.selectDirectory()
     if (selectedPath) {
-      appStore.setCurrentWorkspace(selectedPath)
+      // 验证工作目录
+      const validationResult = await window.electronAPI.workspace.validate(selectedPath)
+      
+      // 检查验证结果
+      if (!validationResult) {
+        throw new Error('验证返回数据为空')
+      }
+      
+      if (validationResult.valid) {
+        // 调用后台切换工作区接口
+        const switchResult = await window.electronAPI.workspace.switch(selectedPath, false)
+        
+        if (switchResult && switchResult.success) {
+          // 更新前端 store
+          appStore.setCurrentWorkspace(selectedPath)
+          
+          // 重新加载会话列表
+          const sessions = await window.electronAPI.api.getSessions()
+          const formattedSessions = (sessions || []).map((session: any) => ({
+            id: session.session_id || session.id,
+            name: session.title || session.name || '新会话',
+            createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
+            updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
+          }))
+          
+          appStore.setSessions(formattedSessions)
+          
+          // 如果有会话，选择第一个；否则清空当前会话
+          if (formattedSessions && formattedSessions.length > 0) {
+            appStore.setCurrentSession(formattedSessions[0].id)
+          } else {
+            appStore.setCurrentSession(null)
+            appStore.setTurns([])
+          }
+          
+          // 重新加载工作区信息
+          if (window.electronAPI?.workspace) {
+            const currentWorkspace = await window.electronAPI.workspace.getCurrent()
+            console.log('工作区已切换:', currentWorkspace)
+          }
+          
+          alert('工作区切换成功！')
+        } else {
+          throw new Error(switchResult?.error || '切换失败')
+        }
+      } else {
+        throw new Error(validationResult.message || '工作目录无效')
+      }
     }
   } catch (error) {
     console.error('Failed to select workspace:', error)
+    alert('切换工作区失败：' + (error as Error).message)
   }
 }
 

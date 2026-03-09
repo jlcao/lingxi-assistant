@@ -67,7 +67,7 @@ class WorkspaceManager:
         self.skill_caller = skill_caller
         self.session_store = session_store
         self.event_publisher = event_publisher
-        self.logger.debug("工作目录资源引用已设置")
+        self.logger.debug(f"工作目录资源引用已设置，session_store: {session_store is not None}")
     
     def initialize(self, workspace_path: Optional[str] = None) -> Path:
         """初始化工作目录
@@ -113,6 +113,7 @@ class WorkspaceManager:
         Returns:
             切换结果
         """
+        self.logger.info(f"开始切换工作区，当前 session_store: {self.session_store is not None}")
         self.previous_workspace = self.current_workspace
         
         # 1. 检查是否有执行中的任务
@@ -288,8 +289,10 @@ class WorkspaceManager:
         
         # 1. 关闭数据库连接
         if self.session_store:
-            self.session_store.close()
-            self.logger.debug("数据库连接已关闭")
+            # SessionManager 没有 close 方法，不需要显式关闭
+            # if hasattr(self.session_store, 'close'):
+            #     self.session_store.close()
+            self.logger.debug("数据库连接保持打开状态（SessionManager 自动管理）")
         
         # 2. 注销工作目录级别的技能
         if self.skill_caller and hasattr(self.skill_caller, 'skill_registry'):
@@ -306,6 +309,7 @@ class WorkspaceManager:
             lingxi_dir: .lingxi 目录路径
         """
         self.logger.info("开始加载资源...")
+        self.logger.info(f"_load_resources 开始时 session_store: {self.session_store is not None}")
         
         # 1. 更新 SecuritySandbox 的 workspace_root
         if self.sandbox:
@@ -318,10 +322,15 @@ class WorkspaceManager:
             self.logger.debug("工作目录技能已注册")
         
         # 3. 重新初始化数据库连接
+        self.logger.info(f"_load_resources 中 session_store 状态：{self.session_store is not None}")
         if self.session_store:
+            self.logger.info(f"开始初始化数据库，数据目录：{lingxi_dir / 'data'}")
             self._initialize_database(lingxi_dir / "data")
             self.logger.debug("数据库连接已初始化")
+        else:
+            self.logger.warning("session_store 为 None，跳过数据库初始化")
         
+        self.logger.info(f"_load_resources 结束时 session_store: {self.session_store is not None}")
         self.logger.info("资源加载完成")
     
     def _register_workspace_skills(self, skills_dir: Path):
@@ -365,19 +374,55 @@ class WorkspaceManager:
     def _initialize_database(self, data_dir: Path):
         """初始化数据库连接
         
+        行为说明：
+        - 如果数据库不存在：SessionManager 会自动创建新数据库并初始化表结构
+        - 如果数据库已存在：保留所有历史会话数据，不做任何清空
+        
         Args:
             data_dir: 数据目录
         """
         if not self.session_store:
+            self.logger.warning("session_store 为 None，跳过数据库初始化")
             return
+        
+        # 确保数据目录存在
+        if not data_dir.exists():
+            data_dir.mkdir(parents=True, exist_ok=True)
+            self.logger.debug(f"数据目录已创建：{data_dir}")
         
         # 更新数据库路径
         assistant_db = data_dir / "assistant.db"
         memory_db = data_dir / "long_term_memory.db"
         
-        # 重新初始化连接
-        if hasattr(self.session_store, 'initialize_database'):
-            self.session_store.initialize_database(assistant_db, memory_db)
+        # 检查数据库是否存在
+        db_status = "已存在" if assistant_db.exists() else "新建"
+        self.logger.info(f"工作区数据库：{db_status} - {assistant_db}")
+        
+        # 更新 SessionManager 的数据库路径配置
+        if hasattr(self.session_store, 'config'):
+            self.session_store.config['session'] = self.session_store.config.get('session', {})
+            self.session_store.config['session']['db_path'] = str(assistant_db)
+            self.session_store.config['session']['memory_db'] = str(memory_db)
+            # 更新 db_path 属性
+            self.session_store.db_path = str(assistant_db)
+            self.logger.info(f"SessionManager 数据库路径已更新：{assistant_db}")
+            self.logger.info(f"SessionManager.db_path 当前值：{self.session_store.db_path}")
+        else:
+            self.logger.warning("session_store 没有 config 属性，无法更新数据库路径")
+        
+        # 如果数据库不存在，需要初始化表结构
+        if not assistant_db.exists():
+            self.logger.info(f"数据库文件不存在，正在初始化表结构：{assistant_db}")
+            try:
+                # 调用 SessionManager 的 _init_db 方法初始化表结构
+                if hasattr(self.session_store, '_init_db'):
+                    self.session_store._init_db()
+                    self.logger.info(f"数据库表结构初始化完成：{assistant_db}")
+            except Exception as e:
+                self.logger.error(f"初始化数据库表结构失败：{e}")
+                raise
+        
+        self.logger.info(f"数据库初始化完成：{assistant_db}")
     
     def _has_running_tasks(self) -> bool:
         """检查是否有执行中的任务

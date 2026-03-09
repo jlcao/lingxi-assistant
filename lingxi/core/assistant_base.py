@@ -50,6 +50,18 @@ class BaseAssistant(ABC):
         self.mode_selector = ExecutionModeSelector(self.config, self.skill_caller)
         self.console_subscriber = ConsoleSubscriber()
         self.session_store_subscriber = SessionStoreSubscriber(self.session_manager)
+        
+        # 将 session_manager 设置到 workspace_manager 中
+        # 注意：skill_caller.workspace_manager 初始为 None，需要手动创建并设置
+        from lingxi.management.workspace import WorkspaceManager
+        workspace_manager = WorkspaceManager(self.config)
+        self.skill_caller.set_workspace_manager(workspace_manager)
+        
+        # 设置 session_store
+        workspace_manager.set_resources(
+            session_store=self.session_manager
+        )
+        self.logger.debug("workspace_manager.session_store 已设置")
 
     def _check_install_skill_intent(self, user_input: str) -> Optional[tuple]:
         """检查是否是安装技能的请求

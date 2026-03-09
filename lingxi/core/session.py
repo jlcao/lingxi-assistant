@@ -206,6 +206,10 @@ class SessionManager:
         if columns and 'total_tokens' not in columns:
             cursor.execute("ALTER TABLE sessions ADD COLUMN total_tokens INTEGER NOT NULL DEFAULT 0")
         
+        # 如果表存在但缺少 checkpoint_json 列，添加该列
+        if columns and 'checkpoint_json' not in columns:
+            cursor.execute("ALTER TABLE sessions ADD COLUMN checkpoint_json TEXT")
+        
         # 检查 tasks 表结构
         cursor.execute("PRAGMA table_info(tasks)")
         task_columns = {row[1]: row[2] for row in cursor.fetchall()}
@@ -229,6 +233,7 @@ class SessionManager:
                 title TEXT NOT NULL DEFAULT '新会话',
                 current_task_id TEXT,
                 total_tokens INTEGER NOT NULL DEFAULT 0,
+                checkpoint_json TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )

@@ -67,6 +67,7 @@ const electronAPI = {
     onThinkFinal: (callback: (data: any) => void) => ipcRenderer.on('ws:think-final', (_, data) => callback(data)),
     onPlanStart: (callback: (data: any) => void) => ipcRenderer.on('ws:plan-start', (_, data) => callback(data)),
     onPlanFinal: (callback: (data: any) => void) => ipcRenderer.on('ws:plan-final', (_, data) => callback(data)),
+    onWorkspaceFilesChanged: (callback: (data: any) => void) => ipcRenderer.on('ws:workspace-files-changed', (_, data) => callback(data)),
     removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel)
   }
 }

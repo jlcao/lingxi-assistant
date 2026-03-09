@@ -4,7 +4,8 @@ import type {
   ThoughtChainData,
   StepStatusData,
   SkillCallData,
-  ModelRouteData
+  ModelRouteData,
+  WorkspaceFilesChangedEvent
 } from '../../src/types'
 
 export class WsClient extends EventEmitter {
@@ -139,6 +140,9 @@ export class WsClient extends EventEmitter {
       case 'task_failed':
         this.emit('task_failed', payload || data)
         break
+      case 'workspace_files_changed':
+        this.emit('workspace_files_changed', payload as WorkspaceFilesChangedEvent)
+        break
       default:
         this.emit('unknown', data)
     }
@@ -255,6 +259,10 @@ export class WsClient extends EventEmitter {
 
   onTaskFailed(callback: (data: any) => void): void {
     this.on('task_failed', callback)
+  }
+
+  onWorkspaceFilesChanged(callback: (data: WorkspaceFilesChangedEvent) => void): void {
+    this.on('workspace_files_changed', callback)
   }
 
   off(eventType: string, callback: (...args: any[]) => void): this {

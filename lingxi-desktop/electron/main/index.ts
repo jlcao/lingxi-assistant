@@ -319,6 +319,13 @@ class App {
         mainWindow.webContents.send('ws:task-failed', data)
       }
     })
+
+    this.wsClient.on('workspace_files_changed', (data) => {
+      const mainWindow = this.windowManager.getWindow()
+      if (mainWindow) {
+        mainWindow.webContents.send('ws:workspace-files-changed', data)
+      }
+    })
   }
 
   start(): void {

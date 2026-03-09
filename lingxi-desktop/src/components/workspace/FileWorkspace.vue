@@ -62,9 +62,10 @@
 
 <script setup lang="ts">
 import { useAppStore } from '@/stores/app'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { FolderOpened, Loading } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 interface TreeNode {
   id: string
@@ -75,6 +76,7 @@ interface TreeNode {
 }
 
 const appStore = useAppStore()
+const workspaceStore = useWorkspaceStore()
 const { currentWorkspace } = storeToRefs(appStore)
 
 const fileTree = ref<TreeNode[]>([])
@@ -119,6 +121,23 @@ async function loadDirectoryTree(dirPath: string) {
     loading.value = false
   }
 }
+
+function refreshTree() {
+  if (currentWorkspace.value) {
+    console.log('[FileWorkspace] 刷新目录树:', currentWorkspace.value)
+    loadDirectoryTree(currentWorkspace.value)
+  }
+}
+
+onMounted(() => {
+  workspaceStore.setDirectoryTreeRefreshCallback(refreshTree)
+  workspaceStore.setupFileChangeListener()
+})
+
+onUnmounted(() => {
+  workspaceStore.setDirectoryTreeRefreshCallback(null)
+  window.electronAPI.ws.removeAllListeners('ws:workspace-files-changed')
+})
 
 watch(currentWorkspace, (newPath) => {
   if (newPath) {
