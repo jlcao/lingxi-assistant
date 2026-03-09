@@ -11,7 +11,11 @@ import type {
   Session,
   SessionDetail,
   Skill,
-  SkillManifest
+  SkillManifest,
+  WorkspaceInfo,
+  WorkspaceSwitchResult,
+  WorkspaceInitResult,
+  WorkspaceValidationResult
 } from '../../src/types'
 
 export class ApiClient {
@@ -210,5 +214,27 @@ export class ApiClient {
 
   async updateConfig(config: Partial<Config>): Promise<ApiResponse<{ success: boolean; message: string; updated_at: string }>> {
     return this.client.patch('/api/config', config)
+  }
+
+  async getWorkspaceCurrent(): Promise<ApiResponse<WorkspaceInfo>> {
+    return this.client.get('/api/workspace/current')
+  }
+
+  async switchWorkspace(workspacePath: string, force = false): Promise<ApiResponse<WorkspaceSwitchResult>> {
+    return this.client.post('/api/workspace/switch', {
+      workspace_path: workspacePath,
+      force
+    })
+  }
+
+  async initializeWorkspace(workspacePath?: string): Promise<ApiResponse<WorkspaceInitResult>> {
+    const params = workspacePath ? { workspace_path: workspacePath } : {}
+    return this.client.post('/api/workspace/initialize', params)
+  }
+
+  async validateWorkspace(workspacePath: string): Promise<ApiResponse<WorkspaceValidationResult>> {
+    return this.client.get('/api/workspace/validate', {
+      params: { workspace_path: workspacePath }
+    })
   }
 }

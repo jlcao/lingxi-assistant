@@ -149,6 +149,22 @@ class App {
       return this.apiClient.getSession(sessionId)
     })
 
+    ipcMain.handle('workspace:get-current', async () => {
+      return this.apiClient.getWorkspaceCurrent()
+    })
+
+    ipcMain.handle('workspace:switch', async (_, workspacePath, force) => {
+      return this.apiClient.switchWorkspace(workspacePath, force)
+    })
+
+    ipcMain.handle('workspace:initialize', async (_, workspacePath) => {
+      return this.apiClient.initializeWorkspace(workspacePath)
+    })
+
+    ipcMain.handle('workspace:validate', async (_, workspacePath) => {
+      return this.apiClient.validateWorkspace(workspacePath)
+    })
+
     // ===== WS IPC 逻辑优化（新增错误提示 + 延迟初始化）=====
     ipcMain.handle('ws:connect', async (_, sessionId) => {
       // 延迟初始化WS客户端（首次连接时初始化）

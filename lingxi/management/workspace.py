@@ -244,14 +244,23 @@ class WorkspaceManager:
         if not config_file.exists():
             return self.config
         
-        with open(config_file, 'r', encoding='utf-8') as f:
-            workspace_config = yaml.safe_load(f)
-        
-        # 合并配置（工作目录配置覆盖全局配置）
-        merged_config = self._deep_merge(self.config, workspace_config)
-        
-        self.logger.debug(f"工作目录配置已加载：{config_file}")
-        return merged_config
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                workspace_config = yaml.safe_load(f)
+            
+            # 处理配置文件为空的情况
+            if workspace_config is None:
+                self.logger.warning(f"配置文件为空：{config_file}，使用全局配置")
+                return self.config
+            
+            # 合并配置（工作目录配置覆盖全局配置）
+            merged_config = self._deep_merge(self.config, workspace_config)
+            
+            self.logger.debug(f"工作目录配置已加载：{config_file}")
+            return merged_config
+        except yaml.YAMLError as e:
+            self.logger.warning(f"配置文件格式错误：{config_file}，使用全局配置。错误：{e}")
+            return self.config
     
     def _deep_merge(self, base: Dict, override: Dict) -> Dict:
         """深度合并字典（override 优先）

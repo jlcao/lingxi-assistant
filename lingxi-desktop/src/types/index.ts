@@ -172,6 +172,54 @@ export interface Skill {
   status: 'available' | 'error' | 'installed'
   manifest: SkillManifest
   installed_at?: DateTime
+  source?: SkillSourceType
+  workspace_path?: string
+}
+
+export type SkillSourceType = 'global' | 'workspace'
+
+export interface WorkspaceInfo {
+  workspace: string | null
+  lingxi_dir: string | null
+  is_initialized: boolean
+}
+
+export interface WorkspaceSwitchResult {
+  previous_workspace: string
+  current_workspace: string
+  lingxi_dir: string
+  switched_at: DateTime
+}
+
+export interface WorkspaceInitResult {
+  workspace: string
+  lingxi_dir: string
+}
+
+export interface WorkspaceValidationResult {
+  valid: boolean
+  exists: boolean
+  has_lingxi_dir: boolean
+  message: string
+}
+
+export interface WorkspaceConfig {
+  workspace?: {
+    name?: string
+    description?: string
+  }
+  skills?: {
+    enabled?: string[]
+  }
+  database?: {
+    assistant_db?: string
+    memory_db?: string
+  }
+  security?: {
+    safety_mode?: boolean
+    max_file_size?: number
+    allowed_commands?: string[]
+  }
 }
 
 export interface SkillManifest {

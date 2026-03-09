@@ -4,6 +4,8 @@
     <ResumeBanner v-if="activeCheckpoints.length > 0" />
     <EdgeWidget v-if="isEdgeHidden" />
     <LayoutContainer />
+    <WorkspaceSwitchDialog />
+    <WorkspaceInitializer />
   </div>
 </template>
 
@@ -13,6 +15,8 @@ import EdgeWidget from './components/EdgeWidget.vue'
 import LayoutContainer from './components/LayoutContainer.vue'
 import ResumeBanner from './components/ResumeBanner.vue'
 import TitleBar from './components/TitleBar.vue'
+import WorkspaceSwitchDialog from './components/WorkspaceSwitchDialog.vue'
+import WorkspaceInitializer from './components/WorkspaceInitializer.vue'
 import { useAppStore } from './stores/app'
 
 const appStore = useAppStore()

@@ -1,4 +1,4 @@
-# Spring FES Video - Project Instructions
+# Project Instructions
 
 ## Project Context
 

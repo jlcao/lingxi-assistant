@@ -45,6 +45,12 @@ declare global {
         updateConfig: (config: any) => Promise<void>
         getSessionInfo: (sessionId: string) => Promise<any>
       }
+      workspace: {
+        getCurrent: () => Promise<any>
+        switch: (workspacePath: string, force?: boolean) => Promise<any>
+        initialize: (workspacePath?: string) => Promise<any>
+        validate: (workspacePath: string) => Promise<any>
+      }
       ws: {
         connect: (sessionId?: string) => Promise<void>
         disconnect: () => Promise<void>

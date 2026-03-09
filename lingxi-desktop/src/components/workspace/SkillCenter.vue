@@ -31,6 +31,10 @@
             <span class="skill-card-version">v{{ skill.version }}</span>
             <span class="skill-card-author">{{ skill.author }}</span>
           </div>
+          <div class="skill-card-source" v-if="skill.source">
+            <el-tag v-if="skill.source === 'workspace'" type="warning" size="small">工作目录</el-tag>
+            <el-tag v-else type="info" size="small">全局</el-tag>
+          </div>
         </div>
         <div class="skill-card-status">
           <el-icon v-if="skill.status === 'available'" color="#67c23a"><CircleCheck /></el-icon>
@@ -171,6 +175,10 @@ function handleSkillClick(skill: Skill) {
 .skill-card-author {
   font-size: $font-size-small;
   color: $text-secondary;
+}
+
+.skill-card-source {
+  margin-top: 8px;
 }
 
 .skill-card-status {

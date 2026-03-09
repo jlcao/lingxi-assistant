@@ -14,6 +14,7 @@
       />
     </div>
     <div class="title-bar-right">
+      <WorkspaceStatus />
       <div class="title-bar-status">
         <span class="status-dot online"></span>
         <span class="status-text">状态</span>
@@ -62,6 +63,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { Star, Search, Folder, Setting, Minus, Close, FullScreen, ZoomIn } from '@element-plus/icons-vue'
+import WorkspaceStatus from './WorkspaceStatus.vue'
 
 const searchText = ref('')
 const isMaximized = ref(false)

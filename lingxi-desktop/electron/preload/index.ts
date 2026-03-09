@@ -42,6 +42,13 @@ const electronAPI = {
     getSessionInfo: (sessionId: string) => ipcRenderer.invoke('api:get-session-info', sessionId)
   },
 
+  workspace: {
+    getCurrent: () => ipcRenderer.invoke('workspace:get-current'),
+    switch: (workspacePath: string, force?: boolean) => ipcRenderer.invoke('workspace:switch', workspacePath, force),
+    initialize: (workspacePath?: string) => ipcRenderer.invoke('workspace:initialize', workspacePath),
+    validate: (workspacePath: string) => ipcRenderer.invoke('workspace:validate', workspacePath)
+  },
+
   ws: {
     connect: (sessionId?: string) => ipcRenderer.invoke('ws:connect', sessionId),
     disconnect: () => ipcRenderer.invoke('ws:disconnect'),

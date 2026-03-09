@@ -15,6 +15,17 @@
 - 在 FastAPI 服务器中注册了 workspace 路由
 - 在 SkillCaller 中集成了 WorkspaceManager
 - 编写了单元测试 test_workspace.py（包含 12 个测试用例）
+- **前端工作目录功能开发**（新增）：
+  - 扩展 src/types/index.ts - 添加 WorkspaceInfo、WorkspaceSwitchResult 等类型定义
+  - 扩展 electron/main/apiClient.ts - 添加工作目录 API 方法
+  - 创建 src/stores/workspace.ts - 工作目录 Pinia Store（状态管理）
+  - 创建 src/components/WorkspaceStatus.vue - 工作目录状态指示器
+  - 创建 src/components/WorkspaceSwitchDialog.vue - 工作目录切换弹窗
+  - 创建 src/components/WorkspaceInitializer.vue - 工作目录初始化向导
+  - 更新 src/components/TitleBar.vue - 集成 WorkspaceStatus 组件
+  - 更新 electron/main/index.ts - 添加工作目录 IPC 处理
+  - 更新 electron/preload/index.ts - 暴露工作目录 API 到渲染进程
+  - 更新 src/components/workspace/SkillCenter.vue - 显示工作目录技能标识
 
 ### 测试：
 - ✅ 运行 pytest 后端测试 - 11 个测试用例全部通过
@@ -29,13 +40,44 @@
   - test_config_merge - PASSED
   - test_default_workspace_config - PASSED
   - test_load_workspace_config - PASSED
+- ✅ 前端编译成功，无错误
+- ✅ 前端开发服务器运行正常（http://localhost:5173）
 - ✅ 代码没有语法错误
 - ✅ 构建成功
+- ✅ **前端 E2E 测试（模块化）** - 17 个测试用例全部通过
+  - **核心功能测试（core.spec.ts）** - 7 个测试用例
+    - 应用应该正确启动并显示窗口 - PASSED
+    - 应用应该显示标题栏 - PASSED
+    - 应用应该显示聊天核心组件 - PASSED
+    - 应用应该显示输入区域 - PASSED
+    - 应用应该显示布局容器 - PASSED
+    - 应用版本号应该正确 - PASSED
+    - 应用应该能够输入文本 - PASSED
+  - **工作目录功能测试（workspace.spec.ts）** - 4 个测试用例
+    - 工作目录状态组件应该正确显示 - PASSED
+    - 工作目录切换功能应该可用 - PASSED
+    - 工作目录初始化向导组件应该存在 - PASSED
+    - 工作目录 API 应该可调用 - PASSED
+  - **前后端联调测试（integration.spec.ts）** - 6 个测试用例（新增）
+    - 后端 API 应该可用 - PASSED
+    - 前端应该能获取当前工作目录 - PASSED
+    - 前端应该能初始化工作目录 - PASSED
+    - 前端应该能验证工作目录 - PASSED
+    - 前端应该能切换工作目录 - PASSED
+    - 前端 UI 应该显示工作目录状态 - PASSED
+- ✅ 测试截图已生成到 test-results/ 目录
+  - test-results/core/ - 核心功能测试截图
+  - test-results/workspace/ - 工作目录功能测试截图
+  - test-results/integration/ - 联调测试截图
 
 ### 备注：
-- 工作目录功能核心实现已完成
+- 工作目录功能核心实现已完成（后端 + 前端）
 - 支持.lingxi 目录结构自动初始化
 - 支持配置合并（工作目录配置覆盖全局配置）
 - 支持工作目录级别的技能管理
 - Web API 已注册到 FastAPI 服务器
+- 前端工作目录 UI 组件已完成：
+  - WorkspaceStatus - 状态指示器（显示路径、.lingxi 状态、技能数量）
+  - WorkspaceSwitchDialog - 切换弹窗（目录选择、验证、切换）
+  - WorkspaceInitializer - 初始化向导（分步引导）
 - 所有任务已完成，可以提交代码

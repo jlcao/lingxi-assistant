@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/workspace", tags=["workspace"])
+router = APIRouter(prefix="/workspace", tags=["workspace"])
 
 
 class WorkspaceSwitchRequest(BaseModel):
