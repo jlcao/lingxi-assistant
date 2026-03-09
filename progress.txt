@@ -266,3 +266,42 @@
 默认: D:\resource\python\lingxi
 自定义: /custom/path
 ```
+
+---
+
+## 2026-03-09 - Bug 修复（续）：workspace_manager 资源引用未完整设置
+
+### 问题：
+日志显示工作目录切换后，`SecuritySandbox` 的工作目录仍然是 `D:\resource\python\lingxi\workspace`，而不是 `F:\work\workspace2`。
+
+### 根本原因：
+`BaseAssistant.__init__` 中调用 `workspace_manager.set_resources()` 时只设置了 `session_store`，没有设置 `sandbox` 和 `skill_caller`。
+
+### 修复内容：
+修改 `lingxi/core/assistant_base.py`：
+```python
+# 修复前
+self.workspace_manager.set_resources(
+    session_store=self.session_manager
+)
+
+# 修复后
+self.workspace_manager.set_resources(
+    sandbox=self.skill_caller.sandbox,
+    skill_caller=self.skill_caller,
+    session_store=self.session_manager
+)
+```
+
+### 数据流修复：
+```
+BaseAssistant.__init__
+    → workspace_manager.set_resources(sandbox, skill_caller, session_store)
+    → WorkspaceManager._load_resources()
+        → sandbox.update_workspace(new_workspace)
+        → SecuritySandbox.workspace_root 更新
+    → SkillCaller._normalize_file_path() 使用正确的 sandbox.workspace_root
+```
+
+### 测试验证：
+- ✅ 11 个工作目录相关测试全部通过

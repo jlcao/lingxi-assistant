@@ -57,11 +57,13 @@ class BaseAssistant(ABC):
         self.workspace_manager = WorkspaceManager(self.config)
         self.skill_caller.set_workspace_manager(self.workspace_manager)
         
-        # 设置 session_store
+        # 设置资源引用（包括 sandbox、skill_caller、session_store）
         self.workspace_manager.set_resources(
+            sandbox=self.skill_caller.sandbox,
+            skill_caller=self.skill_caller,
             session_store=self.session_manager
         )
-        self.logger.debug("workspace_manager.session_store 已设置")
+        self.logger.debug("workspace_manager 资源引用已设置（sandbox、skill_caller、session_store）")
 
     def _check_install_skill_intent(self, user_input: str) -> Optional[tuple]:
         """检查是否是安装技能的请求
