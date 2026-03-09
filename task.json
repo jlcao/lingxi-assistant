@@ -111,6 +111,23 @@
         "运行构建验证代码正确性"
       ],
       "passes": true
+    },
+    {
+      "id": 9,
+      "title": "目录树自动刷新机制单元测试",
+      "description": "为目录树自动刷新机制编写 E2E 测试，验证类型定义、API 可用性、防抖节流逻辑等关键功能",
+      "steps": [
+        "创建 tests/e2e/directory-tree-refresh.spec.ts 测试文件",
+        "测试 FileChange 和 WorkspaceFilesChangedEvent 类型定义",
+        "测试 onWorkspaceFilesChanged API 可用性",
+        "测试防抖函数正确性",
+        "测试节流逻辑正确性",
+        "测试 shouldRefresh 逻辑",
+        "测试事件监听器注册和移除",
+        "测试目录树组件渲染",
+        "运行测试验证所有用例通过"
+      ],
+      "passes": true
     }
   ]
 }

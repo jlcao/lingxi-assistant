@@ -179,3 +179,37 @@
 - 前端目录树自动刷新机制已完成
 - 需要后端配合推送 workspace_files_changed 事件
 - 后端文件监控服务（watchdog）可作为第二阶段实现
+
+---
+
+## 2026-03-09 - 任务：目录树自动刷新机制单元测试
+
+### 完成的工作：
+- **创建 E2E 测试文件（tests/e2e/directory-tree-refresh.spec.ts）**：
+  - FileChange 类型定义测试
+  - WorkspaceFilesChangedEvent 类型定义测试
+  - onWorkspaceFilesChanged API 可用性测试
+  - 防抖函数正确性测试
+  - 节流逻辑正确性测试
+  - shouldRefresh 逻辑测试
+  - 事件监听器注册和移除测试
+  - 目录树组件渲染测试
+  - 工作目录 API 调用测试
+  - WebSocket 连接可用性测试
+
+### 测试结果：
+- ✅ 10 个测试用例全部通过
+  - FileChange 类型定义应该正确导出 - PASSED
+  - WorkspaceFilesChangedEvent 类型定义应该正确 - PASSED
+  - onWorkspaceFilesChanged API 应该可用 - PASSED
+  - 防抖函数应该正确工作 - PASSED
+  - 节流逻辑应该正确工作 - PASSED
+  - shouldRefresh 逻辑应该根据来源正确判断 - PASSED
+  - 事件监听器应该能够正确注册和移除 - PASSED
+  - 目录树组件应该正确渲染 - PASSED
+  - 工作目录 API 应该可调用 - PASSED
+  - WebSocket 连接应该可用 - PASSED
+
+### 备注：
+- 测试覆盖了目录树自动刷新机制的核心功能
+- 测试验证了类型定义、API 可用性、防抖节流逻辑等关键功能
