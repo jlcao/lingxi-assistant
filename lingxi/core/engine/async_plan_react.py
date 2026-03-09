@@ -122,7 +122,8 @@ class AsyncPlanReActEngine(AsyncReActCore):
                     session_history=session_history,
                     stream=stream,
                     task_id=task_id,
-                    execution_id=execution_id
+                    execution_id=execution_id,
+                    workspace_path=context.workspace_path
                 )
 
                 final_result = None
@@ -208,7 +209,8 @@ class AsyncPlanReActEngine(AsyncReActCore):
                 session_history=session_history,
                 stream=stream,
                 task_id=task_id,
-                execution_id=execution_id
+                execution_id=execution_id,
+                workspace_path=context.workspace_path
             )
 
             final_result = None

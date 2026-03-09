@@ -213,7 +213,8 @@ class PlanReActCore(ReActCore):
                     session_history=session_history,
                     stream=stream,
                     task_id=task_id,
-                    execution_id=execution_id
+                    execution_id=execution_id,
+                    workspace_path=context.workspace_path
                 )
 
                 # 调用父类方法执行完整计划
@@ -304,7 +305,8 @@ class PlanReActCore(ReActCore):
                 session_history=session_history,
                 stream=stream,
                 task_id=task_id,
-                execution_id=execution_id
+                execution_id=execution_id,
+                workspace_path=context.workspace_path
             )
 
             # 调用父类方法执行完整计划

@@ -40,12 +40,15 @@ class LingxiAssistant(BaseAssistant):
 
             engine = self.mode_selector.get_engine(mode="plan_react", session_manager=self.session_manager)
 
+            workspace_path = str(self.workspace_manager.current_workspace) if self.workspace_manager.current_workspace else None
+
             context = TaskContext(
                 user_input=user_input,
                 task_info={"level": "complex"},
                 session_id=session_id,
                 session_history=history,
-                stream=stream
+                stream=stream,
+                workspace_path=workspace_path
             )
 
             response = engine.process(context)

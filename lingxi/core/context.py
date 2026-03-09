@@ -15,6 +15,7 @@ class TaskContext:
     execution_id: Optional[str] = None
     input_tokens: int = 0
     output_tokens: int = 0
+    workspace_path: Optional[str] = None
     
     def __post_init__(self):
         if self.session_history is None:
@@ -59,7 +60,8 @@ class TaskContext:
             "task_id": self.task_id,
             "execution_id": self.execution_id,
             "input_tokens": self.input_tokens,
-            "output_tokens": self.output_tokens
+            "output_tokens": self.output_tokens,
+            "workspace_path": self.workspace_path
         }
     
     @classmethod
@@ -74,5 +76,6 @@ class TaskContext:
             task_id=data.get("task_id"),
             execution_id=data.get("execution_id"),
             input_tokens=data.get("input_tokens", 0),
-            output_tokens=data.get("output_tokens", 0)
+            output_tokens=data.get("output_tokens", 0),
+            workspace_path=data.get("workspace_path")
         )

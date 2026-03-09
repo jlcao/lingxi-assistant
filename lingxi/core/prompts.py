@@ -14,17 +14,21 @@ class PromptTemplates:
     """提示词模板类，集中管理所有提示词模板"""
 
     @staticmethod
-    def get_system_info() -> Dict[str, str]:
+    def get_system_info(workspace_path: Optional[str] = None) -> Dict[str, str]:
         """获取系统环境信息
+
+        Args:
+            workspace_path: 工作目录路径（可选，如果不提供则使用 os.getcwd()）
 
         Returns:
             系统信息字典
         """
         system_info = platform.system()
+        current_dir = workspace_path if workspace_path else os.getcwd()
         return {
             "system_info": system_info,
             "os_info": f"{system_info} {platform.release()}",
-            "current_dir": os.getcwd(),
+            "current_dir": current_dir,
             "shell_type": "PowerShell" if system_info == "Windows" else "Bash"
         }
 

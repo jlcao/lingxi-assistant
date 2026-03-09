@@ -213,3 +213,56 @@
 ### 备注：
 - 测试覆盖了目录树自动刷新机制的核心功能
 - 测试验证了类型定义、API 可用性、防抖节流逻辑等关键功能
+
+---
+
+## 2026-03-09 - Bug 修复：技能执行时工作目录不一致
+
+### 问题描述：
+日志显示工作目录切换到 `F:\work\workspace2`，但技能执行时却使用了 `D:\resource\python\lingxi\workspace`。
+
+### 根本原因：
+`PromptTemplates.get_system_info()` 方法使用 `os.getcwd()` 获取当前目录，而不是使用 `WorkspaceManager.current_workspace`。
+
+### 修复内容：
+
+1. **TaskContext 添加 workspace_path 属性** (`lingxi/core/context.py`)：
+   - 添加 `workspace_path: Optional[str] = None` 字段
+   - 更新 `to_dict()` 和 `from_dict()` 方法
+
+2. **PromptTemplates.get_system_info 接受 workspace_path 参数** (`lingxi/core/prompts.py`)：
+   - 修改方法签名：`get_system_info(workspace_path: Optional[str] = None)`
+   - 使用传入的 `workspace_path` 而非 `os.getcwd()`
+
+3. **BaseAssistant 保存 workspace_manager 引用** (`lingxi/core/assistant_base.py`)：
+   - 将 `workspace_manager` 保存为实例属性
+
+4. **AsyncLingxiAssistant 传递 workspace_path** (`lingxi/core/async_main.py`)：
+   - 创建 TaskContext 时获取并传递 `workspace_path`
+
+5. **LingxiAssistant 传递 workspace_path** (`lingxi/__main__.py`)：
+   - 创建 TaskContext 时获取并传递 `workspace_path`
+
+6. **AsyncReActCore 使用 workspace_path** (`lingxi/core/engine/async_react_core.py`)：
+   - `_build_initial_messages` 接受 `workspace_path` 参数
+   - 从 `context.workspace_path` 获取并传递
+
+7. **AsyncPlanReActEngine 传递 workspace_path** (`lingxi/core/engine/async_plan_react.py`)：
+   - 创建子 TaskContext 时传递 `workspace_path`
+
+8. **ReActCore 使用 workspace_path** (`lingxi/core/engine/react_core.py`)：
+   - `_build_initial_messages` 接受 `workspace_path` 参数
+
+9. **PlanReActCore 传递 workspace_path** (`lingxi/core/engine/plan_react_core.py`)：
+   - 创建子 TaskContext 时传递 `workspace_path`
+
+### 测试验证：
+- ✅ 11 个工作目录相关测试全部通过
+- ✅ `get_system_info()` 默认行为正确
+- ✅ `get_system_info('/custom/path')` 使用自定义路径
+
+### 修复验证：
+```
+默认: D:\resource\python\lingxi
+自定义: /custom/path
+```

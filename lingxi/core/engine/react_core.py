@@ -84,7 +84,7 @@ finish(answer) - 完成任务并返回答案
             skills_list=skills_list
         )
 
-    def _build_initial_messages(self, user_input: str, task_plan: List[str], task_info: Dict[str, Any], history_context: str) -> List[
+    def _build_initial_messages(self, user_input: str, task_plan: List[str], task_info: Dict[str, Any], history_context: str, workspace_path: Optional[str] = None) -> List[
         Dict[str, Any]]:
         """构建初始消息
 
@@ -93,6 +93,7 @@ finish(answer) - 完成任务并返回答案
             task_plan: 任务计划列表
             task_info: 任务信息
             history_context: 历史上下文
+            workspace_path: 工作目录路径（可选）
 
         Returns:
             消息列表
@@ -102,7 +103,7 @@ finish(answer) - 完成任务并返回答案
         skills_list = PromptTemplates.format_skills_list(available_skills)
 
         # 获取系统信息
-        system_info = PromptTemplates.get_system_info()
+        system_info = PromptTemplates.get_system_info(workspace_path)
         
         # 格式化任务计划
         task_plan_str = PromptTemplates.format_task_plan(task_plan)
@@ -201,8 +202,9 @@ finish(answer) - 完成任务并返回答案
         task_level = task_info.get("level", "simple")
 
         history_context = self._build_history_context(history)
+        workspace_path = context.workspace_path
 
-        messages = self._build_initial_messages(user_input, task_plan, task_info, history_context)
+        messages = self._build_initial_messages(user_input, task_plan, task_info, history_context, workspace_path)
         steps = []
 
         for step in range(self.max_steps):
