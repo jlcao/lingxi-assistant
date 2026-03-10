@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { WindowManager } from './windowManager'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { ApiClient } from './apiClient'
-import { WsClient } from './wsClient'
 import { FileManager } from './fileManager'
+import { WindowManager } from './windowManager'
+import { WsClient } from './wsClient'
 
 class App {
   private windowManager: WindowManager
@@ -17,6 +17,17 @@ class App {
 
     this.setupIpcHandlers()
     // 移除直接初始化WS，改为延迟初始化
+  }
+
+  private safeSend(channel: string, ...args: any[]): void {
+    const mainWindow = this.windowManager.getWindow()
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+      try {
+        mainWindow.webContents.send(channel, ...args)
+      } catch (error) {
+        console.error(`[App] 发送 IPC 消息失败 (${channel}):`, error)
+      }
+    }
   }
 
   private setupIpcHandlers(): void {
@@ -223,111 +234,71 @@ class App {
         'WS重连失败',
         '已尝试10次重连仍无法连接到服务端，请检查服务端状态后手动重新连接'
       )
-      const mainWindow = this.windowManager.getWindow()
-      mainWindow?.webContents.send('ws:reconnect-failed')
+      this.safeSend('ws:reconnect-failed')
     })
 
     // ===== 原有WS事件转发逻辑保持不变 =====
     this.wsClient.on('connected', () => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:connected')
-      }
+      this.safeSend('ws:connected')
     })
 
     this.wsClient.on('disconnected', () => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:disconnected')
-      }
+      this.safeSend('ws:disconnected')
     })
 
     this.wsClient.on('thought_chain', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:thought-chain', data)
-      }
+      this.safeSend('ws:thought-chain', data)
     })
 
     this.wsClient.on('task_start', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:task-start', data)
-      }
+      this.safeSend('ws:task-start', data)
     })
 
     this.wsClient.on('task_end', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:task-end', data)
-      }
+      this.safeSend('ws:task-end', data)
     })
 
     this.wsClient.on('think_start', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:think-start', data)
-      }
+      this.safeSend('ws:think-start', data)
     })
 
     this.wsClient.on('think_stream', (data) => {
       console.log('[Date: ' + new Date().toLocaleString() + '] [Main] think_stream received:', JSON.stringify(data).substring(0, 200))
       const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
         console.log('[Date: ' + new Date().toLocaleString() + '] [Main] Sending ws:think-stream to renderer')
-        mainWindow.webContents.send('ws:think-stream', data)
+        this.safeSend('ws:think-stream', data)
       } else {
         console.log('[Date: ' + new Date().toLocaleString() + '] [Main] No main window available')
       }
     })
 
     this.wsClient.on('think_final', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:think-final', data)
-      }
+      this.safeSend('ws:think-final', data)
     })
 
     this.wsClient.on('plan_start', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:plan-start', data)
-      }
+      this.safeSend('ws:plan-start', data)
     })
 
     this.wsClient.on('plan_final', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:plan-final', data)
-      }
+      this.safeSend('ws:plan-final', data)
     })
 
     this.wsClient.on('step_start', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:step-start', data)
-      }
+      this.safeSend('ws:step-start', data)
     })
 
     this.wsClient.on('step_end', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:step-end', data)
-      }
+      this.safeSend('ws:step-end', data)
     })
 
     this.wsClient.on('task_failed', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:task-failed', data)
-      }
+      this.safeSend('ws:task-failed', data)
     })
 
     this.wsClient.on('workspace_files_changed', (data) => {
-      const mainWindow = this.windowManager.getWindow()
-      if (mainWindow) {
-        mainWindow.webContents.send('ws:workspace-files-changed', data)
-      }
+      this.safeSend('ws:workspace-files-changed', data)
     })
   }
 
@@ -343,9 +314,25 @@ class App {
 
     app.on('window-all-closed', () => {
       if (process.platform !== 'darwin') {
-        this.wsClient?.disconnect()
+        this.cleanupResources()
         app.quit()
       }
+    })
+
+    app.on('before-quit', (event) => {
+      console.log('[App] before-quit 事件触发，开始清理资源')
+      event.preventDefault()
+      this.cleanupResources()
+
+      setTimeout(() => {
+        console.log('[App] 资源清理完成，退出应用')
+        app.quit()
+      }, 100)
+    })
+
+    app.on('will-quit', () => {
+      console.log('[App] will-quit 事件触发')
+      this.cleanupResources()
     })
 
     app.on('activate', () => {
@@ -353,6 +340,32 @@ class App {
         this.windowManager.createMainWindow()
       }
     })
+  }
+
+  private cleanupResources(): void {
+    console.log('[App] 开始清理资源')
+
+    try {
+      if (this.wsClient) {
+        console.log('[App] 断开 WebSocket 连接')
+        this.wsClient.disconnect()
+        this.wsClient = null
+      }
+    } catch (error) {
+      console.error('[App] 清理 WebSocket 时出错:', error)
+    }
+
+    try {
+      const mainWindow = this.windowManager.getWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        console.log('[App] 销毁主窗口')
+        mainWindow.destroy()
+      }
+    } catch (error) {
+      console.error('[App] 销毁窗口时出错:', error)
+    }
+
+    console.log('[App] 资源清理完成')
   }
 }
 

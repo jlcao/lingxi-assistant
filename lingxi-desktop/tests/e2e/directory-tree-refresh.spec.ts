@@ -41,20 +41,21 @@ test.describe('目录树自动刷新机制测试', () => {
         const pages = electronApp.windows()
         for (const p of pages) {
           try {
-            await p.close({ timeout: 3000 }).catch(() => { })
+            await p.close({ timeout: 2000 }).catch(() => { })
           } catch (e) {
-            // 忽略关闭错误
+            console.log('关闭页面时出错，忽略:', e)
           }
         }
 
-        await electronApp.close({ timeout: 5000 }).catch(() => { })
+        await electronApp.close({ timeout: 3000 }).catch(() => { })
       } catch (error) {
+        console.log('关闭 Electron 应用时出错:', error)
         try {
           if (electronApp.process()) {
-            electronApp.process().kill()
+            electronApp.process().kill('SIGKILL')
           }
         } catch (killError) {
-          // 忽略强制终止错误
+          console.log('强制终止进程时出错，忽略:', killError)
         }
       }
     }
