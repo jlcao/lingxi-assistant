@@ -71,15 +71,23 @@ class App {
           // 检测后端服务是否启动完成
           if (!backendStarted) {
             // 检查是否包含启动成功的关键词
-            if (output.includes('Started server process') || 
-                output.includes('Application startup complete') || 
-                output.includes('Uvicorn running') || 
-                output.includes('FastAPI 应用启动成功') ||
-                output.includes('Running on http://') ||
-                output.includes('Listening on http://')) {
-              backendStarted = true
-              console.log('[App] 后端服务启动完成')
-              resolve(true)
+            const startupKeywords = [
+              'Started server process',
+              'Application startup complete', 
+              'Uvicorn running',
+              'FastAPI 应用启动成功',
+              'Running on http://',
+              'Listening on http://'
+            ]
+            
+            for (const keyword of startupKeywords) {
+              if (output.includes(keyword)) {
+                console.log(`[App] 检测到启动关键词: ${keyword}`)
+                backendStarted = true
+                console.log('[App] 后端服务启动完成')
+                resolve(true)
+                break
+              }
             }
           }
         })

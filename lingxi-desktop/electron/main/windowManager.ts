@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, Tray, nativeImage } from 'electron'
+import { BrowserWindow, screen, Tray, nativeImage, Menu, app } from 'electron'
 import path from 'path'
 
 export class WindowManager {
@@ -57,6 +57,38 @@ export class WindowManager {
       this.tray = new Tray(nativeImage.createEmpty())
     }
     this.tray.setToolTip('Lingxi Agent')
+
+    // 创建右键菜单
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: '显示/隐藏窗口',
+        click: () => {
+          if (this.mainWindow) {
+            if (this.mainWindow.isVisible()) {
+              this.mainWindow.hide()
+            } else {
+              this.mainWindow.show()
+              this.mainWindow.focus()
+            }
+          }
+        }
+      },
+      {
+        type: 'separator'
+      },
+      {
+        label: '退出',
+        click: () => {
+          if (this.mainWindow) {
+            this.mainWindow.destroy()
+          }
+          app.quit()
+        }
+      }
+    ])
+
+    // 设置右键菜单
+    this.tray.setContextMenu(contextMenu)
 
     this.tray.on('click', () => {
       if (this.mainWindow) {
