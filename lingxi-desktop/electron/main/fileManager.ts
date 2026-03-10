@@ -51,6 +51,10 @@ export class FileManager {
     await shell.showItemInFolder(filePath)
   }
 
+  async openFile(filePath: string): Promise<void> {
+    await shell.openPath(filePath)
+  }
+
   async openExternal(url: string): Promise<void> {
     await shell.openExternal(url)
   }

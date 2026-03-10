@@ -15,8 +15,8 @@ import EdgeWidget from './components/EdgeWidget.vue'
 import LayoutContainer from './components/LayoutContainer.vue'
 import ResumeBanner from './components/ResumeBanner.vue'
 import TitleBar from './components/TitleBar.vue'
-import WorkspaceSwitchDialog from './components/WorkspaceSwitchDialog.vue'
 import WorkspaceInitializer from './components/WorkspaceInitializer.vue'
+import WorkspaceSwitchDialog from './components/WorkspaceSwitchDialog.vue'
 import { useAppStore } from './stores/app'
 import { useWorkspaceStore } from './stores/workspace'
 
@@ -53,15 +53,19 @@ onUnmounted(() => {
 })
 
 async function initializeApp() {
+  console.log('[App] initializeApp called')
   appStore.setLoading(true)
 
   try {
     // 首先加载工作区信息
     if (window.electronAPI?.workspace) {
+      console.log('[App] Loading current workspace...')
       await workspaceStore.loadCurrentWorkspace()
+      console.log('[App] Current workspace loaded:', workspaceStore.currentWorkspace)
     }
 
     if (window.electronAPI?.api) {
+      console.log('[App] Loading sessions, checkpoints, and resource usage...')
       const [sessions, checkpoints, resourceUsage] = await Promise.all([
         window.electronAPI.api.getSessions(),
         window.electronAPI.api.getCheckpoints(),

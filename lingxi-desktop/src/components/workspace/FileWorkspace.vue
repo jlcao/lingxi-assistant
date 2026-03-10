@@ -4,7 +4,7 @@
       <span class="file-workspace-title">工作区目录</span>
     </div>
     <div class="file-workspace-tree">
-      <div v-if="!appStore.currentWorkspace" class="empty-workspace">
+      <div v-if="!currentWorkspace" class="empty-workspace">
         <el-icon class="empty-icon"><FolderOpened /></el-icon>
         <div class="empty-text">未设置工作区</div>
         <div class="empty-hint">点击左侧工作区图标选择目录</div>
@@ -20,6 +20,8 @@
         :default-expanded-keys="defaultExpandedKeys"
         :expand-on-click-node="false"
         class="file-tree"
+        @node-contextmenu="handleNodeContextMenu"
+        @node-dblclick="handleNodeDblClick"
       >
         <template #default="{ node, data }">
           <div class="file-tree-node">
@@ -57,6 +59,25 @@
         <div class="empty-text">目录为空</div>
       </div>
     </div>
+    
+    <!-- 右键菜单 -->
+    <el-dropdown
+      ref="contextMenuRef"
+      :virtual-ref="contextMenuTarget"
+      virtual-triggering
+      trigger="contextmenu"
+      @command="handleContextMenuCommand"
+      @visible-change="handleContextMenuVisibleChange"
+    >
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item command="openInExplorer">
+            <el-icon class="menu-icon"><FolderOpened /></el-icon>
+            在资源管理器中打开
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
   </div>
 </template>
 
@@ -65,7 +86,7 @@ import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { FolderOpened, Loading } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 
 interface TreeNode {
   id: string
@@ -77,11 +98,19 @@ interface TreeNode {
 
 const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
-const { currentWorkspace } = storeToRefs(appStore)
+const { currentWorkspace, workspacePath } = storeToRefs(workspaceStore)
+
+console.log('[FileWorkspace] Component setup - currentWorkspace:', currentWorkspace.value)
+console.log('[FileWorkspace] Component setup - workspacePath:', workspacePath.value)
 
 const fileTree = ref<TreeNode[]>([])
 const defaultExpandedKeys = ref<string[]>([])
 const loading = ref(false)
+
+// 右键菜单相关
+const contextMenuRef = ref()
+const contextMenuTarget = ref<HTMLElement | null>(null)
+const selectedNode = ref<TreeNode | null>(null)
 
 const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico']
 const codeExtensions = ['.html', '.css', '.js', '.ts', '.vue', '.jsx', '.tsx', '.json', '.py', '.java', '.c', '.cpp', '.h']
@@ -105,17 +134,21 @@ const isDocFile = (filename: string): boolean => {
 }
 
 async function loadDirectoryTree(dirPath: string) {
+  console.log('[FileWorkspace] loadDirectoryTree called with:', dirPath)
   loading.value = true
   try {
     const treeData = await window.electronAPI.file.readDirectoryTree(dirPath, 3)
+    console.log('[FileWorkspace] readDirectoryTree result:', treeData)
     if (treeData) {
       fileTree.value = [treeData]
       defaultExpandedKeys.value = [treeData.id]
+      console.log('[FileWorkspace] Directory tree loaded successfully, nodes:', fileTree.value.length)
     } else {
       fileTree.value = []
+      console.log('[FileWorkspace] Directory tree is empty')
     }
   } catch (error) {
-    console.error('Failed to load directory tree:', error)
+    console.error('[FileWorkspace] Failed to load directory tree:', error)
     fileTree.value = []
   } finally {
     loading.value = false
@@ -129,23 +162,85 @@ function refreshTree() {
   }
 }
 
+// 右键菜单处理函数
+function handleNodeContextMenu(event: MouseEvent, data: TreeNode) {
+  event.preventDefault()
+  event.stopPropagation()
+  
+  selectedNode.value = data
+  contextMenuTarget.value = event.target as HTMLElement
+  
+  // 显示右键菜单
+  contextMenuRef.value?.handleOpen()
+}
+
+// 双击处理函数
+async function handleNodeDblClick(data: TreeNode) {
+  // 只对文件执行双击打开操作，目录不处理
+  if (!data.isDirectory) {
+    try {
+      await window.electronAPI.file.openFile(data.path)
+    } catch (error) {
+      console.error('Failed to open file:', error)
+    }
+  }
+}
+
+async function handleContextMenuCommand(command: string) {
+  if (!selectedNode.value) return
+  
+  switch (command) {
+    case 'openInExplorer':
+      try {
+        await window.electronAPI.file.openExplorer(selectedNode.value.path)
+      } catch (error) {
+        console.error('Failed to open in explorer:', error)
+      }
+      break
+  }
+  
+  // 清除选中状态
+  selectedNode.value = null
+  contextMenuTarget.value = null
+}
+
+function handleContextMenuVisibleChange(visible: boolean) {
+  if (!visible) {
+    selectedNode.value = null
+    contextMenuTarget.value = null
+  }
+}
+
 onMounted(() => {
+  console.log('[FileWorkspace] onMounted called')
   workspaceStore.setDirectoryTreeRefreshCallback(refreshTree)
   workspaceStore.setupFileChangeListener()
 })
 
 onUnmounted(() => {
+  console.log('[FileWorkspace] onUnmounted called')
   workspaceStore.setDirectoryTreeRefreshCallback(null)
   window.electronAPI.ws.removeAllListeners('ws:workspace-files-changed')
 })
 
-watch(currentWorkspace, (newPath) => {
-  if (newPath) {
-    loadDirectoryTree(newPath)
-  } else {
-    fileTree.value = []
+watch(currentWorkspace, async (newWorkspace) => {
+  console.log('[FileWorkspace] currentWorkspace changed:', newWorkspace)
+  if (newWorkspace && newWorkspace.workspace) {
+    console.log('[FileWorkspace] Loading directory tree from currentWorkspace watch:', newWorkspace.workspace)
+    await loadDirectoryTree(newWorkspace.workspace)
   }
 }, { immediate: true })
+
+watch(workspacePath, async (newPath) => {
+  console.log('[FileWorkspace] workspacePath changed:', newPath)
+  if (newPath) {
+    console.log('[FileWorkspace] Loading directory tree from workspacePath watch:', newPath)
+    await loadDirectoryTree(newPath)
+  } else {
+    console.log('[FileWorkspace] workspacePath is null, clearing file tree')
+    fileTree.value = []
+  }
+})
 </script>
 
 <style scoped lang="scss">
@@ -293,5 +388,11 @@ watch(currentWorkspace, (newPath) => {
 .empty-hint {
   font-size: 12px;
   color: #999999;
+}
+
+.menu-icon {
+  margin-right: 6px;
+  font-size: 14px;
+  color: #666666;
 }
 </style>

@@ -5,8 +5,8 @@
         <el-icon class="workspace-icon" @click="handleSelectWorkspace"><FolderOpened /></el-icon>
         <div class="workspace-details">
           <div class="workspace-label">当前工作区</div>
-          <div class="workspace-path" :title="appStore.currentWorkspace || '未设置'">
-            {{ appStore.currentWorkspace || '未设置工作区路径' }}
+          <div class="workspace-path" :title="workspaceStore.workspacePath || '未设置'">
+            {{ workspaceStore.workspacePath || '未设置工作区路径' }}
           </div>
         </div>
       </div>
@@ -75,12 +75,14 @@
 
 <script setup lang="ts">
 import { useAppStore } from '@/stores/app'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { ChatDotRound, Delete, Document, Edit, FolderOpened, MoreFilled, Plus } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 
 const appStore = useAppStore()
+const workspaceStore = useWorkspaceStore()
 const { sessions, currentSessionId } = storeToRefs(appStore)
 
 const filteredSessions = computed(() => {
@@ -104,8 +106,8 @@ async function handleSelectWorkspace() {
         const switchResult = await window.electronAPI.workspace.switch(selectedPath, false)
         
         if (switchResult && switchResult.success) {
-          // 更新前端 store
-          appStore.setCurrentWorkspace(selectedPath)
+          // 重新加载工作区信息
+          await workspaceStore.loadCurrentWorkspace()
           
           // 重新加载会话列表
           const sessions = await window.electronAPI.api.getSessions()
@@ -124,12 +126,6 @@ async function handleSelectWorkspace() {
           } else {
             appStore.setCurrentSession(null)
             appStore.setTurns([])
-          }
-          
-          // 重新加载工作区信息
-          if (window.electronAPI?.workspace) {
-            const currentWorkspace = await window.electronAPI.workspace.getCurrent()
-            console.log('工作区已切换:', currentWorkspace)
           }
           
           alert('工作区切换成功！')

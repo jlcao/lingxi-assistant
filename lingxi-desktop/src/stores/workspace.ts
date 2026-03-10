@@ -1,6 +1,6 @@
+import type { FileChange, WorkspaceFilesChangedEvent, WorkspaceInfo } from '@/types'
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import type { WorkspaceInfo, WorkspaceSwitchResult, WorkspaceInitResult, FileChange, WorkspaceFilesChangedEvent } from '@/types'
+import { computed, ref } from 'vue'
 
 const DEBOUNCE_MS = 500
 const MIN_REFRESH_INTERVAL = 1000
@@ -34,11 +34,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   async function loadCurrentWorkspace() {
     try {
+      console.log('[WorkspaceStore] loadCurrentWorkspace called')
       const result = await window.electronAPI.workspace.getCurrent()
-      currentWorkspace.value = result.data
+      console.log('[WorkspaceStore] loadCurrentWorkspace result:', result)
+      currentWorkspace.value = result
       await loadWorkspaceSkills()
     } catch (error) {
-      console.error('加载工作目录失败:', error)
+      console.error('[WorkspaceStore] 加载工作目录失败:', error)
     }
   }
 
@@ -88,18 +90,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
         createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
         updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
       }))
-      
+
       const { useAppStore } = await import('@/stores/app')
       const appStore = useAppStore()
       appStore.setSessions(formattedSessions)
-      
+
       if (formattedSessions && formattedSessions.length > 0) {
         appStore.setCurrentSession(formattedSessions[0].id)
       } else {
         appStore.setCurrentSession(null)
         appStore.setTurns([])
       }
-      
+
       console.log(`工作区切换完成，已加载 ${formattedSessions.length} 个会话`)
     } catch (error) {
       console.error('重新加载会话失败:', error)
@@ -129,7 +131,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       console.log('[Workspace] 刷新节流，跳过本次刷新')
       return
     }
-    
+
     if (directoryTreeRefreshCallback.value) {
       console.log('[Workspace] 触发目录树刷新，变动:', changes)
       directoryTreeRefreshCallback.value()
@@ -143,9 +145,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   function handleWorkspaceFilesChanged(event: WorkspaceFilesChangedEvent) {
     const { source, changes } = event
-    
+
     console.log('[Workspace] 收到文件变动事件:', { source, changes: changes?.length })
-    
+
     if (source === 'file_watcher') {
       refreshDirectoryTree(changes)
     } else {
