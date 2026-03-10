@@ -1,7 +1,7 @@
 <template>
   <div class="title-bar">
     <div class="title-bar-left">
-      <el-icon class="title-bar-logo"><Star /></el-icon>
+      <img src="@/assets/images/logo_multi.ico" alt="Lingxi Logo" class="title-bar-logo">
       <span class="title-bar-text">Lingxi 助手</span>
     </div>
     <div class="title-bar-center">
@@ -62,7 +62,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { Star, Search, Folder, Setting, Minus, Close, FullScreen, ZoomIn } from '@element-plus/icons-vue'
+import { Search, Folder, Setting, Minus, Close, FullScreen, ZoomIn } from '@element-plus/icons-vue'
 import WorkspaceStatus from './WorkspaceStatus.vue'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { ElMessage } from 'element-plus'
@@ -161,9 +161,10 @@ onMounted(async () => {
 }
 
 .title-bar-logo {
-  font-size: 20px;
-  color: #1890ff;
+  width: 24px;
+  height: 24px;
   margin-right: 8px;
+  border-radius: 4px;
 }
 
 .title-bar-text {

@@ -3,20 +3,138 @@ import { ApiClient } from './apiClient'
 import { FileManager } from './fileManager'
 import { WindowManager } from './windowManager'
 import { WsClient } from './wsClient'
+import { spawn, ChildProcess } from 'child_process'
+import * as path from 'path'
 
 class App {
   private windowManager: WindowManager
   private apiClient: ApiClient
   private wsClient: WsClient | null = null
   private fileManager: FileManager
+  private backendProcess: ChildProcess | null = null
+  private backendPort: number = 5000
 
   constructor() {
     this.windowManager = new WindowManager()
-    this.apiClient = new ApiClient('http://127.0.0.1:5000')
+    this.apiClient = new ApiClient(`http://127.0.0.1:${this.backendPort}`)
     this.fileManager = new FileManager()
 
     this.setupIpcHandlers()
     // 移除直接初始化WS，改为延迟初始化
+  }
+
+  /**
+   * 启动后端服务
+   */
+  private startBackendService(): Promise<boolean> {
+    return new Promise((resolve) => {
+      try {
+        // 获取后端可执行文件路径
+        let appPath = app.getAppPath()
+        
+        // 处理打包后的路径
+        if (appPath.endsWith('.asar')) {
+          appPath = path.dirname(appPath)
+        }
+        
+        const backendPath = path.join(appPath, 'electron', 'main', 'backend', 'lingxi-backend.exe')
+        console.log(`[App] 启动后端服务: ${backendPath}`)
+
+        // 检查文件是否存在
+        const fs = require('fs')
+        if (!fs.existsSync(backendPath)) {
+          console.error('[App] 后端可执行文件不存在:', backendPath)
+          dialog.showErrorBox('后端服务启动失败', `后端可执行文件不存在: ${backendPath}`)
+          resolve(false)
+          return
+        }
+
+        // 启动后端服务
+        this.backendProcess = spawn(backendPath, [], {
+          detached: false,
+          stdio: 'pipe'
+        })
+
+        let backendStarted = false
+
+        // 监听后端服务输出
+        this.backendProcess.stdout?.on('data', (data) => {
+          const output = data.toString()
+          console.log(`[Backend] ${output}`)
+          
+          // 检测后端服务是否启动完成
+          if (!backendStarted) {
+            const startupKeywords = [
+              'Server started',
+              'Running on',
+              'Listening on',
+              'FastAPI 应用启动成功',
+              'Started server process',
+              'Application startup complete',
+              'Uvicorn running',
+              'Ready to handle requests',
+              'Server is running',
+              'Backend service started'
+            ]
+            
+            const hasStartupKeyword = startupKeywords.some(keyword => output.includes(keyword))
+            
+            if (hasStartupKeyword) {
+              backendStarted = true
+              console.log('[App] 后端服务启动完成')
+              resolve(true)
+            }
+          }
+        })
+
+        this.backendProcess.stderr?.on('data', (data) => {
+          console.error(`[Backend] ${data.toString()}`)
+        })
+
+        this.backendProcess.on('error', (error) => {
+          console.error('[App] 启动后端服务失败:', error)
+          dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${error.message}`)
+          resolve(false)
+        })
+
+        this.backendProcess.on('exit', (code, signal) => {
+          console.log(`[App] 后端服务退出，代码: ${code}, 信号: ${signal}`)
+          this.backendProcess = null
+          if (!backendStarted) {
+            resolve(false)
+          }
+        })
+
+        // 超时处理
+        setTimeout(() => {
+          if (!backendStarted) {
+            console.error('[App] 后端服务启动超时')
+            resolve(false)
+          }
+        }, 10000)
+
+      } catch (error) {
+        console.error('[App] 启动后端服务时出错:', error)
+        dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${error.message}`)
+        resolve(false)
+      }
+    })
+  }
+
+  /**
+   * 停止后端服务
+   */
+  private stopBackendService(): void {
+    try {
+      if (this.backendProcess) {
+        console.log('[App] 停止后端服务')
+        this.backendProcess.kill()
+        this.backendProcess = null
+        console.log('[App] 后端服务已停止')
+      }
+    } catch (error) {
+      console.error('[App] 停止后端服务时出错:', error)
+    }
   }
 
   private safeSend(channel: string, ...args: any[]): void {
@@ -209,7 +327,7 @@ class App {
    * 初始化WS客户端（延迟执行，带错误提示）
    */
   private initWsClient(): void {
-    this.wsClient = new WsClient('ws://127.0.0.1:5000/ws')
+    this.wsClient = new WsClient(`ws://127.0.0.1:${this.backendPort}/ws`)
 
     // 监听WS错误，弹出可视化提示框
     this.wsClient.on('error', (err: Error) => {
@@ -302,14 +420,26 @@ class App {
     })
   }
 
-  start(): void {
-    app.whenReady().then(() => {
-      this.windowManager.createMainWindow()
-      // 可选：如果需要启动时自动连接WS，可延迟1秒初始化
-      // setTimeout(() => {
-      //   this.initWsClient()
-      //   this.wsClient?.connect()
-      // }, 1000)
+  async start(): Promise<void> {
+    app.whenReady().then(async () => {
+      // 启动后端服务并等待完成
+      console.log('[App] 正在启动后端服务...')
+      const backendStarted = await this.startBackendService()
+      
+      if (backendStarted) {
+        console.log('[App] 后端服务启动成功，创建主窗口')
+        // 创建主窗口
+        this.windowManager.createMainWindow()
+        
+        // 初始化WS客户端
+        console.log('[App] 初始化 WebSocket 客户端')
+        this.initWsClient()
+      } else {
+        console.error('[App] 后端服务启动失败，无法继续')
+        // 可以选择退出应用或显示错误界面
+        dialog.showErrorBox('启动失败', '后端服务启动失败，应用无法正常运行')
+        app.quit()
+      }
     })
 
     app.on('window-all-closed', () => {
@@ -327,7 +457,7 @@ class App {
       setTimeout(() => {
         console.log('[App] 资源清理完成，退出应用')
         app.quit()
-      }, 100)
+      }, 1000)
     })
 
     app.on('will-quit', () => {
@@ -353,6 +483,13 @@ class App {
       }
     } catch (error) {
       console.error('[App] 清理 WebSocket 时出错:', error)
+    }
+
+    try {
+      // 停止后端服务
+      this.stopBackendService()
+    } catch (error) {
+      console.error('[App] 清理后端服务时出错:', error)
     }
 
     try {

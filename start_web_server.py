@@ -14,7 +14,7 @@ from lingxi.web.fastapi_server import run_server
 from lingxi.utils.config import get_config
 from lingxi.web.websocket import WebSocketManager
 from lingxi.web.state import set_websocket_manager, set_assistant
-from lingxi.core.async_main import AsyncLingxiAssistant
+from lingxi.core.assistant.async_main import AsyncLingxiAssistant
 from lingxi.core.event.websocket_subscriber import WebSocketSubscriber
 
 

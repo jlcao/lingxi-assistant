@@ -17,6 +17,7 @@ export class WindowManager {
       frame: false,
       transparent: false,
       resizable: true,
+      icon: path.join(__dirname, '../../build/icon.ico'),
       webPreferences: {
         preload: path.join(__dirname, '../preload/index.js'),
         contextIsolation: true,
@@ -47,10 +48,14 @@ export class WindowManager {
   }
 
   private setupTray(): void {
-    const iconPath = path.join(__dirname, '../../build/icon.png')
-    const trayIcon = nativeImage.createFromPath(iconPath)
-
-    this.tray = new Tray(trayIcon)
+    try {
+      const iconPath = path.join(__dirname, '../../build/icon.ico')
+      const trayIcon = nativeImage.createFromPath(iconPath)
+      this.tray = new Tray(trayIcon)
+    } catch (error) {
+      // If icon file doesn't exist, use default tray
+      this.tray = new Tray(nativeImage.createEmpty())
+    }
     this.tray.setToolTip('Lingxi Agent')
 
     this.tray.on('click', () => {

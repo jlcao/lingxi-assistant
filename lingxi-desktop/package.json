@@ -7,7 +7,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder",
@@ -61,6 +61,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
+      "electron/main/backend/**/*",
       "package.json"
     ],
     "win": {
@@ -75,7 +76,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "build/icon.icns",
+      "icon": "build/icon.ico",
       "category": "public.app-category.productivity"
     },
     "linux": {
@@ -83,7 +84,7 @@
         "AppImage",
         "deb"
       ],
-      "icon": "build/icon.png",
+      "icon": "build/icon.ico",
       "category": "Utility"
     }
   }

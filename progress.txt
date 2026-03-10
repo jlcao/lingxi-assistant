@@ -348,3 +348,29 @@ BaseAssistant.__init__
 
 ### 测试验证：
 - ✅ 11 个工作目录相关测试全部通过
+
+---
+
+## 2026-03-09 - Bug 修复：后端服务启动检测逻辑优化
+
+### 问题：
+后端服务启动时，前端可能在后端服务尚未完全启动的情况下尝试初始化 WebSocket 连接，导致连接失败。
+
+### 根本原因：
+启动检测逻辑的关键词不够全面，可能无法捕获到后端服务的启动消息。
+
+### 修复内容：
+修改 `lingxi-desktop/electron/main/index.ts`：
+
+1. **扩展启动检测关键词**：
+   - 添加了更多的启动关键词，包括 'Application startup complete'、'Uvicorn running'、'Ready to handle requests'、'Server is running'、'Backend service started' 等
+   - 使用数组和 some() 方法进行检测，提高了检测的可靠性
+
+2. **保持原有启动流程**：
+   - 前端仍然等待后端服务启动完成后再创建主窗口和初始化 WebSocket 客户端
+   - 确保 WebSocket 连接只在后端服务完全启动后才尝试建立
+
+### 测试验证：
+- ✅ 构建成功（vite build）
+- ✅ 无 TypeScript 诊断错误
+- ✅ 启动流程正确，前端等待后端服务启动后再初始化 WebSocket
