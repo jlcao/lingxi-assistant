@@ -24,21 +24,57 @@
 
 <script setup lang="ts">
 import { InfoFilled } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
 
 const appStore = useAppStore()
 const { activeCheckpoints } = storeToRefs(appStore)
 
-function handleResume() {
+async function handleResume() {
   if (activeCheckpoints.value.length > 0) {
     const checkpoint = activeCheckpoints.value[0]
-    window.electronAPI.api.resumeCheckpoint(checkpoint.sessionId)
+    try {
+      await window.electronAPI.api.resumeCheckpoint(checkpoint.sessionId)
+      ElMessage.success('任务已恢复')
+      
+      // 刷新 checkpoint 列表
+      const checkpoints = await window.electronAPI.api.getCheckpoints()
+      const formattedCheckpoints = (checkpoints || []).map((cp: any) => ({
+        id: cp.session_id,
+        sessionId: cp.session_id,
+        name: cp.state?.task || '未命名任务',
+        timestamp: cp.updated_at || Date.now()
+      }))
+      appStore.setCheckpoints(formattedCheckpoints)
+    } catch (error) {
+      console.error('Failed to resume checkpoint:', error)
+      ElMessage.error('恢复任务失败')
+    }
   }
 }
 
-function handleDismiss() {
-  console.log('Dismiss banner')
+async function handleDismiss() {
+  if (activeCheckpoints.value.length > 0) {
+    const checkpoint = activeCheckpoints.value[0]
+    try {
+      await window.electronAPI.api.deleteCheckpoint(checkpoint.sessionId)
+      ElMessage.success('已忽略该任务')
+      
+      // 刷新 checkpoint 列表
+      const checkpoints = await window.electronAPI.api.getCheckpoints()
+      const formattedCheckpoints = (checkpoints || []).map((cp: any) => ({
+        id: cp.session_id,
+        sessionId: cp.session_id,
+        name: cp.state?.task || '未命名任务',
+        timestamp: cp.updated_at || Date.now()
+      }))
+      appStore.setCheckpoints(formattedCheckpoints)
+    } catch (error) {
+      console.error('Failed to delete checkpoint:', error)
+      ElMessage.error('忽略任务失败')
+    }
+  }
 }
 </script>
 

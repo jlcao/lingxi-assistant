@@ -1,7 +1,7 @@
 """全局状态管理模块，避免循环导入"""
 from typing import Optional, Union
 from lingxi.__main__ import LingxiAssistant
-from lingxi.core.async_main import AsyncLingxiAssistant
+from lingxi.core.assistant.async_main import AsyncLingxiAssistant
 from lingxi.web.websocket import WebSocketManager
 
 

@@ -4,7 +4,7 @@ import sys
 import logging
 import argparse
 from typing import Optional, Union, Any, Dict, List
-from lingxi.core.assistant_base import BaseAssistant
+from lingxi.core.assistant.assistant_base import BaseAssistant
 from lingxi.core.context import TaskContext
 from lingxi.utils.config import load_config
 

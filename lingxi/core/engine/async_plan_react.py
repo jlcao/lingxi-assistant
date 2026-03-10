@@ -11,7 +11,7 @@ from collections.abc import AsyncGenerator
 from lingxi.core.engine.plan_react_core import PlanReActCore
 from lingxi.core.context import TaskContext
 from lingxi.core.engine.async_react_core import AsyncReActCore
-from lingxi.core.prompts import PromptTemplates
+from lingxi.core.prompts.prompts import PromptTemplates
 
 
 class AsyncPlanReActEngine(AsyncReActCore):

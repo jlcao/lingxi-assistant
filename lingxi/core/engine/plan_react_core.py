@@ -2,14 +2,16 @@ import logging
 import time
 import json
 import re
-from typing import Dict, List, Optional, Any, Union, Generator
+from typing import Dict, List, Optional, Any, Union, Generator, TYPE_CHECKING
 from lingxi.core.engine.react_core import ReActCore
 from lingxi.core.engine.utils import parse_plan
-from lingxi.core.prompts import PromptTemplates
+from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
-from lingxi.core.session import SessionManager
 from lingxi.core.context import TaskContext
 from lingxi.utils.json_parser import extract_partial_json_field
+
+if TYPE_CHECKING:
+    from lingxi.core.session import SessionManager
 
 
 class PlanReActCore(ReActCore):
@@ -20,7 +22,7 @@ class PlanReActCore(ReActCore):
     - 复杂任务：生成计划后，逐个子任务调用父类方法执行
     """
 
-    def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager: SessionManager = None, websocket_manager=None):
+    def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager: 'SessionManager' = None, websocket_manager=None):
         super().__init__(config, skill_caller, session_manager, websocket_manager)
 
         complex_config = config.get("execution_mode", {}).get("complex", {})

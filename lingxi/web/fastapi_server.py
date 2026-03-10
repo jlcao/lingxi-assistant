@@ -3,10 +3,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
-from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions, workspace
+from lingxi.web.routes import tasks, checkpoints, skills, config as config_router, sessions, workspace
 from lingxi.web.state import set_assistant, get_assistant, get_websocket_manager
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
-from lingxi.core.async_main import AsyncLingxiAssistant
+from lingxi.core.assistant.async_main import AsyncLingxiAssistant
 
 def get_config():
     """获取配置
@@ -17,7 +17,6 @@ def get_config():
     return load_config()
 
 logger = logging.getLogger(__name__)
-# 测试自动重载功能
 
 app = FastAPI(
     title="灵犀智能助手",
@@ -34,15 +33,20 @@ app.add_middleware(
 )
 
 # 确保路由在模块加载时就注册
-from lingxi.web.routes import tasks, checkpoints, skills, resources, config as config_router, sessions, workspace
-
 app.include_router(tasks.router, prefix="/api", tags=["tasks"])
 app.include_router(checkpoints.router, prefix="/api", tags=["checkpoints"])
 app.include_router(skills.router, prefix="/api", tags=["skills"])
-app.include_router(resources.router, prefix="/api", tags=["resources"])
 app.include_router(config_router.router, prefix="/api", tags=["config"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(workspace.router, prefix="/api", tags=["workspace"])
+
+# 可选的 resources 路由（如果 psutil 可用）
+try:
+    from lingxi.web.routes import resources
+    if resources is not None:
+        app.include_router(resources.router, prefix="/api", tags=["resources"])
+except ImportError:
+    logger.warning("psutil 模块未安装，resources 路由将不可用")
 
 
 @app.on_event("startup")
@@ -58,8 +62,8 @@ async def startup_event():
         assistant = AsyncLingxiAssistant(config)
         set_assistant(assistant)
         
-        # 初始化会话存储事件订阅者
-        session_store_subscriber = SessionStoreSubscriber(assistant.session_manager)
+        # 初始化会话存储事件订阅者（延迟初始化）
+        assistant.init_session_store_subscriber()
         logger.info("创建新的异步助手实例")
     else:
         logger.info("使用已初始化的助手实例")
@@ -73,6 +77,9 @@ async def startup_event():
                     session_store=assistant.session_manager if hasattr(assistant, 'session_manager') else None
                 )
                 logger.info("已修复现有实例的 workspace_manager 资源引用（sandbox、skill_caller、session_store）")
+        
+        # 确保会话存储订阅者已初始化
+        assistant.init_session_store_subscriber()
 
     logger.info("初始化 FastAPI 服务器")
     logger.info(f"服务器配置：host={config.get('web', {}).get('host')}, port={config.get('web', {}).get('port')}")

@@ -85,51 +85,51 @@ class TestWorkspaceSwitch:
         global_session_manager = SessionManager(config)
         workspace_manager.set_resources(session_store=global_session_manager)
         
-        # 3. 初始化第一个工作区
+        # 3. 初始化第一个工作区（这会自动初始化数据库）
         workspace_manager.initialize(str(temp_workspace1))
         
-        # 4. 初始化数据库（这会设置正确的数据库路径并创建表结构）
-        data_dir = temp_workspace1 / ".lingxi" / "data"
-        workspace_manager._initialize_database(data_dir)
+        # 4. 验证数据库路径已更新
+        expected_db_path = str(temp_workspace1 / ".lingxi" / "data" / "assistant.db")
+        assert global_session_manager.db_path == expected_db_path
         
         # 5. 在 workspace1 中创建会话
         session1_id = "session_ws1_001"
-        global_session_manager.create_session_by_id(session1_id, "Workspace1 Session 1")
+        global_session_manager.create_session_by_id(session1_id, title="Workspace1 Session 1")
         
         # 6. 验证 workspace1 中有会话
         sessions_in_ws1 = global_session_manager.list_all_sessions()
         assert len(sessions_in_ws1) == 1, f"workspace1 应该有 1 个会话，但有 {len(sessions_in_ws1)} 个"
         assert sessions_in_ws1[0]["session_id"] == session1_id
         
-        # 6. 切换到第二个工作区
+        # 7. 切换到第二个工作区
         import asyncio
         asyncio.run(workspace_manager.switch_workspace(str(temp_workspace2)))
         
-        # 7. 验证 session_manager 的数据库路径已更新
+        # 8. 验证 session_manager 的数据库路径已更新
         expected_db_path = str(temp_workspace2 / ".lingxi" / "data" / "assistant.db")
         assert global_session_manager.db_path == expected_db_path
         
-        # 8. 验证 workspace2 中没有会话（空的）
+        # 9. 验证 workspace2 中没有会话（空的）
         sessions_in_ws2 = global_session_manager.list_all_sessions()
         assert len(sessions_in_ws2) == 0, f"切换工作区后应该没有会话，但找到了 {len(sessions_in_ws2)} 个会话"
         
-        # 9. 在 workspace2 中创建新会话
+        # 10. 在 workspace2 中创建新会话
         session2_id = "session_ws2_001"
-        global_session_manager.create_session_by_id(session2_id, "Workspace2 Session 1")
+        global_session_manager.create_session_by_id(session2_id, title="Workspace2 Session 1")
         
-        # 10. 验证 workspace2 中有且仅有自己的会话
+        # 11. 验证 workspace2 中有且仅有自己的会话
         sessions_in_ws2_after = global_session_manager.list_all_sessions()
         assert len(sessions_in_ws2_after) == 1
         assert sessions_in_ws2_after[0]["session_id"] == session2_id
         
-        # 11. 再次切换回 workspace1
+        # 12. 再次切换回 workspace1
         asyncio.run(workspace_manager.switch_workspace(str(temp_workspace1)))
         
-        # 12. 验证 session_manager 的数据库路径已更新回 workspace1
+        # 13. 验证 session_manager 的数据库路径已更新回 workspace1
         expected_db_path_ws1 = str(temp_workspace1 / ".lingxi" / "data" / "assistant.db")
         assert global_session_manager.db_path == expected_db_path_ws1
         
-        # 13. 验证 workspace1 中仍然有自己的会话
+        # 14. 验证 workspace1 中仍然有自己的会话
         sessions_in_ws1_final = global_session_manager.list_all_sessions()
         assert len(sessions_in_ws1_final) == 1
         assert sessions_in_ws1_final[0]["session_id"] == session1_id

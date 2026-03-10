@@ -269,10 +269,10 @@ async function handleSend() {
     if (!appStore.currentSessionId) {
       try {
         const result = await window.electronAPI.api.createSession('新会话')
-        if (result && result.data && result.data.session_id) {
-          appStore.setCurrentSession(result.data.session_id)
+        if (result && result.session_id) {
+          appStore.setCurrentSession(result.session_id)
           appStore.setSessions([...appStore.sessions, {
-            id: result.data.session_id,
+            id: result.session_id,
             name: '新会话'
           }])
         } else {

@@ -11,6 +11,13 @@ from typing import Dict, List, Optional, Any
 
 class SkillRegistry:
     """本地技能注册表（SQLite）"""
+    _instance = None  # 单例实例
+
+    def __new__(cls, config: Dict[str, Any]):
+        """单例模式：确保只创建一个实例"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, config: Dict[str, Any]):
         """初始化技能注册表

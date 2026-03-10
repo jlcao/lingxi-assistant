@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import json
-from typing import Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
 
 from starlette.middleware import P
 from lingxi.core.event import global_event_publisher
-from lingxi.core.session import SessionManager
+
+if TYPE_CHECKING:
+    from lingxi.core.session.session_manager import SessionManager
 
 
 class SessionStoreSubscriber:
@@ -13,13 +15,13 @@ class SessionStoreSubscriber:
     
     _instance = None  # 单例实例
     
-    def __new__(cls, sessionManage: SessionManager = None):
+    def __new__(cls, sessionManage: 'SessionManager' = None):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
     
-    def __init__(self, sessionManage: SessionManager = None):
+    def __init__(self, sessionManage: 'SessionManager' = None):
         # 防止重复初始化
         if hasattr(self, '_initialized'):
             return

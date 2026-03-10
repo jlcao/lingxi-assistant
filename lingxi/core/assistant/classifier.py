@@ -2,7 +2,7 @@ import logging
 import json
 import re
 from typing import Dict, Optional, Any
-from lingxi.core.llm_client import LLMClient
+from lingxi.core.llm.llm_client import LLMClient
 from lingxi.core.prompts import PromptTemplates
 
 
@@ -31,8 +31,9 @@ class TaskClassifier:
         self.strategy = classification_config.get("strategy", "llm_first")
         self.llm_confidence_threshold = classification_config.get("llm_confidence_threshold", 0.7)
         self.fallback_to_rule = classification_config.get("fallback_to_rule", True)
-
+        
         self.logger.debug(f"初始化任务分类器，策略: {self.strategy}")
+        self._initialized = True
 
     def classify(self, task_text: str, history: Optional[list] = None) -> Dict[str, Any]:
         """分类用户任务

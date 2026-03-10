@@ -3,6 +3,7 @@
 使用 httpx/aiohttp 实现异步 HTTP 请求，彻底解决阻塞问题
 """
 
+import asyncio
 import logging
 import os
 import json
@@ -139,14 +140,14 @@ class AsyncLLMClient:
 
             except httpx.HTTPError as e:
                 last_error = e
-                self.logger.warning(f"HTTP 请求失败 (尝试 {attempt + 1}/{self.retry_count + 1}): {e}")
+                self.logger.warning(f"HTTP 请求失败 (尝试 {attempt + 1}/{self.retry_count + 1})：{e}")
                 if attempt < self.retry_count:
                     await asyncio.sleep(self.retry_delay * (attempt + 1))
                     continue
                 raise
             except Exception as e:
                 last_error = e
-                self.logger.warning(f"请求失败 (尝试 {attempt + 1}/{self.retry_count + 1}): {e}")
+                self.logger.warning(f"请求失败 (尝试 {attempt + 1}/{self.retry_count + 1})：{e}")
                 if attempt < self.retry_count:
                     await asyncio.sleep(self.retry_delay * (attempt + 1))
                     continue
@@ -194,17 +195,3 @@ class AsyncLLMClient:
                     self.last_usage = chunk["usage"]
 
         return content
-
-
-# 异步上下文管理器支持
-class AsyncLLMClientContext:
-    """异步 LLM 客户端上下文管理器"""
-
-    def __init__(self, config: Dict[str, Any]):
-        self.client = AsyncLLMClient(config)
-
-    async def __aenter__(self) -> AsyncLLMClient:
-        return self.client
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.client.close()

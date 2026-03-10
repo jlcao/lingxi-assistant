@@ -4,22 +4,24 @@ import json
 import uuid
 import threading
 import asyncio
-from typing import Dict, List, Optional, Any, Union, Generator
-from lingxi.core.llm_client import LLMClient
+from typing import Dict, List, Optional, Any, Union, Generator, TYPE_CHECKING
+from lingxi.core.llm.llm_client import LLMClient
 from lingxi.core.skill_caller import SkillCaller
-from lingxi.core.session import SessionManager
-from lingxi.core.prompts import PromptTemplates
+from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.context import TaskContext
-from lingxi.core.security import SecurityError
-from lingxi.core.confirmation import ConfirmationManager, DangerousSkillChecker, RiskLevel
+from lingxi.core.utils.security import SecurityError
+from lingxi.core.confirmation.confirmation import ConfirmationManager, DangerousSkillChecker, RiskLevel
 from .utils import parse_llm_response, parse_action_parameters, process_parameters, calculate_expression
 from lingxi.utils.json_parser import stream_with_thought_only
+
+if TYPE_CHECKING:
+    from lingxi.core.session import SessionManager
 
 class BaseEngine:
     """引擎基类，提供公共功能"""
 
-    def __init__(self, config: Dict[str, Any], skill_caller: SkillCaller = None, session_manager: SessionManager = None, websocket_manager=None):
+    def __init__(self, config: Dict[str, Any], skill_caller: SkillCaller = None, session_manager: 'SessionManager' = None, websocket_manager=None):
         """初始化引擎
 
         Args:

@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, List, Optional, Any, Union
-from lingxi.core.llm_client import LLMClient
-from lingxi.core.prompts import PromptTemplates
+from lingxi.core.llm.llm_client import LLMClient
+from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.context import TaskContext
 
 

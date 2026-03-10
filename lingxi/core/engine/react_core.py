@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Dict, List, Optional, Any, Union, Generator
 from lingxi.core.engine.base import BaseEngine
-from lingxi.core.prompts import PromptTemplates
+from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.context import TaskContext
 

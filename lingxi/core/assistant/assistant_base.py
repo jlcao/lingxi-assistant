@@ -3,18 +3,20 @@
 import logging
 import re
 from pathlib import Path
-from typing import Optional, Union, Any, Dict
+from typing import Optional, Union, Any, Dict, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
-from lingxi.core.session import SessionManager
-from lingxi.core.classifier import TaskClassifier
-from lingxi.core.mode_selector import ExecutionModeSelector
+from lingxi.core.classification import TaskClassifier
+from lingxi.core.execution import ExecutionModeSelector
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.event.console_subscriber import ConsoleSubscriber
-from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 from lingxi.core.context import TaskContext
+
+if TYPE_CHECKING:
+    from lingxi.core.session import SessionManager
+    from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 
 
 class BaseAssistant(ABC):
@@ -44,12 +46,15 @@ class BaseAssistant(ABC):
         self.logger.info(f"启动{self.config.get('system', {}).get('name', '灵犀')}智能助手")
         self.logger.info(f"版本：{self.config.get('system', {}).get('version', '0.2.0')}")
 
+        from lingxi.core.session import SessionManager
         self.session_manager = SessionManager(self.config)
         self.classifier = TaskClassifier(self.config)
         self.skill_caller = SkillCaller(self.config)
         self.mode_selector = ExecutionModeSelector(self.config, self.skill_caller)
         self.console_subscriber = ConsoleSubscriber()
-        self.session_store_subscriber = SessionStoreSubscriber(self.session_manager)
+        
+        # 延迟初始化 SessionStoreSubscriber，避免循环依赖
+        self._session_store_subscriber = None
         
         # 将 session_manager 设置到 workspace_manager 中
         # 注意：skill_caller.workspace_manager 初始为 None，需要手动创建并设置
@@ -64,6 +69,23 @@ class BaseAssistant(ABC):
             session_store=self.session_manager
         )
         self.logger.debug("workspace_manager 资源引用已设置（sandbox、skill_caller、session_store）")
+    
+    def init_session_store_subscriber(self) -> None:
+        """初始化会话存储订阅者（延迟初始化，避免循环依赖）
+        
+        此方法应在 session_manager 完全初始化后调用
+        """
+        if self._session_store_subscriber is None:
+            from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
+            self._session_store_subscriber = SessionStoreSubscriber(self.session_manager)
+            self.logger.debug("SessionStoreSubscriber 已初始化")
+    
+    @property
+    def session_store_subscriber(self) -> 'SessionStoreSubscriber':
+        """获取会话存储订阅者"""
+        if self._session_store_subscriber is None:
+            self.init_session_store_subscriber()
+        return self._session_store_subscriber
 
     def _check_install_skill_intent(self, user_input: str) -> Optional[tuple]:
         """检查是否是安装技能的请求

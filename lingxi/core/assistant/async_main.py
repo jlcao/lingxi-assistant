@@ -7,7 +7,7 @@ import asyncio
 import logging
 from typing import Optional, Union, Any, Dict
 from collections.abc import AsyncGenerator
-from lingxi.core.assistant_base import BaseAssistant
+from lingxi.core.assistant.assistant_base import BaseAssistant
 from lingxi.core.engine.async_plan_react import AsyncPlanReActEngine
 from lingxi.core.context import TaskContext
 

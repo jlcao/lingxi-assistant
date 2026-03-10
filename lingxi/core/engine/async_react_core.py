@@ -8,10 +8,10 @@ import time
 from typing import Dict, List, Optional, Any, Union
 from collections.abc import AsyncGenerator
 from lingxi.core.engine.base import BaseEngine
-from lingxi.core.prompts import PromptTemplates
+from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.context import TaskContext
-from lingxi.core.async_llm_client import AsyncLLMClient
+from lingxi.core.llm.async_llm_client import AsyncLLMClient
 
 
 class AsyncReActCore(BaseEngine):

@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Any
 from concurrent.futures import ThreadPoolExecutor
 from lingxi.skills.registry import SkillRegistry
 from lingxi.skills.builtin import BuiltinSkills
-from lingxi.core.security import SecuritySandbox, SecurityError
+from lingxi.core.utils.security import SecuritySandbox, SecurityError
 
 # 创建线程池用于执行同步技能
 _skill_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="skill-executor")

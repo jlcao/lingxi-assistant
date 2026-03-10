@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Optional, Any
-from lingxi.core.llm_client import LLMClient
+from lingxi.core.llm.llm_client import LLMClient
 from lingxi.core.engine.direct import DirectEngine
 from lingxi.core.engine.plan_react import PlanReActEngine
 from lingxi.core.skill_caller import SkillCaller
@@ -44,6 +44,7 @@ class ExecutionModeSelector:
         self.logger.debug(f"trivial模式: {self.trivial_mode}")
         self.logger.debug(f"simple模式: {self.simple_mode}")
         self.logger.debug(f"complex模式: {self.complex_mode}")
+        self._initialized = True
 
     def select_mode(self, task_level: str) -> str:
         """根据任务级别选择执行模式

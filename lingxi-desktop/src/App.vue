@@ -77,7 +77,16 @@ async function initializeApp() {
       }))
 
       appStore.setSessions(formattedSessions)
-      appStore.setCheckpoints(checkpoints || [])
+      
+      // 转换后端返回的 checkpoint 数据格式为前端期望的格式
+      const formattedCheckpoints = (checkpoints || []).map((checkpoint: any) => ({
+        id: checkpoint.session_id,
+        sessionId: checkpoint.session_id,
+        name: checkpoint.state?.task || '未命名任务',
+        timestamp: checkpoint.updated_at || Date.now()
+      }))
+      appStore.setCheckpoints(formattedCheckpoints)
+      
       appStore.setResourceUsage(resourceUsage)
 
       if (formattedSessions && formattedSessions.length > 0) {

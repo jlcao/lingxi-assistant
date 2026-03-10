@@ -21,7 +21,7 @@ class CreateSessionRequest(BaseModel):
 
 class UpdateSessionRequest(BaseModel):
     """更新会话请求模型"""
-    name: str
+    title: str
 
 
 class SessionResponse(BaseModel):
@@ -160,10 +160,10 @@ async def update_session(session_id: str, request: UpdateSessionRequest) -> Dict
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
-        success = assistant.session_manager.rename_session(session_id, request.name)
+        success = assistant.session_manager.rename_session(session_id, request.title)
         if not success:
             raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
-        return {"success": True, "message": f"会话已重命名为：{request.name}"}
+        return {"success": True, "message": f"会话已重命名为：{request.title}"}
     except HTTPException:
         raise
     except Exception as e:

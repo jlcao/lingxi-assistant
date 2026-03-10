@@ -7,6 +7,13 @@ from lingxi.web import websocket
 
 class WebSocketSubscriber:
     """WebSocket 事件订阅者"""
+    _instance = None  # 单例实例
+
+    def __new__(cls, websocket_manager: websocket.WebSocketManager = None):
+        """单例模式：确保只创建一个实例"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, websocket_manager: websocket.WebSocketManager = None):
         """初始化 WebSocket 订阅者
@@ -21,6 +28,7 @@ class WebSocketSubscriber:
             self._subscribe_to_events()
         else:
             self.logger.debug("WebSocket 管理器未提供，跳过事件订阅")
+        self._initialized = True
 
     def _subscribe_to_events(self):
         """订阅事件"""
