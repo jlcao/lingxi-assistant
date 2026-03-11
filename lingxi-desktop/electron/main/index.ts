@@ -37,17 +37,31 @@ class App {
           appPath = path.dirname(appPath)
         }
         
-        const backendPath = path.join(appPath, 'electron', 'main', 'backend', 'lingxi-backend.exe')
-        console.log(`[App] 启动后端服务: ${backendPath}`)
-
-        // 检查文件是否存在
+        // 尝试多个可能的路径
+        const possiblePaths = [
+          path.join(appPath, 'electron', 'main', 'backend', 'lingxi-backend.exe'),
+          path.join(appPath, 'resources', 'electron', 'main', 'backend', 'lingxi-backend.exe'),
+          path.join(path.dirname(appPath), 'electron', 'main', 'backend', 'lingxi-backend.exe'),
+          path.join(path.dirname(appPath), 'resources', 'electron', 'main', 'backend', 'lingxi-backend.exe')
+        ]
+        
+        let backendPath = ''
         const fs = require('fs')
-        if (!fs.existsSync(backendPath)) {
-          console.error('[App] 后端可执行文件不存在:', backendPath)
-          dialog.showErrorBox('后端服务启动失败', `后端可执行文件不存在: ${backendPath}`)
+        
+        for (const possiblePath of possiblePaths) {
+          if (fs.existsSync(possiblePath)) {
+            backendPath = possiblePath
+            break
+          }
+        }
+        
+        if (!backendPath) {
+          console.error('[App] 后端可执行文件不存在，尝试了以下路径:', possiblePaths)
+          dialog.showErrorBox('后端服务启动失败', `后端可执行文件不存在，尝试了以下路径:\n${possiblePaths.join('\n')}`)
           resolve(false)
           return
         }
+        console.log(`[App] 启动后端服务: ${backendPath}`)
 
         // 启动后端服务
         this.backendProcess = spawn(backendPath, [], {
