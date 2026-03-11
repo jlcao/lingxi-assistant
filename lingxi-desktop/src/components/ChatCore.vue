@@ -78,6 +78,13 @@
           text
           @click="handleUpload"
         />
+        <div class="thinking-mode-switch">
+          <span class="switch-label">思考模式</span>
+          <el-switch
+            v-model="thinkingMode"
+            size="small"
+          />
+        </div>
         <el-button
           type="primary"
           size="small"
@@ -85,23 +92,6 @@
         >
           发送
         </el-button>
-      </div>
-    </div>
-    <div class="chat-core-footer">
-      <div class="chat-core-footer-left">
-        <el-select v-model="mode" size="small" class="footer-select">
-          <el-option label="Plan" value="plan" />
-        </el-select>
-        <el-select v-model="model" size="small" class="footer-select">
-          <el-option label="gim4.7" value="gim4.7" />
-        </el-select>
-        <el-select v-model="defaultOption" size="small" class="footer-select">
-          <el-option label="默认" value="default" />
-        </el-select>
-      </div>
-      <div class="chat-core-footer-right">
-        <el-button size="small" text @click="handleMinimize">_</el-button>
-        <el-button size="small" text @click="handleSettings">⚙</el-button>
       </div>
     </div>
   </div>
@@ -112,7 +102,7 @@ import { ref, computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import { Plus, Upload, Edit, Delete, Download, Picture, View, Star } from '@element-plus/icons-vue'
 import MessageList from './chat/MessageList.vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, ElSwitch } from 'element-plus'
 
 const appStore = useAppStore()
 
@@ -121,6 +111,7 @@ const mode = ref('plan')
 const model = ref('gim4.7')
 const defaultOption = ref('default')
 const isDragging = ref(false)
+const thinkingMode = ref(false)
 
 const currentSessionName = computed(() => {
   const session = appStore.sessions.find(s => s.id === appStore.currentSessionId)
@@ -315,7 +306,8 @@ async function handleSend() {
       try {
         await window.electronAPI.ws.sendMessage(
           userMessage,
-          appStore.currentSessionId
+          appStore.currentSessionId,
+          thinkingMode.value
         )
       } catch (error) {
         console.error('Failed to send message:', error)
@@ -520,6 +512,18 @@ function handleSettings() {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.thinking-mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  
+  .switch-label {
+    font-size: 12px;
+    color: #666666;
+  }
 }
 
 .chat-core-footer {
