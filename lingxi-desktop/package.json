@@ -64,6 +64,13 @@
       "electron/main/backend/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "electron/main/backend",
+        "to": "backend",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": [
         "nsis",

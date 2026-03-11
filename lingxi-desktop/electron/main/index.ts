@@ -39,10 +39,18 @@ class App {
         
         // 尝试多个可能的路径
         const possiblePaths = [
+          // 开发环境路径
           path.join(appPath, 'electron', 'main', 'backend', 'lingxi-backend.exe'),
-          path.join(appPath, 'resources', 'electron', 'main', 'backend', 'lingxi-backend.exe'),
-          path.join(path.dirname(appPath), 'electron', 'main', 'backend', 'lingxi-backend.exe'),
-          path.join(path.dirname(appPath), 'resources', 'electron', 'main', 'backend', 'lingxi-backend.exe')
+          // 打包后可能的路径
+          path.join(appPath, 'backend', 'lingxi-backend.exe'),
+          path.join(path.dirname(appPath), 'backend', 'lingxi-backend.exe'),
+          path.join(path.dirname(appPath), 'resources', 'backend', 'lingxi-backend.exe'),
+          // 直接在 win-unpacked 目录中查找
+          path.join(path.dirname(appPath), 'lingxi-backend.exe'),
+          path.join(path.dirname(appPath), 'resources', 'lingxi-backend.exe'),
+          // 在 app.asar 中查找
+          path.join(path.dirname(appPath), 'app.asar', 'electron', 'main', 'backend', 'lingxi-backend.exe'),
+          path.join(path.dirname(appPath), 'resources', 'app.asar', 'electron', 'main', 'backend', 'lingxi-backend.exe')
         ]
         
         let backendPath = ''
