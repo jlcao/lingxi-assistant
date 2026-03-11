@@ -158,8 +158,9 @@ def run_server(config=None):
 
     logger.info(f"启动FastAPI服务器: http://{host}:{port}")
 
+    # 直接传递app实例，避免模块重复导入导致的启动事件重复触发
     uvicorn.run(
-        "lingxi.web.fastapi_server:app",
+        app,
         host=host,
         port=port,
         reload=web_config.get('debug', False)

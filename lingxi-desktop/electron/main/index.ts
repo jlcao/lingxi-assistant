@@ -9,6 +9,7 @@ import * as fs from 'fs'
 
 // 导入日志模块
 import { logger } from './logger'
+import { tr } from 'element-plus/es/locales.mjs'
 
 class App {
   private windowManager: WindowManager
@@ -18,6 +19,10 @@ class App {
   private backendProcess: ChildProcess | null = null
   private backendPort: number = 5000
   private isQuitting: boolean = false
+  // 新增：标记后端是否已启动，防止重复启动
+  private isBackendStarted: boolean = false
+  // 新增：标记WS是否已初始化，防止重复初始化
+  private isWsInitialized: boolean = false
 
   constructor() {
     this.windowManager = new WindowManager()
@@ -26,12 +31,24 @@ class App {
 
     this.setupIpcHandlers()
     // 移除直接初始化WS，改为延迟初始化
+    
+    // 确保前端退出时后端也会退出（只添加一次）
+    process.on('exit', () => {
+      this.stopBackendService()
+    })
   }
 
   /**
-   * 启动后端服务
+   * 启动后端服务（增加防重复启动逻辑）
    */
   private startBackendService(): Promise<boolean> {
+    // 防止重复启动
+    debugger
+    if (this.isBackendStarted || this.backendProcess) {
+      logger.log('[App] 后端服务已启动，跳过重复启动')
+      return Promise.resolve(true)
+    }
+
     return new Promise((resolve) => {
       try {
         // 获取后端可执行文件路径
@@ -56,7 +73,6 @@ class App {
         ]
         
         let backendPath = ''
-        const fs = require('fs')
         
         for (const possiblePath of possiblePaths) {
           if (fs.existsSync(possiblePath)) {
@@ -81,10 +97,8 @@ class App {
           killSignal: 'SIGTERM'
         })
 
-        // 确保前端退出时后端也会退出
-        process.on('exit', () => {
-          this.stopBackendService()
-        })
+        // 标记后端启动中
+        this.isBackendStarted = true
 
         let backendStarted = false
 
@@ -148,12 +162,14 @@ class App {
         this.backendProcess.on('error', (error) => {
           console.error('[App] 启动后端服务失败:', error)
           dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${error.message}`)
+          this.isBackendStarted = false // 重置状态
           resolve(false)
         })
 
         this.backendProcess.on('exit', (code, signal) => {
           logger.log(`[App] 后端服务退出，代码: ${code}, 信号: ${signal}`)
           this.backendProcess = null
+          this.isBackendStarted = false // 重置状态
           if (!backendStarted) {
             // 检查是否有端口绑定错误
             if (code === 1) {
@@ -170,6 +186,7 @@ class App {
         setTimeout(() => {
           if (!backendStarted) {
             console.error('[App] 后端服务启动超时')
+            this.isBackendStarted = false // 重置状态
             resolve(false)
           }
         }, 10000)
@@ -177,26 +194,111 @@ class App {
       } catch (error) {
         console.error('[App] 启动后端服务时出错:', error)
         dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${error.message}`)
+        this.isBackendStarted = false // 重置状态
         resolve(false)
       }
     })
   }
 
-  /**
-   * 停止后端服务
-   */
-  private stopBackendService(): void {
-    try {
-      if (this.backendProcess) {
-        logger.log('[App] 停止后端服务')
-        this.backendProcess.kill()
-        this.backendProcess = null
-        logger.log('[App] 后端服务已停止')
-      }
-    } catch (error) {
-      logger.error('[App] 停止后端服务时出错:', error)
+ /**
+ * 停止后端服务（终极修复版）
+ */
+private stopBackendService(): void {
+  // 提前引入依赖，避免运行时加载失败
+  const { execSync } = require('child_process');
+  const path = require('path');
+  debugger
+  try {
+    if (!this.backendProcess) {
+      logger.log('[App] 后端进程已不存在，无需停止');
+      return;
     }
+
+    const pid = this.backendProcess.pid;
+    logger.log(`[App] 开始停止后端服务 (PID: ${pid})`);
+
+    // 标记进程正在停止，防止重复操作
+    let isStopping = true;
+
+    // ========== 步骤1：尝试优雅关闭 ==========
+    try {
+      // 先发送关闭信号
+      this.backendProcess.kill(); // 默认SIGTERM，兼容Windows
+      logger.log(`[App] 已发送终止信号到进程 ${pid}`);
+      
+      // 等待1秒，给进程优雅退出的时间
+      const startTime = Date.now();
+      while (Date.now() - startTime < 1000) {
+        // 检查进程是否还在
+        try {
+          process.kill(pid, 0); // 0信号仅检查进程是否存在，不发送终止信号
+        } catch (e) {
+          logger.log(`[App] 进程 ${pid} 已优雅退出`);
+          isStopping = false;
+          break;
+        }
+      }
+    } catch (killError) {
+      logger.warn(`[App] 优雅关闭失败: ${killError.message}`);
+    }
+
+    // ========== 步骤2：Windows强制终止（仅进程仍在运行时） ==========
+    if (isStopping && process.platform === 'win32' && pid) {
+      try {
+        // 执行taskkill命令（强制终止进程树）
+        const cmd = `taskkill /F /PID ${pid} /T`;
+        logger.log(`[App] 执行强制终止命令: ${cmd}`);
+        
+        // 关键：使用GBK编码，超时3秒，静默执行
+        const result = execSync(cmd, {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          encoding: 'binary', // 先以二进制读取
+          timeout: 3000
+        });
+
+        // 解码输出（GBK转UTF-8）
+        const iconv = require('iconv-lite');
+        const output = iconv.decode(Buffer.from(result, 'binary'), 'gbk');
+        logger.log(`[App] taskkill执行成功: ${output.trim()}`);
+        isStopping = false;
+      } catch (taskkillError: any) {
+        logger.error(`[App] taskkill执行失败: ${taskkillError.message} (状态码: ${taskkillError.status || '未知'})`);
+      }
+    }
+
+    // ========== 步骤3：最终状态清理 ==========
+    this.backendProcess = null;
+    this.isBackendStarted = false;
+    
+    
+    // ========== 步骤4：强制杀掉所有后端进程（防止残留） ==========
+    try {
+      // 执行taskkill命令，强制杀掉所有 lingxi-backend.exe 进程
+      const killAllCmd = `taskkill /F /IM lingxi-backend.exe`;
+      logger.log(`[App] 执行强制杀掉所有后端进程命令: ${killAllCmd}`);
+      
+      // 关键：使用GBK编码，超时3秒，静默执行
+      const killAllResult = execSync(killAllCmd, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        encoding: 'binary', // 先以二进制读取
+        timeout: 3000
+      });
+      // 解码输出（GBK转UTF-8）
+      const iconv = require('iconv-lite');
+      const killAllOutput = iconv.decode(Buffer.from(killAllResult, 'binary'), 'gbk');
+      logger.log(`[App] 强制杀掉所有后端进程成功: ${killAllOutput.trim()}`);
+    } catch (killAllError: any) {
+      logger.error(`[App] 强制杀掉所有后端进程失败: ${killAllError.message} (状态码: ${killAllError.status || '未知'})`);
+    }
+    logger.log(`[App] 后端服务停止流程完成（PID: ${pid}）`);
+  } catch (error) {
+    // 捕获所有未预期错误
+    logger.error('[App] 停止后端服务时发生致命错误:', error);
+    // 兜底重置状态
+    this.backendProcess = null;
+    this.isBackendStarted = false;
   }
+}
 
   private safeSend(channel: string, ...args: any[]): void {
     const mainWindow = this.windowManager.getWindow()
@@ -331,9 +433,6 @@ class App {
     ipcMain.handle('api:get-config', async () => {
       return this.apiClient.getConfig()
     })
-    ipcMain.handle('api:update-config', async (_, config) => {
-      return this.apiClient.updateConfig(config)
-    })
 
     ipcMain.handle('api:get-session-info', async (_, sessionId) => {
       if (!sessionId) {
@@ -361,7 +460,7 @@ class App {
     // ===== WS IPC 逻辑优化（新增错误提示 + 延迟初始化）=====
     ipcMain.handle('ws:connect', async (_, sessionId) => {
       // 延迟初始化WS客户端（首次连接时初始化）
-      if (!this.wsClient) {
+      if (!this.wsClient && !this.isWsInitialized) {
         this.initWsClient()
       }
       this.wsClient?.connect(sessionId)
@@ -385,9 +484,17 @@ class App {
   }
 
   /**
-   * 初始化WS客户端（延迟执行，带错误提示）
+   * 初始化WS客户端（增加防重复初始化逻辑）
    */
   private initWsClient(): void {
+    // 防止重复初始化
+    if (this.isWsInitialized || this.wsClient) {
+      logger.log('[App] WS客户端已初始化，跳过重复初始化')
+      return
+    }
+
+    // 标记WS初始化中
+    this.isWsInitialized = true
     this.wsClient = new WsClient(`ws://127.0.0.1:${this.backendPort}/ws`)
 
     // 监听WS错误，弹出可视化提示框
@@ -482,7 +589,8 @@ class App {
   }
 
   async start(): Promise<void> {
-    app.whenReady().then(async () => {
+    // 修复：将所有逻辑包裹在 once 中，防止 ready 事件重复触发
+    app.once('ready', async () => {
       // 启动后端服务并等待完成
       logger.log('[App] 正在启动后端服务...')
       const backendStarted = await this.startBackendService()
@@ -492,9 +600,9 @@ class App {
         // 创建主窗口
         this.windowManager.createMainWindow()
         
-        // 初始化WS客户端
-        logger.log('[App] 初始化 WebSocket 客户端')
-        this.initWsClient()
+        // 注意：这里注释掉WS初始化，改为通过IPC触发时才初始化
+        // logger.log('[App] 初始化 WebSocket 客户端')
+        // this.initWsClient()
       } else {
         logger.error('[App] 后端服务启动失败，无法继续')
         // 可以选择退出应用或显示错误界面
@@ -517,13 +625,16 @@ class App {
       logger.log('[App] before-quit 事件触发，开始清理资源')
       event.preventDefault()
       this.isQuitting = true
+      
+      // 使用 stopBackendService 方法优雅关闭后端服务
+      this.stopBackendService()
+      
+      // 清理其他资源
       this.cleanupResources()
-
-      setTimeout(() => {
-        logger.log('[App] 资源清理完成，退出应用')
-        // 使用 process.exit() 强制退出，确保所有进程都被终止
-        process.exit(0)
-      }, 1000)
+      
+      // 直接退出，不使用 setTimeout
+      logger.log('[App] 资源清理完成，退出应用')
+      process.exit(0)
     })
 
     app.on('will-quit', () => {
@@ -549,16 +660,10 @@ class App {
         logger.log('[App] 断开 WebSocket 连接')
         this.wsClient.disconnect()
         this.wsClient = null
+        this.isWsInitialized = false // 重置WS状态
       }
     } catch (error) {
       logger.error('[App] 清理 WebSocket 时出错:', error)
-    }
-
-    try {
-      // 停止后端服务
-      this.stopBackendService()
-    } catch (error) {
-      logger.error('[App] 清理后端服务时出错:', error)
     }
 
     try {
@@ -575,4 +680,10 @@ class App {
   }
 }
 
-new App().start()
+// 修复：确保只实例化一次App
+let appInstance: App | null = null
+
+if (!appInstance) {
+  appInstance = new App()
+  appInstance.start()
+}
