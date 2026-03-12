@@ -11,6 +11,7 @@ from lingxi.core.session.session_models import Session
 from lingxi.core.session.database_manager import DatabaseManager
 from lingxi.core.session.task_manager import TaskManager, task_to_dict, dict_to_task
 from lingxi.core.session.step_manager import StepManager, step_to_dict, dict_to_step
+from lingxi.core.session.workspace_registry import WorkspaceRegistry
 
 
 def session_to_dict(session: Session) -> dict:
@@ -69,6 +70,9 @@ class SessionManager:
         self.db_manager = DatabaseManager(self.db_path, self.logger)
         self.step_manager = StepManager(self.db_manager, self.logger)
         self.task_manager = TaskManager(self.db_manager, self.step_manager, self.logger)
+
+        # 初始化工作目录注册表
+        self.workspace_registry = WorkspaceRegistry(self.db_path)
 
         self.context_manager = ContextManager(config, session_id)
         self._initialized = True

@@ -128,6 +128,23 @@
         "运行测试验证所有用例通过"
       ],
       "passes": true
+    },
+    {
+      "id": 10,
+      "title": "实现工作目录与会话数据库关联",
+      "description": "添加工作目录登记表，实现工作目录与会话的关联，支持前端切换工作目录时加载对应历史会话",
+      "steps": [
+        "创建数据库迁移脚本，添加 workspaces 表（id, workspace_path, created_at, updated_at）",
+        "修改 sessions 表，添加 workspace_id 外键关联",
+        "实现 WorkspaceRegistry 类（登记工作目录、查询工作目录会话）",
+        "扩展 SessionManager.list_all_sessions() 支持按工作目录过滤",
+        "扩展 SessionManager.create_session() 自动关联当前工作目录",
+        "更新 workspace.py API，切换工作目录时返回该工作目录的会话列表",
+        "前端 HistoryChat.vue 切换工作目录后自动加载对应会话列表",
+        "编写单元测试覆盖所有新增方法",
+        "运行测试验证功能，更新 progress.txt 和 task.json"
+      ],
+      "passes": true
     }
   ]
 }

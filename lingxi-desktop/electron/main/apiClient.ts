@@ -237,4 +237,9 @@ export class ApiClient {
       params: { workspace_path: workspacePath }
     })
   }
+
+  async getWorkspaceSessions(workspacePath?: string): Promise<ApiResponse<{ success: boolean; sessions: Session[] }>> {
+    const params = workspacePath ? { workspace_path: workspacePath } : {}
+    return this.client.get('/api/workspace/sessions', { params })
+  }
 }

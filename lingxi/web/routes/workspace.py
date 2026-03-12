@@ -187,3 +187,57 @@ async def validate_workspace(workspace_path: str):
         "has_lingxi_dir": has_lingxi_dir,
         "message": "工作目录有效" if valid else "工作目录无效"
     }
+
+
+@router.get("/sessions")
+async def get_workspace_sessions(workspace_path: Optional[str] = None):
+    """获取指定工作目录的会话列表
+    
+    查询参数:
+    - workspace_path: 工作目录路径（可选，默认使用当前工作目录）
+    
+    返回示例:
+    ```json
+    {
+        "success": true,
+        "sessions": [
+            {
+                "session_id": "abc123",
+                "title": "会话 1",
+                "task_count": 5,
+                "total_tokens": 1000,
+                "created_at": "2026-03-12T10:00:00",
+                "updated_at": "2026-03-12T12:00:00"
+            }
+        ]
+    }
+    ```
+    """
+    try:
+        from lingxi.web.state import get_assistant
+        from lingxi.management.workspace import get_workspace_manager
+        
+        # 获取工作目录路径
+        if workspace_path is None:
+            workspace_manager = get_workspace_manager()
+            current_workspace = workspace_manager.get_current_workspace()
+            if current_workspace is None:
+                return {"success": True, "sessions": []}
+            workspace_path = str(current_workspace)
+        
+        # 获取会话列表
+        assistant = get_assistant()
+        if not assistant or not hasattr(assistant, 'session_manager'):
+            raise HTTPException(status_code=503, detail="助手服务未初始化")
+        
+        sessions = assistant.session_manager.list_all_sessions(workspace_path)
+        
+        return {
+            "success": True,
+            "sessions": sessions
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取工作目录会话失败：{e}")
+        raise HTTPException(status_code=500, detail=f"获取会话失败：{str(e)}")

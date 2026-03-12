@@ -441,6 +441,10 @@ private stopBackendService(): void {
       return this.apiClient.getSession(sessionId)
     })
 
+    ipcMain.handle('api:get-workspace-sessions', async (_, workspacePath) => {
+      return this.apiClient.getWorkspaceSessions(workspacePath)
+    })
+
     ipcMain.handle('workspace:get-current', async () => {
       return this.apiClient.getWorkspaceCurrent()
     })

@@ -40,7 +40,8 @@ const electronAPI = {
     getResourceUsage: () => ipcRenderer.invoke('api:get-resource-usage'),
     getConfig: () => ipcRenderer.invoke('api:get-config'),
     updateConfig: (config: any) => ipcRenderer.invoke('api:update-config', config),
-    getSessionInfo: (sessionId: string) => ipcRenderer.invoke('api:get-session-info', sessionId)
+    getSessionInfo: (sessionId: string) => ipcRenderer.invoke('api:get-session-info', sessionId),
+    getWorkspaceSessions: (workspacePath?: string) => ipcRenderer.invoke('api:get-workspace-sessions', workspacePath)
   },
 
   workspace: {

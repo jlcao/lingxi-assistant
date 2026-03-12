@@ -109,8 +109,9 @@ async function handleSelectWorkspace() {
           // 重新加载工作区信息
           await workspaceStore.loadCurrentWorkspace()
           
-          // 重新加载会话列表
-          const sessions = await window.electronAPI.api.getSessions()
+          // 重新加载会话列表（使用工作目录特定的 API）
+          const sessionsResult = await window.electronAPI.api.getWorkspaceSessions(selectedPath)
+          const sessions = sessionsResult.sessions || []
           const formattedSessions = (sessions || []).map((session: any) => ({
             id: session.session_id || session.id,
             name: session.title || session.name || '新会话',
