@@ -97,12 +97,13 @@ class SessionManager:
         
         self.logger.info(f"数据库路径已更新：{new_db_path}")
 
-    def get_history(self, session_id: str, max_turns: int = None) -> List[Dict[str, Any]]:
+    def get_history(self, session_id: str, max_turns: int = None, compress: bool = False) -> List[Dict[str, Any]]:
         """获取会话历史
 
         Args:
-            session_id: 会话ID
+            session_id: 会话 ID
             max_turns: 最大返回轮次
+            compress: 是否启用历史压缩（默认 False）
 
         Returns:
             会话历史记录（任务列表，包含步骤信息）
@@ -112,7 +113,58 @@ class SessionManager:
         if max_turns and len(tasks) > max_turns:
             tasks = tasks[:max_turns]
 
+        # 如果启用压缩，调用压缩方法
+        if compress:
+            tasks = self._compress_history(tasks)
+
         return tasks
+
+    def _compress_history(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """压缩会话历史，保留最近完整对话，压缩旧对话为摘要
+
+        压缩策略：
+        - 保留最近 10 轮完整对话（user_input + result）
+        - 更早的对话压缩 result 字段为简短摘要
+        - 移除详细步骤信息（steps 字段）
+
+        Args:
+            tasks: 原始任务列表
+
+        Returns:
+            压缩后的任务列表
+        """
+        if not tasks:
+            return tasks
+
+        # 从配置中获取保留的完整对话轮数，默认 10 轮
+        max_full_turns = self.config.get("context_management", {}).get("compression", {}).get("max_history_turns", 10)
+
+        compressed_tasks = []
+
+        for i, task in enumerate(tasks):
+            # 复制任务以避免修改原始数据
+            compressed_task = dict(task)
+
+            # 判断是否是最近的任务（需要保留完整信息）
+            is_recent = i >= len(tasks) - max_full_turns
+
+            if not is_recent:
+                # 压缩旧任务：移除详细步骤，简化 result
+                if "steps" in compressed_task:
+                    # 只保留步骤数量信息，移除详细内容
+                    step_count = len(compressed_task["steps"]) if compressed_task["steps"] else 0
+                    compressed_task["steps"] = [{"note": f"[已压缩] 共 {step_count} 个步骤"}] if step_count > 0 else []
+
+                # 压缩 result 字段：如果 result 很长，截取前一部分并添加摘要标记
+                if compressed_task.get("result"):
+                    result_text = str(compressed_task["result"])
+                    if len(result_text) > 200:
+                        compressed_task["result"] = f"[摘要] {result_text[:200]}..."
+
+            compressed_tasks.append(compressed_task)
+
+        self.logger.debug(f"历史压缩完成：{len(tasks)} -> {len(compressed_tasks)} 条任务，保留最近 {max_full_turns} 轮完整对话")
+        return compressed_tasks
 
     def update_session_tokens(self, session_id: str, input_tokens: int, output_tokens: int):
         """更新会话 Token 总数

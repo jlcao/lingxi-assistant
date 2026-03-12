@@ -135,10 +135,13 @@ context_management:
     task_boundary_archive: true
 
   compression:
+    enabled: true              # 是否启用历史压缩
     strategy: "hybrid"
     summary_ratio: 0.3
     enable_llm_summary: true
     preserve_entities: true
+    max_history_turns: 10      # 保留多少轮完整对话（旧对话将被压缩）
+    compress_old: true         # 是否压缩旧对话
 
   long_term_memory:
     enabled: true

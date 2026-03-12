@@ -40,7 +40,9 @@ class AsyncLingxiAssistant(BaseAssistant):
                     response = f"技能安装失败：{skill_path}"
                 return response
 
-            history = self.session_manager.get_history(session_id)
+            # 根据配置决定是否启用历史压缩
+            compress_enabled = self.config.get("context_management", {}).get("compression", {}).get("enabled", False)
+            history = self.session_manager.get_history(session_id, compress=compress_enabled)
 
             engine = AsyncPlanReActEngine(self.config, self.skill_caller, self.session_manager)
 
