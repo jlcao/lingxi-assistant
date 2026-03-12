@@ -21,10 +21,9 @@
         :expand-on-click-node="false"
         class="file-tree"
         @node-contextmenu="handleNodeContextMenu"
-        @node-dblclick="handleNodeDblClick"
       >
         <template #default="{ node, data }">
-          <div class="file-tree-node">
+          <div class="file-tree-node" @dblclick.stop="handleNodeDblClick(data)">
             <span class="file-icon">
               <svg v-if="data.isDirectory" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon folder-icon" :class="{ 'folder-open': node.expanded }">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
