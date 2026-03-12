@@ -126,6 +126,7 @@ class SessionManager:
         - 保留最近 10 轮完整对话（user_input + result）
         - 更早的对话压缩 result 字段为简短摘要
         - 移除详细步骤信息（steps 字段）
+        - 支持 LLM 智能摘要（需配置启用）
 
         Args:
             tasks: 原始任务列表
@@ -136,8 +137,40 @@ class SessionManager:
         if not tasks:
             return tasks
 
-        # 从配置中获取保留的完整对话轮数，默认 10 轮
-        max_full_turns = self.config.get("context_management", {}).get("compression", {}).get("max_history_turns", 10)
+        # 从配置中获取压缩相关配置
+        compression_config = self.config.get("context_management", {}).get("compression", {})
+        max_full_turns = compression_config.get("max_history_turns", 10)
+        use_llm = compression_config.get("use_llm", False)
+        llm_threshold = compression_config.get("llm_threshold", 50)
+
+        self.logger.debug(f"历史压缩：共 {len(tasks)} 条任务，use_llm={use_llm}, llm_threshold={llm_threshold}")
+
+        # 判断是否使用 LLM 智能压缩
+        if use_llm and len(tasks) > llm_threshold:
+            self.logger.info(f"任务数 ({len(tasks)}) 超过阈值 ({llm_threshold})，启用 LLM 智能压缩")
+            try:
+                return self._llm_compress_history(tasks, max_full_turns)
+            except Exception as e:
+                self.logger.warning(f"LLM 压缩失败，降级为轻量级压缩：{e}")
+                # 降级为轻量级压缩
+                return self._simple_compress_history(tasks, max_full_turns)
+        else:
+            # 使用轻量级压缩
+            self.logger.debug(f"使用轻量级压缩（任务数 {len(tasks)} <= 阈值 {llm_threshold} 或 use_llm=False）")
+            return self._simple_compress_history(tasks, max_full_turns)
+
+    def _simple_compress_history(self, tasks: List[Dict[str, Any]], max_full_turns: int = 10) -> List[Dict[str, Any]]:
+        """轻量级压缩历史：保留最近完整对话，压缩旧对话为简单摘要
+
+        Args:
+            tasks: 原始任务列表
+            max_full_turns: 保留的完整对话轮数
+
+        Returns:
+            压缩后的任务列表
+        """
+        if not tasks:
+            return tasks
 
         compressed_tasks = []
 
@@ -163,8 +196,117 @@ class SessionManager:
 
             compressed_tasks.append(compressed_task)
 
-        self.logger.debug(f"历史压缩完成：{len(tasks)} -> {len(compressed_tasks)} 条任务，保留最近 {max_full_turns} 轮完整对话")
+        self.logger.debug(f"轻量级压缩完成：{len(tasks)} -> {len(compressed_tasks)} 条任务，保留最近 {max_full_turns} 轮完整对话")
         return compressed_tasks
+
+    def _llm_compress_history(self, tasks: List[Dict[str, Any]], max_full_turns: int = 10) -> List[Dict[str, Any]]:
+        """使用 LLM 智能压缩历史：对旧对话生成语义摘要
+
+        压缩策略：
+        - 保留最近 max_full_turns 轮完整对话
+        - 对更早的对话使用 LLM 生成语义摘要
+        - 移除详细步骤信息
+
+        Args:
+            tasks: 原始任务列表
+            max_full_turns: 保留的完整对话轮数
+
+        Returns:
+            压缩后的任务列表
+        """
+        if not tasks:
+            return tasks
+
+        self.logger.info(f"LLM 智能压缩：共 {len(tasks)} 条任务，保留最近 {max_full_turns} 轮")
+
+        # 分离旧任务和新任务
+        if len(tasks) <= max_full_turns:
+            # 任务数不超过阈值，无需压缩
+            return tasks
+
+        old_tasks = tasks[:-max_full_turns]
+        recent_tasks = tasks[-max_full_turns:]
+
+        # 对旧任务使用 LLM 生成摘要
+        compressed_old_tasks = []
+        for i, task in enumerate(old_tasks):
+            compressed_task = dict(task)
+            
+            # 移除详细步骤
+            if "steps" in compressed_task:
+                step_count = len(compressed_task["steps"]) if compressed_task["steps"] else 0
+                compressed_task["steps"] = [{"note": f"[LLM 压缩] 共 {step_count} 个步骤"}] if step_count > 0 else []
+
+            # 使用 LLM 压缩 result 字段
+            if compressed_task.get("result"):
+                result_text = str(compressed_task["result"])
+                try:
+                    compressed_task["result"] = self._summarize_with_llm(result_text, task.get("user_input", ""))
+                except Exception as e:
+                    self.logger.warning(f"LLM 摘要失败（任务 {i+1}/{len(old_tasks)}），使用轻量级摘要：{e}")
+                    # 降级为轻量级摘要
+                    if len(result_text) > 200:
+                        compressed_task["result"] = f"[摘要] {result_text[:200]}..."
+            
+            compressed_old_tasks.append(compressed_task)
+
+        # 合并旧任务和新任务
+        compressed_tasks = compressed_old_tasks + recent_tasks
+
+        self.logger.info(f"LLM 智能压缩完成：{len(tasks)} -> {len(compressed_tasks)} 条任务")
+        return compressed_tasks
+
+    def _summarize_with_llm(self, text: str, user_input: str = "") -> str:
+        """使用 LLM 生成文本摘要
+
+        Args:
+            text: 需要摘要的文本
+            user_input: 原始用户输入（可选，用于提供上下文）
+
+        Returns:
+            摘要文本
+
+        Raises:
+            Exception: 当 LLM 调用失败时
+        """
+        from lingxi.core.llm.llm_client import LLMClient
+
+        # 构造摘要提示
+        if user_input:
+            prompt = f"""请为以下对话结果生成简洁的摘要（50 字以内），保留关键信息：
+
+用户问题：{user_input}
+
+对话结果：{text[:2000] if len(text) > 2000 else text}
+
+请用一句话总结核心内容，不要包含多余的解释。"""
+        else:
+            prompt = f"""请为以下文本生成简洁的摘要（50 字以内），保留关键信息：
+
+{text[:2000] if len(text) > 2000 else text}
+
+请用一句话总结核心内容，不要包含多余的解释。"""
+
+        # 创建 LLM 客户端并调用
+        llm_client = LLMClient(self.config)
+        
+        try:
+            summary = llm_client.complete(prompt, task_level="simple")
+            
+            # 清理摘要：去除多余空白和引号
+            summary = str(summary).strip().strip('"').strip("'")
+            
+            # 确保摘要不会太长
+            if len(summary) > 100:
+                summary = summary[:97] + "..."
+            
+            self.logger.debug(f"LLM 摘要生成成功：{summary[:50]}...")
+            return f"[LLM 摘要] {summary}"
+            
+        except Exception as e:
+            self.logger.error(f"LLM 摘要调用失败：{e}")
+            # 抛出异常，让调用者处理降级
+            raise
 
     def update_session_tokens(self, session_id: str, input_tokens: int, output_tokens: int):
         """更新会话 Token 总数

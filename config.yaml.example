@@ -142,6 +142,8 @@ context_management:
     preserve_entities: true
     max_history_turns: 10      # 保留多少轮完整对话（旧对话将被压缩）
     compress_old: true         # 是否压缩旧对话
+    use_llm: false             # 是否使用 LLM 智能摘要（默认关闭）
+    llm_threshold: 50          # 超过多少轮才启用 LLM 压缩
 
   long_term_memory:
     enabled: true
