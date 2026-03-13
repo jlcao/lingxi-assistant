@@ -585,12 +585,20 @@ class SessionManager:
         """
         return self.context_manager.retrieve_relevant_history(query, top_k)
 
-    def list_all_sessions(self) -> List[Dict[str, Any]]:
+    def list_all_sessions(self, workspace_path: Optional[str] = None) -> List[Dict[str, Any]]:
         """列出所有会话
+
+        Args:
+            workspace_path: 工作目录路径（可选），如果指定则返回该工作目录的会话
 
         Returns:
             会话列表，包含session_id、创建时间、更新时间、消息数量等信息
         """
+        # 如果指定了工作目录路径，使用 WorkspaceRegistry 获取该工作目录的会话
+        if workspace_path:
+            return self.workspace_registry.get_sessions_by_workspace_path(workspace_path)
+
+        # 否则返回所有会话
         conn = self.db_manager.get_connection()
         cursor = conn.cursor()
         cursor.execute("""
