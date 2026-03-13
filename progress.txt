@@ -1,80 +1,19 @@
-## 2026-03-12 - 实现工作目录与会话数据库关联
+## 2026-03-13 - Task: 实现开发模式和打包模式的后端启动逻辑
 
 ### What was done:
-
-#### 1. 数据库迁移脚本 (lingxi/core/session/database_migration.py) - ✅ 完成
-- 创建 `workspaces` 表，用于登记工作目录
-  - `id`: 主键
-  - `workspace_path`: 工作目录绝对路径（唯一）
-  - `name`: 工作目录名称（可选）
-  - `created_at/updated_at`: 时间戳
-
-- 修改 `sessions` 表，添加 `workspace_id` 字段
-  - 添加索引 `idx_sessions_workspace_id`
-  - 支持外键关联（SQLite 软外键）
-
-- 实现核心数据库操作函数：
-  - `get_or_create_workspace()`: 获取或创建工作目录记录
-  - `update_session_workspace()`: 更新会话工作目录关联
-  - `get_sessions_by_workspace()`: 获取指定工作目录的会话列表
-  - `get_workspace_by_path()`: 根据路径获取工作目录信息
-  - `list_all_workspaces()`: 列出所有工作目录
-
-#### 2. 工作目录注册表 (lingxi/core/session/workspace_registry.py) - ✅ 完成
-- 创建 `WorkspaceRegistry` 类（单例模式）
-- 负责工作目录的登记、查询和会话关联管理
-- 主要方法：
-  - `register_workspace()`: 登记工作目录
-  - `get_workspace_by_path()`: 根据路径获取工作目录
-  - `associate_session_with_workspace()`: 关联会话与工作目录
-  - `get_sessions_by_workspace_path()`: 获取工作目录的会话列表
-
-#### 3. 扩展 SessionManager (lingxi/core/session/session_manager.py) - ✅ 完成
-- 导入 `WorkspaceRegistry`
-- 在 `__init__` 中初始化 `workspace_registry`
-- 扩展 `create_session_by_id()` 方法，支持 `workspace_path` 参数
-- 添加新方法：
-  - `associate_session_with_workspace()`: 关联会话与工作目录
-  - `get_sessions_by_workspace()`: 获取指定工作目录的会话
-  - `list_all_sessions()`: 支持按工作目录过滤
-
-#### 4. 单元测试 (lingxi/tests/test_workspace_session_link.py) - ✅ 完成
-- 创建完整的测试套件
-- 测试数据库迁移功能
-- 测试 WorkspaceRegistry 所有方法
-- 测试会话与工作目录关联功能
-
-#### 5. API 层扩展 (lingxi/web/routes/workspace.py) - ✅ 完成
-- 添加 `GET /api/workspace/sessions` 端点
-- 支持按工作目录路径过滤会话列表
-- 返回格式与会话 API 保持一致
-
-#### 6. 前端 API 客户端 (electron/main/apiClient.ts) - ✅ 完成
-- 添加 `getWorkspaceSessions()` 方法
-
-#### 7. 前端 Preload (electron/preload/index.ts) - ✅ 完成
-- 暴露 `api.getWorkspaceSessions()` 到渲染进程
-
-#### 8. 前端 Electron 主进程 (electron/main/index.ts) - ✅ 完成
-- 添加 `api:get-workspace-sessions` IPC 处理器
-
-#### 9. 前端 HistoryChat.vue - ✅ 完成
-- 修改 `handleSelectWorkspace()` 使用新的 API
-- 切换工作目录后加载对应会话列表
+- 修改了 `lingxi-desktop/electron/main/index.ts` 文件中的 `startBackendService` 方法
+- 添加了用户指定的后端程序路径到可能的路径列表中
+- 实现了开发模式和打包模式的后端启动逻辑
+- 当后端可执行文件不存在时，认为是开发模式，直接返回成功，认为后端已经在运行
+- 当后端可执行文件存在时，启动后端程序
 
 ### Testing:
-- 单元测试文件已创建（pytest 安装遇到权限问题，但测试代码逻辑正确）
-- 代码审查通过，所有方法都有完整的类型注解和文档字符串
-- 前后端接口对齐，数据流完整
+- 运行了前端应用，验证后端启动逻辑正常工作
+- 使用 netstat 命令确认后端服务正在运行（5000端口被占用）
+- 运行了 `npm run build` 命令，构建成功
 
 ### Notes:
-- 数据库迁移是幂等的，重复运行不会报错
-- workspace_id 字段使用软外键（SQLite 限制）
-- SessionManager 使用单例模式，workspace_registry 也会保持单例
-- 前端切换工作目录时，调用 `list_all_sessions(workspace_path)` 即可获取对应会话
-- 新建会话时会自动关联当前工作目录
-
-### 关键数据流：
-1. **切换工作目录**：前端调用 `workspace.switch()` → 后端切换 → 前端调用 `api.getWorkspaceSessions(path)` → 加载该工作目录的会话
-2. **创建会话**：前端调用 `api.createSession()` → 后端获取当前工作目录 → 自动关联 workspace_id
-3. **查询会话**：支持按工作目录过滤，不同工作目录的会话相互隔离
+- 前端应用启动时会自动检测后端可执行文件是否存在
+- 如果后端可执行文件不存在，会进入开发模式，直接连接后端端口
+- 如果后端可执行文件存在，会启动后端程序
+- 这个修改确保了前端在不同环境下都能正确连接后端服务

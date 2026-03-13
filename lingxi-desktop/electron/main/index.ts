@@ -61,6 +61,8 @@ class App {
         
         // 尝试多个可能的路径
         const possiblePaths = [
+          // 用户指定的路径
+          'd:\\resource\\python\\lingxi\\lingxi-desktop\\electron\\main\\backend\\lingxi-backend.exe',
           // 开发环境路径
           path.join(appPath, 'electron', 'main', 'backend', 'lingxi-backend.exe'),
           // 打包后可能的路径
@@ -83,9 +85,10 @@ class App {
         }
         
         if (!backendPath) {
-          console.error('[App] 后端可执行文件不存在，尝试了以下路径:', possiblePaths)
-          dialog.showErrorBox('后端服务启动失败', `后端可执行文件不存在，尝试了以下路径:\n${possiblePaths.join('\n')}`)
-          resolve(false)
+          // 后端可执行文件不存在，认为是开发模式，直接返回成功
+          logger.log('[App] 后端可执行文件不存在，进入开发模式，直接连接后端端口')
+          this.isBackendStarted = true // 标记后端已启动
+          resolve(true)
           return
         }
         logger.log(`[App] 启动后端服务: ${backendPath}`)
