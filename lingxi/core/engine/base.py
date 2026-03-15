@@ -14,6 +14,7 @@ from lingxi.core.event import global_event_publisher
 from lingxi.core.context import TaskContext
 from lingxi.core.utils.security import SecurityError
 from lingxi.core.confirmation.confirmation import ConfirmationManager, DangerousSkillChecker, RiskLevel
+from lingxi.core.memory import MemorySearch
 from .utils import parse_llm_response, parse_action_parameters, process_parameters, calculate_expression
 from lingxi.utils.json_parser import stream_with_thought_only
 
@@ -57,6 +58,14 @@ class BaseEngine:
         if hasattr(skill_caller, "subagent_scheduler"):
             self.subagent_scheduler = skill_caller.subagent_scheduler
             self.logger.debug("子代理调度器已启用")
+        
+        # 记忆搜索
+        if session_manager and hasattr(session_manager, 'memory_manager'):
+            self.memory_search = MemorySearch(session_manager.memory_manager)
+        else:
+            self.memory_search = None
+        
+        self.logger.debug("BaseEngine: 记忆搜索已初始化")
 
     def process(self, context: TaskContext) -> Union[str, Generator[Dict[str, Any], None, None]]:
         """处理用户输入
@@ -887,6 +896,23 @@ class BaseEngine:
         if self.session_manager:
             error_response = self._generate_error_response(task, step_idx, step_result.get("error"))
             
+    def _should_search_memory(self, task: str) -> bool:
+        """检测是否需要搜索记忆"""
+        keywords = [
+            "我记得", "你记得", "之前说过", "上次", "以前",
+            "偏好", "习惯", "喜欢", "讨厌",
+            "记住", "别忘了", "记得吗"
+        ]
+        return any(kw in task for kw in keywords)
+
+    def _should_extract_memory(self, task: str) -> bool:
+        """检测是否需要提取记忆"""
+        keywords = [
+            "记住", "记下", "保存", "别忘了",
+            "重要的是", "记住我", "记一下"
+        ]
+        return any(kw in task for kw in keywords)
+
     def _publish_task_start(self, session_id: str, execution_id: str, task: str, task_info: Dict[str, Any], task_id: str = None):
         """发布任务开始事件
 
@@ -989,7 +1015,16 @@ class BaseEngine:
         Returns:
             执行结果
         """
-        # 创建 TaskContext 对象
+        # 1. 检测是否需要搜索记忆
+        if self.memory_search and self._should_search_memory(task):
+            self.logger.info("检测到记忆搜索意图")
+            memories = self.memory_search.search(task, top_k=3)
+            if memories:
+                context = context or {}
+                context["retrieved_memories"] = [m.to_dict() if hasattr(m, 'to_dict') else m.__dict__ for m in memories]
+                self.logger.info(f"检索到 {len(memories)} 条记忆")
+        
+        # 2. 创建 TaskContext 对象
         task_info = context.get("task_info", {"level": "simple"}) if context else {"level": "simple"}
         session_history = context.get("session_history", []) if context else []
         stream = context.get("stream", False) if context else False
@@ -1004,12 +1039,28 @@ class BaseEngine:
             workspace_path=workspace_path
         )
         
-        # 调用 _execute_task_stream 执行
+        # 3. 执行任务
         result = ""
         for chunk in self._execute_task_stream(task_context):
             if chunk.get("type") == "task_finish":
                 result = chunk.get("result", "")
                 break
+        
+        # 4. 检测是否需要手动保存记忆
+        if self._should_extract_memory(task) and self.session_manager:
+            self.logger.info("检测到记忆保存意图")
+            # 从任务描述中提取
+            session = self.session_manager.get_session(session_id) if hasattr(self.session_manager, 'get_session') else None
+            if session and hasattr(session, 'history') and session.history:
+                # 添加当前任务到历史
+                session.history.append({"role": "user", "content": task})
+                
+                # 提取记忆
+                memories = self.session_manager.memory_extractor.extract_from_session(
+                    session.history[-5:],  # 最近 5 条
+                    auto_save=True
+                )
+                self.logger.info(f"手动保存了 {len(memories)} 条记忆")
         
         return result
 

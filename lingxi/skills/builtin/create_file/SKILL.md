@@ -1,42 +1,62 @@
 ---
 name: create_file
-description: "Create a new file with specified content. Use this skill when the user needs to create a new file, write content to a file, or save text to a file."
-version: "1.0.0"
-trigger_conditions: "用户请求创建文件、保存内容到文件、写入文本到文件时触发"
-execution_guidelines: "1. 验证file_path参数是否为绝对路径\n2. 自动创建父目录（如果不存在）\n3. 使用UTF-8编码写入文件\n4. 返回创建成功消息和文件大小"
+description: "创建或写入文件，支持追加模式、自动创建父目录"
+version: "2.0.0"
+trigger_conditions: "用户请求创建文件、写入文件内容、追加内容到文件时触发"
+execution_guidelines: "1. 验证 file_path 参数是否为绝对路径\n2. 自动创建父目录\n3. 支持写入和追加两种模式\n4. 使用 UTF-8 编码"
 author: "Lingxi Team"
 license: MIT
 ---
 
-# Create File Skill
+# Create File Skill v2.0
 
-## Overview
+## 新增功能
 
-The create_file skill allows you to create new files with specified content. It automatically creates parent directories if they don't exist.
+- ✅ **追加模式** - 支持向文件追加内容
+- ✅ **自动创建父目录** - 如果父目录不存在自动创建
+- ✅ **编码支持** - 可指定文件编码
 
-## Usage
+## 参数说明
 
-### Parameters
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| **file_path** | string | ✅ | - | 文件绝对路径 |
+| **content** | string | ❌ | "" | 文件内容 |
+| **mode** | string | ❌ | "write" | 写入模式："write" 或 "append" |
+| **create_parent_dirs** | boolean | ❌ | true | 自动创建父目录 |
+| **encoding** | string | ❌ | "utf-8" | 文件编码 |
 
-- **file_path** (required): Absolute path to the file to create
-- **content** (required): Content to write to the file
-
-### Example
+## 使用示例
 
 ```python
-# Create a new file
+# 创建新文件
 create_file(
     file_path="/path/to/file.txt",
     content="Hello, World!"
 )
+
+# 追加内容到文件
+create_file(
+    file_path="/path/to/file.txt",
+    content="\nAdditional content",
+    mode="append"
+)
+
+# 创建嵌套目录的文件
+create_file(
+    file_path="/path/to/nested/dir/file.txt",
+    content="Content",
+    create_parent_dirs=true
+)
+
+# 指定编码创建文件
+create_file(
+    file_path="/path/to/gbk_file.txt",
+    content="内容",
+    encoding="gbk"
+)
 ```
 
-## Implementation Notes
-
-- Automatically creates parent directories if they don't exist
-- Overwrites existing files
-- Uses UTF-8 encoding
-
-## Dependencies
+## 依赖
 
 None

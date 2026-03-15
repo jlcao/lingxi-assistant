@@ -13,6 +13,7 @@ from lingxi.core.session.task_manager import TaskManager, task_to_dict, dict_to_
 from lingxi.core.session.step_manager import StepManager, step_to_dict, dict_to_step
 from lingxi.core.session.workspace_registry import WorkspaceRegistry
 from lingxi.core.soul import SoulInjector
+from lingxi.core.memory import MemoryManager, MemoryExtractor
 
 
 def session_to_dict(session: Session) -> dict:
@@ -82,6 +83,15 @@ class SessionManager:
         self.soul_injector = SoulInjector(self.workspace_path)
         self.soul_injector.load()  # 加载 SOUL.md
         self.logger.debug(f"SOUL 注入器已初始化，工作目录：{self.workspace_path}")
+        
+        # 记忆管理器
+        self.memory_manager = MemoryManager(config)
+        self.memory_extractor = MemoryExtractor(self.memory_manager)
+        
+        # 自动加载 MEMORY.md
+        if self.workspace_path:
+            count = self.memory_manager.load_memory(self.workspace_path)
+            self.logger.info(f"加载了 {count} 条记忆")
         
         self._initialized = True
 
@@ -752,6 +762,14 @@ class SessionManager:
             if system_prompt is None:
                 system_prompt = f"你是{self.soul_injector.soul_data.get('identity', {}).get('name', '灵犀')}智能助手。"
             final_system_prompt = self.soul_injector.build_system_prompt(system_prompt)
+            
+            # 注入记忆到系统提示词
+            if self.memory_manager.memories:
+                memory_context = self._build_memory_context()
+                if memory_context:
+                    final_system_prompt += "\n\n# 用户记忆\n\n" + memory_context
+                    self.logger.debug(f"已注入 {len(self.memory_manager.memories)} 条记忆到系统提示词")
+            
             # 将会话的系统提示词存储到上下文管理器
             if hasattr(self, 'context_manager'):
                 self.context_manager.add_context_item("system", final_system_prompt)
@@ -759,6 +777,79 @@ class SessionManager:
 
         self.logger.debug(f"会话已创建，session_id: {session_id}, user_name: {user_name}")
         return session_id
+
+    def _build_memory_context(self) -> str:
+        """构建记忆上下文"""
+        # 获取高重要性记忆
+        important_memories = [
+            m for m in self.memory_manager.memories.values()
+            if m.importance >= 4
+        ]
+        
+        if not important_memories:
+            return ""
+        
+        # 按分类组织
+        by_category = {}
+        for memory in important_memories[:15]:  # 最多 15 条
+            cat = memory.category
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(memory.content)
+        
+        # 生成上下文
+        lines = []
+        category_names = {
+            "preference": "用户偏好",
+            "fact": "重要事实",
+            "decision": "历史决策"
+        }
+        
+        for cat, contents in by_category.items():
+            cat_name = category_names.get(cat, cat)
+            lines.append(f"## {cat_name}")
+            for content in contents:
+                lines.append(f"- {content}")
+            lines.append("")
+        
+        return "\n".join(lines)
+
+    def end_session(self, session_id: str, auto_extract_memory: bool = True):
+        """
+        结束会话并提取记忆
+        
+        Args:
+            session_id: 会话 ID
+            auto_extract_memory: 是否自动提取记忆
+        """
+        # 获取会话历史（从任务管理器）
+        session_history = self.task_manager.get_tasks_by_session(session_id)
+        
+        # 转换为记忆提取器需要的格式
+        history_for_extraction = []
+        for task in session_history:
+            if task.get("user_input"):
+                history_for_extraction.append({"role": "user", "content": task["user_input"]})
+            if task.get("result"):
+                history_for_extraction.append({"role": "assistant", "content": task["result"]})
+        
+        # 自动提取记忆
+        if auto_extract_memory and history_for_extraction:
+            try:
+                memories = self.memory_extractor.extract_from_session(
+                    history_for_extraction,
+                    auto_save=True,
+                    min_importance=3
+                )
+                self.logger.info(f"会话结束提取了 {len(memories)} 条记忆")
+            except Exception as e:
+                self.logger.error(f"提取记忆失败：{e}")
+        
+        # 保存 MEMORY.md
+        try:
+            self.memory_manager.save_to_file()
+        except Exception as e:
+            self.logger.error(f"保存 MEMORY.md 失败：{e}")
 
     def transaction(self):
         """事务上下文管理器（委托给数据库管理器）"""
