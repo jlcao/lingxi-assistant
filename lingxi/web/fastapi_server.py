@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
 from lingxi.utils.uvicorn_logging_fix import patch_uvicorn_logging
-from lingxi.web.routes import tasks, checkpoints, skills, config as config_router, sessions, workspace
+from lingxi.web.routes import tasks, checkpoints, skills, config as config_router, sessions, workspace, chat
 from lingxi.web.state import set_assistant, get_assistant, get_websocket_manager
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 from lingxi.core.assistant.async_main import AsyncLingxiAssistant
@@ -42,7 +42,8 @@ app.include_router(checkpoints.router, prefix="/api", tags=["checkpoints"])
 app.include_router(skills.router, prefix="/api", tags=["skills"])
 app.include_router(config_router.router, prefix="/api", tags=["config"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
-app.include_router(workspace.router, prefix="/api", tags=["workspace"])
+app.include_router(workspace.router, tags=["workspace"])
+app.include_router(chat.router)
 
 # 可选的 resources 路由（如果 psutil 可用）
 try:
