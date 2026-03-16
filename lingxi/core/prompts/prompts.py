@@ -119,15 +119,16 @@ class PromptTemplates:
             # 处理 action_input，可能是字符串或字典
             action_input = step.get('action_input', '')
             if isinstance(action_input, dict):
+                params_str = ', '.join([f"{k}={v}" for k, v in action_input.items()])
                 if is_last_step:
                     # 最后一步完整显示
-                    params_str = ', '.join([f"{k}={v}" for k, v in action_input.items()])
-                    params_str_escaped = params_str_escaped
-                    formatted += f"行动：{step.get('action', '')} - {params_str_escaped}\n"
+                    params_str_escaped = params_str.replace('\n', '\\n')
+                    formatted += f"行动: {step.get('action', '')} - {params_str_escaped}\n"
+                else:
                     # 之前步骤截断显示
-                    params_str = ', '.join([f"{k}={v}" for k, v in action_input.items()])
                     if len(params_str) > max_prev_length:
                         params_str = params_str[:max_prev_length] + '...'
+                    params_str_escaped = params_str.replace('\n', '\\n')
                     formatted += f"行动: {step.get('action', '')} - {params_str_escaped}\n"
             else:
                 if is_last_step:

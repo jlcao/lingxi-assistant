@@ -5,10 +5,10 @@
       <span class="intervention-title">步骤执行失败，需要人工干预</span>
     </div>
     <div class="intervention-body">
-      <div v-for="step in failedSteps" :key="step.step_index" class="intervention-step">
+      <div v-for="step in failedSteps" :key="step.stepIndex" class="intervention-step">
         <div class="intervention-step-name">
-          步骤 {{ step.step_index + 1 }}: {{ step.description }}
-          <span class="intervention-step-retry">重试次数: {{ step.retryCount || 0 }}/{{ step.maxRetries || 3 }}</span>
+          步骤 {{ step.stepIndex + 1 }}: {{ step.name }}
+          <span class="intervention-step-retry">重试次数: {{ step.retryCount }}/{{ step.maxRetries }}</span>
         </div>
         <div v-if="step.error" class="intervention-error">
           <strong>错误信息:</strong> {{ step.error.message }}
@@ -71,14 +71,14 @@ const emit = defineEmits<{
 
 function handleSkip() {
   if (failedSteps.value.length > 0) {
-    emit('skip', failedSteps.value[0].step_index)
+    emit('skip', failedSteps.value[0].stepIndex)
     ElMessage.success('已跳过当前步骤')
   }
 }
 
 function handleRetry() {
   if (failedSteps.value.length > 0) {
-    emit('retry', failedSteps.value[0].step_index, userInput.value)
+    emit('retry', failedSteps.value[0].stepIndex, userInput.value)
     ElMessage.info('正在重试当前步骤...')
   }
 }

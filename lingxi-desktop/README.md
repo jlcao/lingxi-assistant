@@ -2,13 +2,11 @@
 
 Lingxi Agent 终端助手 - V2.0 纯客户端架构
 
-> **架构升级完成**：业务逻辑已完全迁移到渲染进程，主进程仅负责窗口管理和原生功能。
-
 ## 技术栈
 
 - **Electron** ^28.0.0 - 跨平台桌面应用框架
-- **Vue 3** ^3.3.4 - 渐进式 JavaScript 框架（Composition API）
-- **TypeScript** ^5.3.3 - JavaScript 的超集（严格模式）
+- **Vue 3** ^3.3.4 - 渐进式 JavaScript 框架
+- **TypeScript** ^5.3.3 - JavaScript 的超集
 - **Vite** ^5.0.10 - 下一代前端构建工具
 - **Element Plus** ^2.4.4 - Vue 3 组件库
 - **Pinia** ^2.1.7 - Vue 状态管理库
@@ -16,8 +14,6 @@ Lingxi Agent 终端助手 - V2.0 纯客户端架构
 - **WebSocket** ^8.19.0 - 实时双向通信
 - **Vue Router** ^4.2.5 - 官方路由管理器
 - **Sass** ^1.69.5 - CSS 预处理器
-- **Vitest** - 单元测试框架
-- **Playwright** - E2E 测试框架
 
 ## 项目结构
 
@@ -27,22 +23,12 @@ lingxi-desktop/
 │   ├── main/                   # 主进程模块
 │   │   ├── index.ts            # 主进程入口，IPC 处理器注册
 │   │   ├── windowManager.ts    # 窗口管理（最小化到托盘、边缘隐藏）
+│   │   ├── apiClient.ts        # HTTP API 客户端（带重试机制）
 │   │   ├── wsClient.ts         # WebSocket 客户端（心跳、重连）
-│   │   ├── fileManager.ts      # 文件管理（选择、保存、目录树）
-│   │   └── logger.ts           # 日志模块
+│   │   └── fileManager.ts      # 文件管理（选择、保存、目录树）
 │   └── preload/                # 预加载脚本
 │       └── index.ts            # IPC 桥接，暴露 API 给渲染进程
 ├── src/                        # 渲染进程代码
-│   ├── api/                    # API 客户端
-│   │   ├── client.ts           # Axios 实例配置
-│   │   ├── chat.ts             # 聊天相关 API
-│   │   ├── session.ts          # 会话管理 API
-│   │   └── file.ts             # 文件操作 API
-│   ├── stores/                 # Pinia 状态管理
-│   │   ├── chat.ts             # 聊天状态
-│   │   ├── session.ts          # 会话状态
-│   │   ├── app.ts              # 应用全局状态
-│   │   └── workspace.ts        # 工作区状态
 │   ├── components/             # Vue 组件
 │   │   ├── chat/              # 聊天相关组件
 │   │   │   ├── ContextBar.vue      # 上下文工具栏
@@ -62,36 +48,25 @@ lingxi-desktop/
 │   │   ├── SkillWorkspace.vue      # 技能工作区
 │   │   ├── Splitter.vue            # 分割器
 │   │   └── TitleBar.vue            # 自定义标题栏
+│   ├── stores/                # Pinia 状态管理
+│   │   └── app.ts             # 应用全局状态
 │   ├── router/                # Vue Router 路由
-│   │   └── index.ts           # 路由配置（懒加载）
+│   │   └── index.ts           # 路由配置
 │   ├── styles/                # 全局样式
 │   │   ├── main.scss          # 主样式文件
 │   │   └── variables.scss     # SCSS 变量定义
 │   ├── types/                 # TypeScript 类型定义
 │   │   ├── electron.d.ts      # Electron API 类型
 │   │   └── index.ts           # 通用类型定义
-│   ├── utils/                 # 工具函数
-│   │   └── electron.ts         # Electron 环境适配
 │   ├── views/                 # 页面级组件
 │   │   ├── Home.vue           # 主页
 │   │   └── Settings.vue       # 设置页
 │   ├── App.vue                # 根组件
 │   └── main.ts                # 渲染进程入口
-├── tests/                      # 测试文件
-│   ├── unit/                   # 单元测试
-│   │   ├── stores/            # Store 测试
-│   │   ├── api/               # API 测试
-│   │   ├── utils/             # 工具函数测试
-│   │   └── components/        # 组件测试
-│   └── e2e/                    # E2E 测试
-├── docs/                       # 文档
-│   ├── ARCHITECTURE.md        # 架构文档
-│   └── API.md                 # API 文档
 ├── index.html                 # HTML 模板
 ├── package.json               # 项目配置
 ├── tsconfig.json              # TypeScript 配置
-├── vite.config.ts             # Vite 配置（代码分割）
-└── vitest.config.ts           # Vitest 配置
+└── vite.config.ts             # Vite 配置
 ```
 
 ## 开发
@@ -112,25 +87,6 @@ npm run dev
 
 ```bash
 npm run electron:dev
-```
-
-### 运行测试
-
-```bash
-# 单元测试
-npm run test:unit
-
-# 单元测试（监听模式）
-npm run test:unit -- --watch
-
-# 生成覆盖率报告
-npm run test:unit -- --coverage
-
-# E2E 测试
-npm run test:e2e
-
-# E2E 测试（UI 模式）
-npm run test:e2e -- --ui
 ```
 
 ## 构建
@@ -206,25 +162,21 @@ npm run electron:build:linux  # Linux (AppImage + deb)
                    └────────────┘   └────────────┘   └────────────┘
 ```
 
-### 主进程模块（精简）
+### 主进程模块
 
 - **WindowManager**：窗口生命周期管理、托盘集成、边缘隐藏
-- **WsClient**：WebSocket 实时通信，支持心跳检测、自动重连
+- **ApiClient**：HTTP REST 通信，支持指数退避重试（最多 3 次）
+- **WsClient**：WebSocket 实时通信，支持心跳检测、自动重连（最多 10 次）
 - **FileManager**：文件对话框、目录树读取、外部资源打开
-- **Logger**：日志记录
 
-> **注意**：业务逻辑已迁移到渲染进程，主进程仅保留必要的原生功能。
+### 渲染进程模块
 
-### 渲染进程模块（完整业务逻辑）
-
-- **API Client**：HTTP REST 通信（Axios 封装）
 - **ChatCore**：聊天核心逻辑，处理消息发送、会话管理
 - **MessageList**：消息列表渲染，支持虚拟滚动
 - **ThoughtChainPanel**：思考链可视化展示
 - **ModelRouteBar**：模型路由策略展示与覆盖
 - **SkillCenter**：技能管理与展示
-- **Pinia Stores**：全局状态管理（chat、session、app、workspace）
-- **Vue Router**：路由管理（支持懒加载）
+- **Pinia Store**：全局状态管理（会话、消息、WebSocket 状态等）
 
 ## 核心 API
 

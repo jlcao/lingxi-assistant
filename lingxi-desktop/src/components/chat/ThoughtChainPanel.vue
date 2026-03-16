@@ -53,8 +53,6 @@ function toggleExpand() {
 
 function getStepTypeText(type: string): string {
   const typeMap: Record<string, string> = {
-    'analysis': '分析',
-    'planning': '规划',
     'execution': '执行',
     'observation': '观察',
     'skill_call': '技能调用',

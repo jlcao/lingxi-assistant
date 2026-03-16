@@ -8,9 +8,6 @@ export interface ApiResponse<T> {
   }
 }
 
-/**
- * 前端 Session 类型（用于 UI 展示）
- */
 export interface Session {
   id: string
   name: string
@@ -20,41 +17,6 @@ export interface Session {
   hasCheckpoint: boolean
   checkpointCount: number
   checkpointExpiry?: number
-}
-
-/**
- * API Session 类型（后端返回格式）
- */
-export interface SessionAPI {
-  id: string
-  name: string
-  created_at: string
-  updated_at: string
-  message_count?: number
-}
-
-/**
- * API Message 类型（后端返回格式）
- */
-export interface MessageAPI {
-  id: string
-  content: string
-  role: 'user' | 'assistant'
-  session_id: string
-  created_at: string
-  tokens?: number
-}
-
-/**
- * API FileInfo 类型
- */
-export interface FileInfoAPI {
-  path: string
-  name: string
-  size: number
-  type: string
-  created_at?: string
-  modified_at?: string
 }
 
 export interface HistoryResponse {

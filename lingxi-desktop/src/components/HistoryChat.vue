@@ -76,7 +76,6 @@
 <script setup lang="ts">
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useSessionStore } from '@/stores/session'
 import { ChatDotRound, Delete, Document, Edit, FolderOpened, MoreFilled, Plus } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
@@ -84,7 +83,6 @@ import { computed } from 'vue'
 
 const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
-const sessionStore = useSessionStore()
 const { sessions, currentSessionId } = storeToRefs(appStore)
 
 const filteredSessions = computed(() => {
@@ -93,24 +91,51 @@ const filteredSessions = computed(() => {
 
 async function handleSelectWorkspace() {
   try {
-    // 使用 workspaceStore 提供的方法选择工作区
-    const success = await workspaceStore.switchWorkspace()
-    
-    if (success) {
-      // 重新加载会话列表
-      await sessionStore.loadSessions()
-      // 同步到 appStore
-      appStore.setSessions(sessionStore.sessions)
+    const selectedPath = await window.electronAPI.file.selectDirectory()
+    if (selectedPath) {
+      // 验证工作目录
+      const validationResult = await window.electronAPI.workspace.validate(selectedPath)
       
-      // 如果有会话，选择第一个；否则清空当前会话
-      if (sessionStore.sessions.length > 0) {
-        appStore.setCurrentSession(sessionStore.sessions[0].id)
-      } else {
-        appStore.setCurrentSession(null)
-        appStore.setTurns([])
+      // 检查验证结果
+      if (!validationResult) {
+        throw new Error('验证返回数据为空')
       }
       
-      alert('工作区切换成功！')
+      if (validationResult.valid) {
+        // 调用后台切换工作区接口
+        const switchResult = await window.electronAPI.workspace.switch(selectedPath, false)
+        
+        if (switchResult && switchResult.success) {
+          // 重新加载工作区信息
+          await workspaceStore.loadCurrentWorkspace()
+          
+          // 重新加载会话列表（使用工作目录特定的 API）
+          const sessionsResult = await window.electronAPI.api.getWorkspaceSessions(selectedPath)
+          const sessions = sessionsResult.sessions || []
+          const formattedSessions = (sessions || []).map((session: any) => ({
+            id: session.session_id || session.id,
+            name: session.title || session.name || '新会话',
+            createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
+            updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
+          }))
+          
+          appStore.setSessions(formattedSessions)
+          
+          // 如果有会话，选择第一个；否则清空当前会话
+          if (formattedSessions && formattedSessions.length > 0) {
+            appStore.setCurrentSession(formattedSessions[0].id)
+          } else {
+            appStore.setCurrentSession(null)
+            appStore.setTurns([])
+          }
+          
+          alert('工作区切换成功！')
+        } else {
+          throw new Error(switchResult?.error || '切换失败')
+        }
+      } else {
+        throw new Error(validationResult.message || '工作目录无效')
+      }
     }
   } catch (error) {
     console.error('Failed to select workspace:', error)
@@ -132,10 +157,14 @@ function formatSessionTime(timestamp?: number): string {
 
 async function handleNewSession() {
   try {
-    const session = await sessionStore.createNewSession()
-    // 同步到 appStore
-    appStore.setSessions(sessionStore.sessions)
-    appStore.setCurrentSession(session.id)
+    const sessionData = await window.electronAPI.api.createSession()
+      const session = {
+      id: sessionData.session_id,
+      name: sessionData.first_message || '新会话',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    appStore.setSessions([...sessions.value, session])
     await handleSelectSession(session.id)
   } catch (error) {
     console.error('Failed to create session:', error)
@@ -152,11 +181,40 @@ async function handleSelectSession(sessionId: string) {
   
   appStore.setCurrentSession(sessionId)  
   try {
-    console.log('Loading session messages for sessionId:', sessionId)
-    // 使用 sessionStore 加载会话消息
-    await sessionStore.loadSessionMessages(sessionId)
-    // 同步到 appStore
-    appStore.setTurns(sessionStore.currentSessionMessages)
+    console.log('Calling getSessionInfo for sessionId:', sessionId)
+    const sessionInfo = await window.electronAPI.api.getSessionInfo(sessionId)
+    console.log('Received sessionInfo:', sessionInfo)
+    
+    const turns: any[] = []
+    if (sessionInfo.task_list && Array.isArray(sessionInfo.task_list)) {
+      sessionInfo.task_list.forEach((task: any, taskIndex: number) => {
+        // 添加用户消息
+        if (task.user_input) {
+          turns.push({
+            id: `${sessionId}_${taskIndex}_user`,
+            role: 'user',
+            content: task.user_input,
+            time: task.created_at || Date.now(),
+            timestamp: task.created_at || Date.now()
+          })
+        }
+        
+        // 添加助手消息
+        turns.push({
+          id: `${sessionId}_${taskIndex}_assistant`,
+          role: 'assistant',
+          content: task.result || '',
+          time: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
+          timestamp: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
+          steps: task.steps || [],
+          plan: task.plan || null,
+          executionId: task.task_id || null,
+          status: task.status || null,
+          isStreaming: false
+        })
+      })
+    }
+    appStore.setTurns(turns)
   } catch (error: any) {
     console.error('Failed to load session info:', error)
     if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
@@ -188,10 +246,13 @@ async function handleCommand(command: string, session: any) {
       })
       
       if (value) {
-        // 使用新的会话 API 重命名
-        await sessionStore.renameSession(session.id, value)
-        // 同步到 appStore
-        appStore.setSessions(sessionStore.sessions)
+        if (window.electronAPI.api.updateSessionName) {
+          await window.electronAPI.api.updateSessionName(session.id, value)
+        }
+        const updatedSessions = sessions.value.map(s =>
+          s.id === session.id ? { ...s, name: value, updatedAt: Date.now() } : s
+        )
+        appStore.setSessions(updatedSessions)
       }
     } catch {
       console.log('Rename cancelled')
@@ -209,12 +270,16 @@ async function handleCommand(command: string, session: any) {
         }
       )
       
-      // 使用新的会话 API 删除
-      await sessionStore.deleteSession(session.id)
-      // 同步到 appStore
-      appStore.setSessions(sessionStore.sessions)
-      appStore.setCurrentSession(sessionStore.currentSessionId)
-      appStore.setTurns([])
+      if (window.electronAPI.api.deleteSession) {
+        await window.electronAPI.api.deleteSession(session.id)
+      }
+      const updatedSessions = sessions.value.filter(s => s.id !== session.id)
+      appStore.setSessions(updatedSessions)
+      
+      if (currentSessionId.value === session.id) {
+        appStore.setCurrentSession(updatedSessions[0]?.id || null)
+        appStore.setTurns([])
+      }
     } catch {
       console.log('Delete cancelled')
     }

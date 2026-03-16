@@ -161,13 +161,12 @@ const initializeWorkspace = async () => {
     statusText.value = '创建目录结构...'
     initializationProgress.value = 30
     
-    // 使用 workspaceStore 初始化工作区
-    const result = await workspaceStore.initializeWorkspace(workspacePath.value)
+    const result = await window.electronAPI.workspace.initialize(workspacePath.value)
     
     initializationProgress.value = 100
     initializationStatus.value = 'success'
     statusText.value = '初始化完成'
-    lingxiDir.value = `${workspacePath.value}/.lingxi`
+    lingxiDir.value = result.data.lingxi_dir
     
     setTimeout(() => {
       currentStep.value = 2

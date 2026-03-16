@@ -30,7 +30,7 @@ import { useAppStore } from '../../stores/app'
 import { storeToRefs } from 'pinia'
 
 const appStore = useAppStore()
-const { resourceUsage } = storeToRefs(appStore)
+const { resourceUsage, tokenStatus, tokenPercentage } = storeToRefs(appStore)
 
 const currentTokens = computed(() => {
   return resourceUsage.value?.tokens.current || 0
@@ -38,18 +38,6 @@ const currentTokens = computed(() => {
 
 const maxTokens = computed(() => {
   return resourceUsage.value?.tokens.limit || 0
-})
-
-const tokenPercentage = computed(() => {
-  if (!maxTokens.value) return 0
-  return Math.min(Math.round((currentTokens.value / maxTokens.value) * 100), 100)
-})
-
-const tokenStatus = computed(() => {
-  const percentage = tokenPercentage.value
-  if (percentage >= 80) return 'critical'
-  if (percentage >= 50) return 'warning'
-  return 'normal'
 })
 
 function handleClick() {

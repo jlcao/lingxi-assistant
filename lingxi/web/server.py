@@ -196,7 +196,8 @@ def chat():
     """聊天API"""
     try:
         data = request.get_json()
-        message = data.get('message', '')
+        # 同时支持 content 和 message 字段
+        message = data.get('content', data.get('message', ''))
         session_id = data.get('session_id', 'default')
         
         if not message:

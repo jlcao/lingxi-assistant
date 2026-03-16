@@ -27,7 +27,6 @@ import { InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
-import { resumeCheckpoint, deleteCheckpoint, getCheckpoints } from '@/api/checkpoints'
 
 const appStore = useAppStore()
 const { activeCheckpoints } = storeToRefs(appStore)
@@ -36,11 +35,18 @@ async function handleResume() {
   if (activeCheckpoints.value.length > 0) {
     const checkpoint = activeCheckpoints.value[0]
     try {
-      await resumeCheckpoint(checkpoint.sessionId)
+      await window.electronAPI.api.resumeCheckpoint(checkpoint.sessionId)
       ElMessage.success('任务已恢复')
       
       // 刷新 checkpoint 列表
-      await refreshCheckpoints()
+      const checkpoints = await window.electronAPI.api.getCheckpoints()
+      const formattedCheckpoints = (checkpoints || []).map((cp: any) => ({
+        id: cp.session_id,
+        sessionId: cp.session_id,
+        name: cp.state?.task || '未命名任务',
+        timestamp: cp.updated_at || Date.now()
+      }))
+      appStore.setCheckpoints(formattedCheckpoints)
     } catch (error) {
       console.error('Failed to resume checkpoint:', error)
       ElMessage.error('恢复任务失败')
@@ -52,30 +58,22 @@ async function handleDismiss() {
   if (activeCheckpoints.value.length > 0) {
     const checkpoint = activeCheckpoints.value[0]
     try {
-      await deleteCheckpoint(checkpoint.sessionId)
+      await window.electronAPI.api.deleteCheckpoint(checkpoint.sessionId)
       ElMessage.success('已忽略该任务')
       
       // 刷新 checkpoint 列表
-      await refreshCheckpoints()
+      const checkpoints = await window.electronAPI.api.getCheckpoints()
+      const formattedCheckpoints = (checkpoints || []).map((cp: any) => ({
+        id: cp.session_id,
+        sessionId: cp.session_id,
+        name: cp.state?.task || '未命名任务',
+        timestamp: cp.updated_at || Date.now()
+      }))
+      appStore.setCheckpoints(formattedCheckpoints)
     } catch (error) {
       console.error('Failed to delete checkpoint:', error)
       ElMessage.error('忽略任务失败')
     }
-  }
-}
-
-async function refreshCheckpoints() {
-  try {
-    const checkpoints = await getCheckpoints()
-    const formattedCheckpoints = checkpoints.map((cp: any) => ({
-      id: cp.session_id,
-      sessionId: cp.session_id,
-      name: cp.task || '未命名任务',
-      timestamp: cp.updated_at || Date.now()
-    }))
-    appStore.setCheckpoints(formattedCheckpoints)
-  } catch (error) {
-    console.error('Failed to refresh checkpoints:', error)
   }
 }
 </script>

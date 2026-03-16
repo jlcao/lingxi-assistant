@@ -13,8 +13,8 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from lingxi.utils.config import load_config
-from lingxi.core.async_llm_client import AsyncLLMClient
-from lingxi.core.engine.async_react_core import AsyncReActCore
+from lingxi.core.llm import AsyncLLMClient
+from lingxi.core.engine import AsyncReActCore
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.session import SessionManager
 

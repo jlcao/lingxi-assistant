@@ -42,7 +42,7 @@ app.include_router(checkpoints.router, prefix="/api", tags=["checkpoints"])
 app.include_router(skills.router, prefix="/api", tags=["skills"])
 app.include_router(config_router.router, prefix="/api", tags=["config"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
-app.include_router(workspace.router, tags=["workspace"])
+app.include_router(workspace.router, prefix="/api", tags=["workspace"])
 app.include_router(chat.router)
 
 # 可选的 resources 路由（如果 psutil 可用）
@@ -188,6 +188,9 @@ def run_server(config=None):
             def writable(self):
                 return True
             def seekable(self):
+                return False
+            @property
+            def closed(self):
                 return False
         
         sys.stdout = SafeStream()

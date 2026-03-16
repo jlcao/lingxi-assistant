@@ -11,9 +11,10 @@ from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.context import TaskContext
 from lingxi.core.llm.async_llm_client import AsyncLLMClient
+from .base import BaseEngine
 
 
-class AsyncReActCore:
+class AsyncReActCore(BaseEngine):
     """异步 ReAct 引擎核心逻辑"""
 
     def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager=None, websocket_manager=None):
@@ -25,10 +26,7 @@ class AsyncReActCore:
             session_manager: 会话管理器
             websocket_manager: WebSocket 管理器
         """
-        self.config = config
-        self.skill_caller = skill_caller
-        self.session_manager = session_manager
-        self.websocket_manager = websocket_manager
+        super().__init__(config, skill_caller, session_manager, websocket_manager)
 
         self.max_steps = int(config.get("engine", {}).get("max_steps", 10))
         self.timeout = int(config.get("engine", {}).get("timeout", 60))

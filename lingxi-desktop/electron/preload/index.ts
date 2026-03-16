@@ -1,62 +1,79 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
-/**
- * Preload 脚本 - 暴露必要的 Electron API 给渲染进程
- * 
- * 注意：仅暴露最小必要的 API，业务逻辑应在渲染进程中实现
- */
+const electronAPI = {
+  window: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    toggle: () => ipcRenderer.invoke('window:toggle'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+    edgeCheck: () => ipcRenderer.invoke('window:edge-check')
+  },
 
-// 窗口管理 API
-const windowAPI = {
-  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
-  maximizeWindow: () => ipcRenderer.invoke('window:maximize'),
-  closeWindow: () => ipcRenderer.invoke('window:close')
-}
-
-// 文件对话框 API
-const dialogAPI = {
-  showOpenDialog: (options: any) => 
-    ipcRenderer.invoke('dialog:open', options),
-  showSaveDialog: (options: any) => 
-    ipcRenderer.invoke('dialog:save', options)
-}
-
-// 系统信息 API
-const systemAPI = {
-  getPlatform: () => process.platform,
-  getVersion: () => ipcRenderer.invoke('app:getVersion')
-}
-
-// 暴露到全局 window 对象
-contextBridge.exposeInMainWorld('electronAPI', {
-  // 窗口管理
-  minimizeWindow: windowAPI.minimizeWindow,
-  maximizeWindow: windowAPI.maximizeWindow,
-  closeWindow: windowAPI.closeWindow,
-  
-  // 文件对话框
-  showOpenDialog: dialogAPI.showOpenDialog,
-  showSaveDialog: dialogAPI.showSaveDialog,
-  
-  // 系统信息
-  getPlatform: systemAPI.getPlatform,
-  getVersion: systemAPI.getVersion,
-  
-  // 文件读写（仅必要时使用）
-  readFile: (filePath: string) => 
-    ipcRenderer.invoke('file:read', filePath),
-  writeFile: (filePath: string, content: string) => 
-    ipcRenderer.invoke('file:write', { filePath, content }),
-  
-  // 文件管理
   file: {
-    selectDirectory: () => ipcRenderer.invoke('file:selectDirectory'),
-    selectFiles: (filters: any) => ipcRenderer.invoke('file:selectFiles', filters),
-    openFile: (filePath: string) => ipcRenderer.invoke('file:openFile', filePath),
-    openExplorer: (filePath: string) => ipcRenderer.invoke('file:openExplorer', filePath),
-    readDirectoryTree: (dirPath: string, maxDepth: number) => ipcRenderer.invoke('file:readDirectoryTree', dirPath, maxDepth)
-  }
-})
+    select: (filters?: any) => ipcRenderer.invoke('file:select', filters),
+    selectDirectory: () => ipcRenderer.invoke('file:select-directory'),
+    selectFiles: (filters?: any) => ipcRenderer.invoke('file:select-files', filters),
+    save: (defaultPath?: string, filters?: any) => ipcRenderer.invoke('file:save', defaultPath, filters),
+    openExplorer: (filePath: string) => ipcRenderer.invoke('file:open-explorer', filePath),
+    openFile: (filePath: string) => ipcRenderer.invoke('file:open-file', filePath),
+    readDirectoryTree: (dirPath: string, maxDepth?: number) => ipcRenderer.invoke('file:read-directory-tree', dirPath, maxDepth)
+  },
 
-// 类型声明
-export type ElectronAPI = typeof window.electronAPI
+  api: {
+    getSessions: () => ipcRenderer.invoke('api:get-sessions'),
+    getSessionHistory: (sessionId: string, maxTurns?: number) => ipcRenderer.invoke('api:get-session-history', sessionId, maxTurns),
+    createSession: (userName?: string) => ipcRenderer.invoke('api:create-session', userName),
+    deleteSession: (sessionId: string) => ipcRenderer.invoke('api:delete-session', sessionId),
+    updateSessionName: (sessionId: string, name: string) => ipcRenderer.invoke('api:update-session-name', sessionId, name),
+    clearSessionHistory: (sessionId: string) => ipcRenderer.invoke('api:clear-session-history', sessionId),
+    executeTask: (task: string, sessionId: string, modelOverride?: string) => ipcRenderer.invoke('api:execute-task', task, sessionId, modelOverride),
+    getTaskStatus: (executionId: string) => ipcRenderer.invoke('api:get-task-status', executionId),
+    retryTask: (executionId: string, stepIndex?: number, userInput?: string) => ipcRenderer.invoke('api:retry-task', executionId, stepIndex, userInput),
+    cancelTask: (executionId: string) => ipcRenderer.invoke('api:cancel-task', executionId),
+    getCheckpoints: () => ipcRenderer.invoke('api:get-checkpoints'),
+    resumeCheckpoint: (sessionId: string) => ipcRenderer.invoke('api:resume-checkpoint', sessionId),
+    deleteCheckpoint: (sessionId: string) => ipcRenderer.invoke('api:delete-checkpoint', sessionId),
+    getSkills: () => ipcRenderer.invoke('api:get-skills'),
+    installSkill: (skillData: any, skillFiles: Record<string, string>) => ipcRenderer.invoke('api:install-skill', skillData, skillFiles),
+    diagnoseSkill: (skillId: string) => ipcRenderer.invoke('api:diagnose-skill', skillId),
+    reloadSkill: (skillId: string) => ipcRenderer.invoke('api:reload-skill', skillId),
+    getResourceUsage: () => ipcRenderer.invoke('api:get-resource-usage'),
+    getConfig: () => ipcRenderer.invoke('api:get-config'),
+    updateConfig: (config: any) => ipcRenderer.invoke('api:update-config', config),
+    getSessionInfo: (sessionId: string) => ipcRenderer.invoke('api:get-session-info', sessionId),
+    getWorkspaceSessions: (workspacePath?: string) => ipcRenderer.invoke('api:get-workspace-sessions', workspacePath)
+  },
+
+  workspace: {
+    getCurrent: () => ipcRenderer.invoke('workspace:get-current'),
+    switch: (workspacePath: string, force?: boolean) => ipcRenderer.invoke('workspace:switch', workspacePath, force),
+    initialize: (workspacePath?: string) => ipcRenderer.invoke('workspace:initialize', workspacePath),
+    validate: (workspacePath: string) => ipcRenderer.invoke('workspace:validate', workspacePath)
+  },
+
+  ws: {
+    connect: (sessionId?: string) => ipcRenderer.invoke('ws:connect', sessionId),
+    disconnect: () => ipcRenderer.invoke('ws:disconnect'),
+    isConnected: () => ipcRenderer.invoke('ws:is-connected'),
+    sendMessage: (message: string, sessionId?: string) => ipcRenderer.invoke('ws:send-message', message, sessionId),
+    onConnected: (callback: () => void) => ipcRenderer.on('ws:connected', callback),
+    onDisconnected: (callback: () => void) => ipcRenderer.on('ws:disconnected', callback),
+    onThoughtChain: (callback: (data: any) => void) => ipcRenderer.on('ws:thought-chain', (_, data) => callback(data)),
+    onStepStart: (callback: (data: any) => void) => ipcRenderer.on('ws:step-start', (_, data) => callback(data)),
+    onStepEnd: (callback: (data: any) => void) => ipcRenderer.on('ws:step-end', (_, data) => callback(data)),
+    onTaskStart: (callback: (data: any) => void) => ipcRenderer.on('ws:task-start', (_, data) => callback(data)),
+    onTaskEnd: (callback: (data: any) => void) => ipcRenderer.on('ws:task-end', (_, data) => callback(data)),
+    onTaskFailed: (callback: (data: any) => void) => ipcRenderer.on('ws:task-failed', (_, data) => callback(data)),
+    onThinkStart: (callback: (data: any) => void) => ipcRenderer.on('ws:think-start', (_, data) => callback(data)),
+    onThinkStream: (callback: (data: any) => void) => ipcRenderer.on('ws:think-stream', (_, data) => callback(data)),
+    onThinkFinal: (callback: (data: any) => void) => ipcRenderer.on('ws:think-final', (_, data) => callback(data)),
+    onPlanStart: (callback: (data: any) => void) => ipcRenderer.on('ws:plan-start', (_, data) => callback(data)),
+    onPlanFinal: (callback: (data: any) => void) => ipcRenderer.on('ws:plan-final', (_, data) => callback(data)),
+    onWorkspaceFilesChanged: (callback: (data: any) => void) => ipcRenderer.on('ws:workspace-files-changed', (_, data) => callback(data)),
+    removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel)
+  }
+}
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI)
+
+export type ElectronAPI = typeof electronAPI

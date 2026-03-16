@@ -1,8 +1,6 @@
 import type { FileChange, WorkspaceFilesChangedEvent, WorkspaceInfo } from '@/types'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { getCurrentWorkspace, switchWorkspace as switchWorkspaceApi, initializeWorkspace as initializeWorkspaceApi } from '@/api/workspace'
-import { getSkills } from '@/api/skills'
 
 const DEBOUNCE_MS = 500
 const MIN_REFRESH_INTERVAL = 1000
@@ -37,8 +35,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   async function loadCurrentWorkspace() {
     try {
       console.log('[WorkspaceStore] loadCurrentWorkspace called')
-      const workspaceInfo = await getCurrentWorkspace()
-      currentWorkspace.value = workspaceInfo
+      const result = await window.electronAPI.workspace.getCurrent()
+      console.log('[WorkspaceStore] loadCurrentWorkspace result:', result)
+      currentWorkspace.value = result
       await loadWorkspaceSkills()
     } catch (error) {
       console.error('[WorkspaceStore] 加载工作目录失败:', error)
@@ -47,7 +46,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   async function loadWorkspaceSkills() {
     try {
-      const skills = await getSkills()
+      const skills = await window.electronAPI.api.getSkills()
       workspaceSkillsCount.value = (skills || []).filter(
         skill => skill.source === 'workspace'
       ).length
@@ -74,54 +73,52 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function switchWorkspace(path: string, force = false) {
-    try {
-      const result = await switchWorkspaceApi(path, force)
-      if (result.success) {
-        await loadCurrentWorkspace()
-        await reloadSessions()
-      }
-      return result
-    } catch (error) {
-      console.error('切换工作区失败:', error)
-      return { success: false, error: (error as Error).message }
+    const result = await window.electronAPI.workspace.switch(path, force)
+    if (result.success) {
+      await loadCurrentWorkspace()
+      await reloadSessions()
     }
+    return result
   }
 
   async function reloadSessions() {
     try {
-      // 使用 sessionStore 加载会话列表
-      const { useSessionStore } = await import('@/stores/session')
-      const sessionStore = useSessionStore()
-      await sessionStore.loadSessions()
+      // 使用工作目录特定的 API 获取会话列表
+      const currentPath = currentWorkspace.value?.workspace
+      const sessionsResult = currentPath 
+        ? await window.electronAPI.api.getWorkspaceSessions(currentPath)
+        : await window.electronAPI.api.getSessions()
       
+      // 处理返回结果
+      const sessions = sessionsResult.sessions || (sessionsResult as any[])
+      const formattedSessions = (sessions || []).map((session: any) => ({
+        id: session.session_id || session.id,
+        name: session.title || session.name || '新会话',
+        createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
+        updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
+      }))
+
       const { useAppStore } = await import('@/stores/app')
       const appStore = useAppStore()
-      appStore.setSessions(sessionStore.sessions)
+      appStore.setSessions(formattedSessions)
 
-      if (sessionStore.sessions.length > 0) {
-        appStore.setCurrentSession(sessionStore.sessions[0].id)
+      if (formattedSessions && formattedSessions.length > 0) {
+        appStore.setCurrentSession(formattedSessions[0].id)
       } else {
         appStore.setCurrentSession(null)
         appStore.setTurns([])
       }
 
-      console.log(`工作区切换完成，已加载 ${sessionStore.sessions.length} 个会话`)
+      console.log(`工作区切换完成，已加载 ${formattedSessions.length} 个会话`)
     } catch (error) {
       console.error('重新加载会话失败:', error)
     }
   }
 
   async function initializeWorkspace(path?: string) {
-    try {
-      const result = await initializeWorkspaceApi(path)
-      if (result.success) {
-        await loadCurrentWorkspace()
-      }
-      return result
-    } catch (error) {
-      console.error('初始化工作区失败:', error)
-      return { success: false, error: (error as Error).message }
-    }
+    const result = await window.electronAPI.workspace.initialize(path)
+    await loadCurrentWorkspace()
+    return result
   }
 
   function setDirectoryTreeRefreshCallback(callback: () => void) {
@@ -168,8 +165,9 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function setupFileChangeListener() {
-    // WebSocket 连接将由前端直接与后端建立
-    // 暂时保留空函数，以便未来实现前端 WebSocket 连接
+    window.electronAPI.ws.onWorkspaceFilesChanged((data: WorkspaceFilesChangedEvent) => {
+      handleWorkspaceFilesChanged(data)
+    })
     console.log('[Workspace] 文件变动监听器已设置')
   }
 

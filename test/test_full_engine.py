@@ -13,7 +13,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from lingxi.utils.config import load_config
-from lingxi.core.async_main import AsyncLingxiAssistant
+from lingxi.core.assistant import AsyncLingxiAssistant
 
 
 async def test_full_engine():

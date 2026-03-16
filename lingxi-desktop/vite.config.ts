@@ -50,21 +50,6 @@ export default defineConfig({
       }
     }
   },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          // 分离 vendor 代码
-          vendor: ['vue', 'pinia', 'vue-router', 'axios'],
-          // 分离 Element Plus
-          element: ['element-plus'],
-          // 分离 Electron 适配层
-          electron: ['./src/utils/electron']
-        }
-      }
-    },
-    chunkSizeWarningLimit: 1000
-  },
   server: {
     port: 5173,
     strictPort: true

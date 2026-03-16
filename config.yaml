@@ -33,7 +33,7 @@ execution_mode:
     max_tokens: 1000
     name: direct
 llm:
-  api_key: ''
+  api_key: your-dashscope-api-key-here
   base_url: https://coding.dashscope.aliyuncs.com/v1
   default_model: kimi-k2.5
   max_tokens: 32000
@@ -95,12 +95,6 @@ system:
   description: 个人智能助手
   name: 灵犀
   version: 0.2.0
-# 任务分类功能已废弃 - 2026-03-15
-# 统一使用 simple 级别，不再进行任务分级
-# task_classification:
-#   fallback_to_rule: true
-#   llm_confidence_threshold: 0.7
-#   strategy: llm_first
 web:
   cors:
     allow_credentials: true
@@ -121,4 +115,4 @@ web:
     ping_interval: 20
     ping_timeout: 30
 workspace:
-  last_workspace: D:\resource\python\lingxi\workspace
+  last_workspace: F:\work\workspace2

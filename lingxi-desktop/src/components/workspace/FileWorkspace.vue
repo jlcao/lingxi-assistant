@@ -21,9 +21,10 @@
         :expand-on-click-node="false"
         class="file-tree"
         @node-contextmenu="handleNodeContextMenu"
+        @node-dblclick="handleNodeDblClick"
       >
         <template #default="{ node, data }">
-          <div class="file-tree-node" @dblclick.stop="handleNodeDblClick(data)">
+          <div class="file-tree-node">
             <span class="file-icon">
               <svg v-if="data.isDirectory" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon folder-icon" :class="{ 'folder-open': node.expanded }">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
@@ -83,8 +84,6 @@
 <script setup lang="ts">
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { openFile, listDirectory } from '@/api/file'
-import { electronAPI } from '@/utils/electron'
 import { FolderOpened, Loading } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
@@ -138,29 +137,15 @@ async function loadDirectoryTree(dirPath: string) {
   console.log('[FileWorkspace] loadDirectoryTree called with:', dirPath)
   loading.value = true
   try {
-    // 优先使用 Electron API 读取目录树（如果有）
-    if (window.electronAPI?.file?.readDirectoryTree) {
-      const treeData = await window.electronAPI.file.readDirectoryTree(dirPath, 3)
-      console.log('[FileWorkspace] readDirectoryTree result:', treeData)
-      if (treeData) {
-        fileTree.value = [treeData]
-        defaultExpandedKeys.value = [treeData.id]
-        console.log('[FileWorkspace] Directory tree loaded successfully, nodes:', fileTree.value.length)
-      } else {
-        fileTree.value = []
-        console.log('[FileWorkspace] Directory tree is empty')
-      }
+    const treeData = await window.electronAPI.file.readDirectoryTree(dirPath, 3)
+    console.log('[FileWorkspace] readDirectoryTree result:', treeData)
+    if (treeData) {
+      fileTree.value = [treeData]
+      defaultExpandedKeys.value = [treeData.id]
+      console.log('[FileWorkspace] Directory tree loaded successfully, nodes:', fileTree.value.length)
     } else {
-      // Web 环境下使用 API 列出目录
-      const files = await listDirectory(dirPath)
-      fileTree.value = files.map((file, index) => ({
-        id: `${file.path}-${index}`,
-        label: file.name,
-        path: file.path,
-        isDirectory: file.type === 'directory',
-        children: []
-      }))
-      console.log('[FileWorkspace] Directory loaded via API, nodes:', fileTree.value.length)
+      fileTree.value = []
+      console.log('[FileWorkspace] Directory tree is empty')
     }
   } catch (error) {
     console.error('[FileWorkspace] Failed to load directory tree:', error)
@@ -171,9 +156,9 @@ async function loadDirectoryTree(dirPath: string) {
 }
 
 function refreshTree() {
-  if (currentWorkspace.value && currentWorkspace.value.workspace) {
-    console.log('[FileWorkspace] 刷新目录树:', currentWorkspace.value.workspace)
-    loadDirectoryTree(currentWorkspace.value.workspace)
+  if (workspacePath.value) {
+    console.log('[FileWorkspace] 刷新目录树:', workspacePath.value)
+    loadDirectoryTree(workspacePath.value)
   }
 }
 
@@ -194,14 +179,7 @@ async function handleNodeDblClick(data: TreeNode) {
   // 只对文件执行双击打开操作，目录不处理
   if (!data.isDirectory) {
     try {
-      // 使用 Electron 适配层打开文件
-      if (electronAPI.isElectron()) {
-        await window.electronAPI.file.openFile(data.path)
-      } else {
-        // Web 环境下读取文件内容
-        const content = await openFile(data.path)
-        console.log('File content:', content)
-      }
+      await window.electronAPI.file.openFile(data.path)
     } catch (error) {
       console.error('Failed to open file:', error)
     }
@@ -214,10 +192,7 @@ async function handleContextMenuCommand(command: string) {
   switch (command) {
     case 'openInExplorer':
       try {
-        // 在Electron环境下打开文件资源管理器
-        if (electronAPI.isElectron()) {
-          await window.electronAPI.file.openExplorer(selectedNode.value.path)
-        }
+        await window.electronAPI.file.openExplorer(selectedNode.value.path)
       } catch (error) {
         console.error('Failed to open in explorer:', error)
       }
@@ -236,16 +211,10 @@ function handleContextMenuVisibleChange(visible: boolean) {
   }
 }
 
-onMounted(async () => {
+onMounted(() => {
   console.log('[FileWorkspace] onMounted called')
   workspaceStore.setDirectoryTreeRefreshCallback(refreshTree)
   workspaceStore.setupFileChangeListener()
-  
-  // 初始加载目录树
-  if (currentWorkspace.value && currentWorkspace.value.workspace) {
-    console.log('[FileWorkspace] Initial load directory tree:', currentWorkspace.value.workspace)
-    await loadDirectoryTree(currentWorkspace.value.workspace)
-  }
 })
 
 onUnmounted(() => {

@@ -94,20 +94,34 @@ async function handleFolder() {
     const selectedPath = await window.electronAPI.file.selectDirectory()
     
     if (selectedPath) {
-      // 询问用户是否切换到此工作目录
-      const confirmSwitch = confirm(
-        `是否切换到以下工作目录？\n\n${selectedPath}`
-      )
+      // 验证工作目录
+      const validationResult = await window.electronAPI.workspace.validate(selectedPath)
       
-      if (confirmSwitch) {
-        // 使用 workspaceStore 切换工作区
-        const switchResult = await workspaceStore.switchWorkspace(selectedPath, false)
+      // 检查验证结果
+      if (!validationResult) {
+        throw new Error('验证返回数据为空')
+      }
+      
+      if (validationResult.valid) {
+        // 询问用户是否切换到此工作目录
+        const confirmSwitch = confirm(
+          `是否切换到以下工作目录？\n\n${selectedPath}\n\n状态：${validationResult.message}`
+        )
         
-        if (switchResult.success) {
-          ElMessage.success('工作目录切换成功')
-        } else {
-          ElMessage.error('切换失败：' + (switchResult.error || '未知错误'))
+        if (confirmSwitch) {
+          // 调用后台切换工作区接口
+          const switchResult = await window.electronAPI.workspace.switch(selectedPath, false)
+          
+          if (switchResult && switchResult.success) {
+            ElMessage.success('工作目录切换成功')
+            // 重新加载工作区信息
+            await workspaceStore.loadCurrentWorkspace()
+          } else {
+            ElMessage.error('切换失败：' + (switchResult?.error || '未知错误'))
+          }
         }
+      } else {
+        ElMessage.warning('该目录不是有效的工作目录：' + validationResult.message)
       }
     }
   } catch (error) {

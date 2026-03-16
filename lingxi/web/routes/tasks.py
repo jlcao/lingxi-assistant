@@ -80,7 +80,7 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
             "updated_at": time.time()
         }
 
-        response = assistant.process_input(request.task, request.session_id)
+        response = await assistant.process_input(request.task, request.session_id)
 
         task_info.update({
             "status": "completed",
