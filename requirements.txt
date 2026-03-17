@@ -3,6 +3,7 @@ requests>=2.31.0
 openai>=1.0.0
 html2text>=2020.1.16
 trafilatura>=2.0.0
+chardet>=5.0.0
 
 # Web Dependencies
 fastapi>=0.104.0

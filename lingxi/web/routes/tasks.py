@@ -65,8 +65,10 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
         if not request.task:
             raise HTTPException(status_code=400, detail="任务内容不能为空")
 
-        task_level = assistant.classifier.classify(request.task).get("level", "simple")
-        model = request.model_override or assistant.classifier.llm_client.select_model(task_level)
+        # 移除任务分级，统一使用 simple 级别
+        # task_level = assistant.classifier.classify(request.task).get("level", "simple")
+        task_level = "simple"  # 默认级别
+        model = request.model_override or assistant.config.get("llm", {}).get("model", "qwen3.5-plus")
 
         task_info = {
             "execution_id": execution_id,
@@ -78,7 +80,7 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
             "updated_at": time.time()
         }
 
-        response = assistant.process_input(request.task, request.session_id)
+        response = await assistant.process_input(request.task, request.session_id)
 
         task_info.update({
             "status": "completed",

@@ -4,6 +4,9 @@ import logging.handlers
 from typing import Dict, Any
 from lingxi.utils.log_filters import WebSocketDisconnectFilter, QuietExceptionFilter
 
+# 跟踪日志系统是否已经初始化
+_logging_initialized = False
+
 
 def setup_logging(config: Dict[str, Any] = None):
     """设置日志
@@ -11,6 +14,12 @@ def setup_logging(config: Dict[str, Any] = None):
     Args:
         config: 系统配置
     """
+    global _logging_initialized
+    
+    # 如果已经初始化过，直接返回
+    if _logging_initialized:
+        return
+    
     if not config:
         from lingxi.utils.config import get_config
         config = get_config()
@@ -36,7 +45,9 @@ def setup_logging(config: Dict[str, Any] = None):
     # 清除现有处理器
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-        handler.close()
+        # 不要关闭 StreamHandler，因为它可能使用 sys.stdout 或 sys.stderr
+        if not isinstance(handler, logging.StreamHandler):
+            handler.close()
     
     # 创建自定义过滤器
     quiet_exception_filter = QuietExceptionFilter()
@@ -111,6 +122,9 @@ def setup_logging(config: Dict[str, Any] = None):
     root_logger.info(f"日志级别: {log_level}")
     root_logger.info(f"日志文件: {log_file}")
     root_logger.debug(f"DEBUG 日志文件: {os.path.join(os.path.dirname(log_file), 'debug.log')}")
+    
+    # 标记日志系统已经初始化
+    _logging_initialized = True
 
 def _configure_third_party_logs(config: Dict[str, Any]):
     """配置第三方库日志

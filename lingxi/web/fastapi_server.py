@@ -3,10 +3,14 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
-from lingxi.web.routes import tasks, checkpoints, skills, config as config_router, sessions, workspace
+from lingxi.utils.uvicorn_logging_fix import patch_uvicorn_logging
+from lingxi.web.routes import tasks, checkpoints, skills, config as config_router, sessions, workspace, chat
 from lingxi.web.state import set_assistant, get_assistant, get_websocket_manager
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 from lingxi.core.assistant.async_main import AsyncLingxiAssistant
+
+# 补丁 Uvicorn 日志系统，处理 stdout 关闭的情况
+patch_uvicorn_logging()
 
 def get_config():
     """获取配置
@@ -39,6 +43,7 @@ app.include_router(skills.router, prefix="/api", tags=["skills"])
 app.include_router(config_router.router, prefix="/api", tags=["config"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(workspace.router, prefix="/api", tags=["workspace"])
+app.include_router(chat.router)
 
 # 可选的 resources 路由（如果 psutil 可用）
 try:
@@ -159,12 +164,48 @@ def run_server(config=None):
     logger.info(f"启动FastAPI服务器: http://{host}:{port}")
 
     # 直接传递app实例，避免模块重复导入导致的启动事件重复触发
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        reload=web_config.get('debug', False)
-    )
+    import sys
+    
+    # 保存原始的 stdout 和 stderr
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    
+    try:
+        # 临时替换 stdout 和 stderr 为安全的对象，避免 Uvicorn 访问已关闭的流
+        class SafeStream:
+            def isatty(self):
+                return False
+            def write(self, data):
+                pass
+            def flush(self):
+                pass
+            def close(self):
+                pass
+            def fileno(self):
+                return -1
+            def readable(self):
+                return False
+            def writable(self):
+                return True
+            def seekable(self):
+                return False
+            @property
+            def closed(self):
+                return False
+        
+        sys.stdout = SafeStream()
+        sys.stderr = SafeStream()
+        
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            reload=web_config.get('debug', False)
+        )
+    finally:
+        # 恢复原始的 stdout 和 stderr
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
 
 
 if __name__ == '__main__':

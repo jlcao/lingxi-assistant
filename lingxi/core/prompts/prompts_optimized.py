@@ -185,7 +185,8 @@ class PromptTemplates:
             if step.get('observation'):
                 # 压缩观察：只保留前100字符
                 short_obs = step.get('observation')[:100] + "..." if len(step.get('observation', '')) > 100 else step.get('observation')
-                formatted += f"观察: {short_obs.replace('\n', '\\n')}\n"
+                obs_clean = short_obs.replace('\n', '\\n')
+                formatted += f"观察：{obs_clean}\n"
             formatted += "\n"
         return formatted
 

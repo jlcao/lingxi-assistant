@@ -8,8 +8,10 @@ from abc import ABC, abstractmethod
 
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
-from lingxi.core.classification import TaskClassifier
-from lingxi.core.execution import ExecutionModeSelector
+# 执行模式选择器已废弃 - 2026-03-15
+# from lingxi.core.execution import ExecutionModeSelector
+# 任务分类功能已移除 - 2026-03-15
+# from lingxi.core.classification import TaskClassifier
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.event.console_subscriber import ConsoleSubscriber
 from lingxi.core.context import TaskContext
@@ -48,9 +50,13 @@ class BaseAssistant(ABC):
 
         from lingxi.core.session import SessionManager
         self.session_manager = SessionManager(self.config)
-        self.classifier = TaskClassifier(self.config)
+        # 任务分类功能已移除 - 2026-03-15
+        # self.classifier = TaskClassifier(self.config)
+        self.classifier = None  # 保留字段避免引用错误
+        # 执行模式选择器已废弃 - 2026-03-15
+        # self.mode_selector = ExecutionModeSelector(self.config, self.skill_caller)
+        self.mode_selector = None  # 保留字段避免引用错误
         self.skill_caller = SkillCaller(self.config)
-        self.mode_selector = ExecutionModeSelector(self.config, self.skill_caller)
         self.console_subscriber = ConsoleSubscriber()
         
         # 延迟初始化 SessionStoreSubscriber，避免循环依赖

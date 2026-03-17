@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Any
 from lingxi.skills.registry import SkillRegistry
 from lingxi.skills.registry_memory import SkillRegistry as SkillRegistryMemory
 from lingxi.skills.skill_loader import SkillLoader
+from lingxi.skills.skill_cache import SkillCache
 
 
 class BuiltinSkills:
@@ -40,8 +41,14 @@ class BuiltinSkills:
             self.logger.debug("使用SQLite数据库注册表")
             self.registry = SkillRegistry(config)
 
+
+        # 初始化缓存
+        cache_ttl = skills_config.get("cache_ttl", 300)
+        self.cache = SkillCache(ttl=cache_ttl)
+        self.logger.debug(f"技能缓存已初始化，TTL={cache_ttl}秒")
+
         # 初始化技能加载器
-        self.skill_loader = SkillLoader(config)
+        self.skill_loader = SkillLoader(config, self.registry, self.cache)
 
         # 扫描并自动注册所有MCP格式技能
         self.skill_loader.scan_and_register(self.registry)

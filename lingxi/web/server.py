@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
 from lingxi.core.session import SessionManager
 from lingxi.utils.config import get_config
@@ -195,7 +196,8 @@ def chat():
     """聊天API"""
     try:
         data = request.get_json()
-        message = data.get('message', '')
+        # 同时支持 content 和 message 字段
+        message = data.get('content', data.get('message', ''))
         session_id = data.get('session_id', 'default')
         
         if not message:
@@ -289,6 +291,136 @@ def delete_session(session_id):
         return jsonify({'session_id': session_id})
     except Exception as e:
         logger.error(f"删除会话失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# 工作区管理API
+@app.route('/workspace/current', methods=['GET'])
+def get_current_workspace():
+    """获取当前工作区"""
+    try:
+        workspace_path = session_manager.workspace_path if hasattr(session_manager, 'workspace_path') else None
+        lingxi_dir = session_manager.workspace_path if hasattr(session_manager, 'workspace_path') else None
+        return jsonify({
+            'workspace': workspace_path,
+            'lingxi_dir': lingxi_dir,
+            'is_initialized': True
+        })
+    except Exception as e:
+        logger.error(f"获取当前工作区失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/workspace/switch', methods=['POST'])
+def switch_workspace():
+    """切换工作区"""
+    try:
+        data = request.get_json()
+        workspace_path = data.get('workspace_path')
+        force = data.get('force', False)
+        
+        if not workspace_path:
+            return jsonify({'error': '缺少工作区路径'}), 400
+        
+        # 调用会话管理器的切换工作区方法
+        if hasattr(session_manager, 'switch_workspace'):
+            session_manager.switch_workspace(workspace_path)
+        
+        # 切换数据库路径
+        import os
+        db_path = os.path.join(workspace_path, 'data', 'assistant.db')
+        if hasattr(session_manager, 'update_db_path'):
+            session_manager.update_db_path(db_path)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'previous_workspace': session_manager.workspace_path if hasattr(session_manager, 'workspace_path') else None,
+                'current_workspace': workspace_path,
+                'lingxi_dir': workspace_path,
+                'switched_at': datetime.now().isoformat()
+            }
+        })
+    except Exception as e:
+        logger.error(f"切换工作区失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/workspace/initialize', methods=['POST'])
+def initialize_workspace():
+    """初始化工作区"""
+    try:
+        data = request.get_json()
+        workspace_path = data.get('workspace_path')
+        
+        if not workspace_path:
+            return jsonify({'error': '缺少工作区路径'}), 400
+        
+        # 确保工作区目录存在
+        import os
+        os.makedirs(workspace_path, exist_ok=True)
+        
+        # 确保数据目录存在
+        data_dir = os.path.join(workspace_path, 'data')
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # 调用会话管理器的切换工作区方法
+        if hasattr(session_manager, 'switch_workspace'):
+            session_manager.switch_workspace(workspace_path)
+        
+        # 更新数据库路径
+        db_path = os.path.join(data_dir, 'assistant.db')
+        if hasattr(session_manager, 'update_db_path'):
+            session_manager.update_db_path(db_path)
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'workspace': workspace_path,
+                'lingxi_dir': workspace_path
+            }
+        })
+    except Exception as e:
+        logger.error(f"初始化工作区失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/workspace/validate', methods=['GET'])
+def validate_workspace():
+    """验证工作区"""
+    try:
+        workspace_path = request.args.get('workspace_path')
+        
+        if not workspace_path:
+            return jsonify({'error': '缺少工作区路径'}), 400
+        
+        import os
+        exists = os.path.exists(workspace_path)
+        has_lingxi_dir = os.path.exists(os.path.join(workspace_path, 'lingxi'))
+        
+        return jsonify({
+            'valid': exists,
+            'exists': exists,
+            'has_lingxi_dir': has_lingxi_dir,
+            'message': '工作区路径有效' if exists else '工作区路径不存在'
+        })
+    except Exception as e:
+        logger.error(f"验证工作区失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/workspace/sessions', methods=['GET'])
+def get_workspace_sessions():
+    """获取工作区会话"""
+    try:
+        workspace_path = request.args.get('workspace_path')
+        
+        # 调用会话管理器的列表会话方法
+        sessions = []
+        if hasattr(session_manager, 'list_all_sessions'):
+            sessions = session_manager.list_all_sessions(workspace_path)
+        
+        return jsonify({
+            'success': True,
+            'sessions': sessions
+        })
+    except Exception as e:
+        logger.error(f"获取工作区会话失败: {e}")
         return jsonify({'error': str(e)}), 500
 
 # 启动函数

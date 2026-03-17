@@ -1,0 +1,118 @@
+context_management:
+  compression:
+    enable_llm_summary: true
+    preserve_entities: true
+    strategy: hybrid
+    summary_ratio: 0.3
+  long_term_memory:
+    enabled: true
+    retrieval_top_k: 5
+    storage: sqlite
+    vector_dim: 384
+  retention:
+    task_boundary_archive: true
+    tool_result_keep_turns: 5
+    user_input_keep_turns: 10
+  token_budget:
+    compression_trigger: 0.7
+    critical_threshold: 0.9
+    max_tokens: 8000
+execution_mode:
+  complex:
+    enable_replanning: true
+    max_loop_per_step: 5
+    max_plan_steps: 8
+    max_replan_count: 2
+    max_step_retries: 3
+    name: plan_react
+  simple:
+    max_loop_per_step: 3
+    max_plan_steps: 3
+    name: plan_react
+  trivial:
+    max_tokens: 1000
+    name: direct
+llm:
+  api_key: your-dashscope-api-key-here
+  base_url: https://coding.dashscope.aliyuncs.com/v1
+  default_model: kimi-k2.5
+  max_tokens: 32000
+  model: qwen3.5-plus
+  models:
+    complex:
+      max_tokens: 32000
+      model: kimi-k2.5
+      temperature: 0.7
+    simple:
+      max_tokens: 32000
+      model: kimi-k2.5
+      temperature: 0.7
+    trivial:
+      max_tokens: 32000
+      model: kimi-k2.5
+      temperature: 0.7
+  provider: openai
+  temperature: 0.7
+  timeout: 300
+logging:
+  backup_count: 5
+  file_path: logs/assistant.log
+  filters:
+    ignore_websocket_disconnect:
+      class: logging.Filter
+      level: INFO
+      message: WebSocket连接断开
+  format: '%(asctime)s - %(levelname)s - %(message)s'
+  level: INFO
+  max_file_size_mb: 10
+session:
+  checkpoint_ttl_hours: 24
+  db_path: data/assistant.db
+  max_history_turns: 50
+skill_call:
+  default_timeout: 30
+  retry_count: 1
+  verify_ssl: true
+skills:
+  builtin_skills:
+  - search
+  - calculator
+  - weather
+  - time
+  - date
+  - create_file
+  - delete_file
+  - execute_command
+  - modify_file
+  - fetch_webpage
+  - read_file
+  builtin_skills_dir: lingxi/skills/builtin
+  config_path: data/skills_config.json
+  registry_path: data/skills.db
+  use_memory_registry: true
+  user_skills_dir: .lingxi/skills
+system:
+  description: 个人智能助手
+  name: 灵犀
+  version: 0.2.0
+web:
+  cors:
+    allow_credentials: true
+    allow_headers:
+    - '*'
+    allow_methods:
+    - '*'
+    allow_origins:
+    - '*'
+    enabled: true
+  debug: false
+  host: localhost
+  port: 5000
+  websocket:
+    enabled: true
+    max_connections: 100
+    path: /ws
+    ping_interval: 20
+    ping_timeout: 30
+workspace:
+  last_workspace: D:\workspace\work2

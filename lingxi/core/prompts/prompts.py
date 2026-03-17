@@ -81,7 +81,7 @@ class PromptTemplates:
 
         context = ""
         for msg in session_history[-max_count:]:
-            context += f"用户:{msg.get("user_input", "")}\n助手:{msg.get("result", "")}\n"
+            context += f"用户:{msg.get('user_input', '')}\n助手:{msg.get('result', '')}\n"
         return context
 
     @staticmethod
@@ -119,16 +119,17 @@ class PromptTemplates:
             # 处理 action_input，可能是字符串或字典
             action_input = step.get('action_input', '')
             if isinstance(action_input, dict):
+                params_str = ', '.join([f"{k}={v}" for k, v in action_input.items()])
                 if is_last_step:
                     # 最后一步完整显示
-                    params_str = ', '.join([f"{k}={v}" for k, v in action_input.items()])
-                    formatted += f"行动: {step.get('action', '')} - {params_str.replace('\n', '\\n')}\n"
+                    params_str_escaped = params_str.replace('\n', '\\n')
+                    formatted += f"行动: {step.get('action', '')} - {params_str_escaped}\n"
                 else:
                     # 之前步骤截断显示
-                    params_str = ', '.join([f"{k}={v}" for k, v in action_input.items()])
                     if len(params_str) > max_prev_length:
                         params_str = params_str[:max_prev_length] + '...'
-                    formatted += f"行动: {step.get('action', '')} - {params_str.replace('\n', '\\n')}\n"
+                    params_str_escaped = params_str.replace('\n', '\\n')
+                    formatted += f"行动: {step.get('action', '')} - {params_str_escaped}\n"
             else:
                 if is_last_step:
                     # 最后一步完整显示
@@ -147,7 +148,8 @@ class PromptTemplates:
                     observation = observation[:max_prev_length] + ('...' if len(observation) > max_prev_length else '')
                 else:
                     observation = observation
-                formatted += f"观察: {observation.replace('\n', '\\n')}\n"
+                observation_escaped = observation.replace('\n', '\\n')
+                formatted += f"观察: {observation_escaped}\n"
             formatted += "\n"
         return formatted
 
@@ -215,7 +217,8 @@ class PromptTemplates:
         skills_list: str,
         steps: List[Dict[str, str]],
         system_info: Optional[Dict[str, str]] = None,
-        task_plan: str = None
+        task_plan: str = None,
+        soul_prompt: str = ""
     ) -> List[Dict[str, Any]]:
         """构建ReAct模式消息列表（支持上下文缓存）
 
@@ -240,7 +243,8 @@ class PromptTemplates:
 
         executed_steps = PromptTemplates.format_executed_steps(steps, include_thought=False, max_prev_length=5000)
 
-        system_prompt = f"""你是万能的灵犀智能助手，使用ReAct模式解决问题。
+        system_prompt = f"""你是灵犀智能助手。
+        {soul_prompt}
 
 系统环境: {system_info['os_info']}
 当前工作目录: {system_info['current_dir']}
@@ -250,7 +254,7 @@ Shell类型: {system_info['shell_type']}
 
 任务类型: {task_info.get('level', task_info.get('task_type', '未知'))}
 任务描述: {task_info.get('reason', task_info.get('description', '无'))}
-{task_plan if task_plan else ""}
+{task_plan if task_plan else ''}
 
 可用行动:
 {skills_list}
@@ -316,11 +320,12 @@ Action Input: {{"file_path": "test.txt"}}
         history_context: str,
         skills_list: str,
         system_info: Optional[Dict[str, str]] = None,
-        max_plan_steps: int = 8
+        max_plan_steps: int = 8,
+        soul_system_prompt: str = ""
     ) -> List[Dict[str, Any]]:
         """构建任务分析消息列表（支持上下文缓存）
 
-        统一分析任务并输出处理方案，一次LLM调用完成分类+计划+行动。
+        统一分析任务并输出处理方案，一次 LLM 调用完成分类 + 计划 + 行动。
         缓存策略：
         - 系统信息、工具列表等静态内容标记为缓存
         - 用户任务、历史上下文等动态内容不标记缓存
@@ -331,6 +336,7 @@ Action Input: {{"file_path": "test.txt"}}
             skills_list: 可用技能列表
             system_info: 系统信息（可选）
             max_plan_steps: 最大计划步骤数
+            soul_system_prompt: SOUL 系统提示词（可选）
 
         Returns:
             消息列表，支持 cache_control 标记
@@ -338,18 +344,21 @@ Action Input: {{"file_path": "test.txt"}}
         if system_info is None:
             system_info = PromptTemplates.get_system_info()
 
-        system_prompt = f"""你是灵犀智能助手，需要完成用户任务分类。
+        # 构建基础系统提示词
+        base_system_prompt = f"""你是灵犀智能助手
+
+        {soul_system_prompt}
   
-系统环境: {system_info['os_info']}
-当前工作目录: {system_info['current_dir']}
-Shell类型: {system_info['shell_type']}
-当前日期: {system_info['current_date']}
-当前时间: {system_info['current_time']}
+系统环境：{system_info['os_info']}
+当前工作目录：{system_info['current_dir']}
+Shell 类型：{system_info['shell_type']}
+当前日期：{system_info['current_date']}
+当前时间：{system_info['current_time']}
 
 可用工具:
 {skills_list}
 
-请严格按照以下JSON格式输出，不要包含任何其他文字：
+请严格按照以下 JSON 格式输出，不要包含任何其他文字：
 {{
   "thought": "你的思考过程",
   "level": "direct|simple|complex",
@@ -367,11 +376,13 @@ Shell类型: {system_info['shell_type']}
 - complex: 多步骤、多工具调用、需要规划（如：旅行规划、数据分析、多文件处理）
 
 注意事项：
-- 如果是simple任务，plan字段可以为空数组
-- 如果是complex任务，必须填写plan字段
-- 如果是问候类或可直接回答的问题，level设为direct，direct_answer为回答内容
-- 如果是complex任务，plan最多{max_plan_steps}个步骤，每个步骤描述要精炼，优先使用已有的技能处理
-- 必须返回有效的JSON格式"""
+- 如果是 simple 任务，plan 字段可以为空数组
+- 如果是 complex 任务，必须填写 plan 字段
+- 如果是问候类或可直接回答的问题，level 设为 direct，direct_answer 为回答内容
+- 如果是 complex 任务，plan 最多{max_plan_steps}个步骤，每个步骤描述要精炼，优先使用已有的技能处理
+- 必须返回有效的 JSON 格式"""
+    
+        system_prompt = base_system_prompt
 
         history_part = f"""历史上下文：
 {history_context if history_context else "无"}"""
@@ -406,5 +417,6 @@ Shell类型: {system_info['shell_type']}
         """
         res_str=''
         for index,step in enumerate(task_plan):
-            res_str += f"{index+1}. {step.strip().replace("\n", " ")} "
-        return f"任务计划: {res_str if len(task_plan) > 1 else ""}" 
+            step_clean = step.strip().replace('\n', ' ')
+            res_str += f"{index+1}. {step_clean} "
+        return f"任务计划: {res_str if len(task_plan) > 1 else ''}" 

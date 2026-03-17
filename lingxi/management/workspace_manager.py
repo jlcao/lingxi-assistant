@@ -220,6 +220,11 @@ class WorkspaceManager:
                 "switched_at": datetime.now().isoformat()
             })
         
+        # 10. 更新 SkillSystem 的工作目录
+        if self.skill_system:
+            self.skill_system.update_workspace(str(workspace_path))
+            self.logger.debug(f"SkillSystem 工作目录已更新为：{workspace_path}")
+        
         self.logger.info(f"工作目录已切换：{workspace_path}")
         
         return {

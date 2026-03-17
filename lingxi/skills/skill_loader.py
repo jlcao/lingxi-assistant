@@ -15,13 +15,13 @@ class SkillLoader:
     
     _instance = None  # 单例实例
     
-    def __new__(cls, config: Dict[str, Any]):
+    def __new__(cls, config: Dict[str, Any], registry=None, cache=None, sandbox=None, **kwargs):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], registry=None, cache=None, sandbox=None, **kwargs):
         # 防止重复初始化
         if hasattr(self, '_initialized'):
             return
@@ -30,6 +30,9 @@ class SkillLoader:
 
         Args:
             config: 系统配置
+            registry: 技能注册表对象
+            cache: 技能缓存对象（可选）
+            sandbox: 安全沙箱对象（可选）
         """
         self.config = config
         self.logger = logging.getLogger(__name__)
@@ -44,6 +47,11 @@ class SkillLoader:
 
         # MCP格式技能配置（SKILL.md格式的技能，存储配置信息）
         self.mcp_skills: Dict[str, Dict[str, Any]] = {}
+
+        # 注册表和缓存引用
+        self.registry = registry
+        self.cache = cache  # 新增缓存引用
+        self.sandbox = sandbox  # 新增沙箱引用，用于路径转换
 
         self.logger.debug(f"初始化技能加载器，内置技能目录: {self.builtin_skills_dir}, 用户技能目录: {self.user_skills_dir}")
         self._initialized = True
@@ -72,6 +80,44 @@ class SkillLoader:
 
         self.logger.debug(f"技能扫描完成，成功注册 {registered_count} 个技能")
         return registered_count
+    
+    def _register_skill(self, registry, skill_dir: str, skill_config: Dict[str, Any]) -> bool:
+        """注册单个技能到注册表
+        
+        Args:
+            registry: 技能注册表
+            skill_dir: 技能目录路径
+            skill_config: 技能配置
+            
+        Returns:
+            是否注册成功
+        """
+        try:
+            skill_id = skill_config.get('name', '')
+            if not skill_id:
+                self.logger.error(f"技能配置缺少 name 字段：{skill_dir}")
+                return False
+            
+            # 调用 registry 的注册方法
+            if hasattr(registry, 'register_skill_from_dir'):
+                registry.register_skill_from_dir(skill_dir)
+                self.logger.info(f"注册技能成功：{skill_id}")
+            elif hasattr(registry, 'register_skill'):
+                # 使用原始调用方式：只传 config
+                registry.register_skill(skill_config)
+                self.logger.info(f"注册技能成功：{skill_id}")
+            else:
+                self.logger.error(f"Registry 对象没有 register_skill 方法")
+                return False
+            
+            # 注册成功后，加载技能模块到内存
+            self._load_local_skill_module(skill_dir, skill_id)
+            
+            return True
+                
+        except Exception as e:
+            self.logger.error(f"注册技能失败 {skill_dir}: {e}")
+            return False
 
     def _find_skill_directories(self) -> List[str]:
         """查找所有技能目录
@@ -116,180 +162,114 @@ class SkillLoader:
         return skill_dirs
 
     def _load_skill_config(self, skill_dir: str) -> Optional[Dict[str, Any]]:
-        """加载技能配置文件
+        """加载技能配置文件（带缓存）
 
         Args:
             skill_dir: 技能目录路径
 
         Returns:
-            技能配置字典，失败返回None
+            技能配置字典，失败返回 None
         """
-        # 优先尝试skill.json（传统格式）
+        # 从 skill_dir 生成 skill_id
+        skill_id = os.path.basename(skill_dir)
+        
+        # 检查缓存
+        if self.cache:
+            cached_config = self.cache.get_config(skill_id)
+            if cached_config:
+                self.logger.debug(f"使用缓存的技能配置：{skill_id}")
+                return cached_config
+        
+        # 优先尝试 skill.json（传统格式）
         config_path = os.path.join(skill_dir, "skill.json")
 
         if os.path.exists(config_path):
-            return self._load_json_config(config_path)
+            config = self._load_json_config(config_path)
+            if config:
+                # 添加 skill_id 字段
+                config['skill_id'] = skill_id
+                # 缓存配置
+                if self.cache:
+                    self.cache.set_config(skill_id, config, config_path)
+            return config
 
-        # 尝试SKILL.md（MCP格式）
+        # 尝试 SKILL.md（MCP 格式）
         skill_md_path = os.path.join(skill_dir, "SKILL.md")
 
         if os.path.exists(skill_md_path):
-            return self._load_mcp_config(skill_md_path)
+            config = self._load_mcp_config(skill_md_path)
+            if config:
+                # 添加 skill_id 字段
+                config['skill_id'] = skill_id
+                # 缓存配置
+                if self.cache:
+                    file_path = skill_md_path if os.path.exists(skill_md_path) else os.path.join(skill_dir, "main.py")
+                    self.cache.set_config(skill_id, config, file_path)
+            return config
 
-        self.logger.warning(f"技能配置文件不存在: {skill_dir}")
+        self.logger.warning(f"技能配置文件不存在：{skill_dir}")
         return None
-
+    
     def _load_json_config(self, config_path: str) -> Optional[Dict[str, Any]]:
-        """加载JSON格式的技能配置
-
+        """从 skill.json 文件加载 JSON 格式配置
+        
         Args:
-            config_path: 配置文件路径
-
+            config_path: skill.json 文件路径
+            
         Returns:
-            技能配置字典，失败返回None
+            技能配置字典
         """
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-
-            self._validate_json_config(config)
-
             return config
-
-        except json.JSONDecodeError as e:
-            self.logger.error(f"技能配置文件JSON格式错误 {config_path}: {e}")
-            return None
-        except ValueError as e:
-            self.logger.error(f"技能配置验证失败 {config_path}: {e}")
-            return None
         except Exception as e:
-            self.logger.error(f"加载技能配置失败 {config_path}: {e}")
+            self.logger.error(f"加载 skill.json 失败：{e}")
             return None
-
+    
     def _load_mcp_config(self, skill_md_path: str) -> Optional[Dict[str, Any]]:
-        """加载MCP格式的技能配置（SKILL.md的YAML frontmatter）
-
+        """从 SKILL.md 文件加载 MCP 格式配置
+        
         Args:
-            skill_md_path: SKILL.md文件路径
-
+            skill_md_path: SKILL.md 文件路径
+            
         Returns:
-            技能配置字典，失败返回None
+            技能配置字典
         """
         try:
+            import re
+            
             with open(skill_md_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-
-            # 解析YAML frontmatter
-            if content.startswith('---'):
-                end_idx = content.find('---', 3)
-                if end_idx > 0:
-                    frontmatter = content[3:end_idx]
-                    config = yaml.safe_load(frontmatter)
-
-                    # 转换MCP格式到标准格式
-                    return self._convert_mcp_to_standard(config)
-
-            self.logger.warning(f"SKILL.md文件格式不正确: {skill_md_path}")
-            return None
-
-        except yaml.YAMLError as e:
-            self.logger.error(f"SKILL.md文件YAML格式错误 {skill_md_path}: {e}")
-            return None
+            
+            # 解析 YAML front matter
+            yaml_match = re.search(r'^---\s*\n(.*?)\n---\s*\n', content, re.DOTALL)
+            if not yaml_match:
+                return None
+            
+            yaml_content = yaml_match.group(1)
+            
+            # 简单的 YAML 解析
+            config = {}
+            for line in yaml_content.split('\n'):
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if value.lower() == 'true':
+                        value = True
+                    elif value.lower() == 'false':
+                        value = False
+                    elif value.isdigit():
+                        value = int(value)
+                    config[key] = value
+            
+            return config
+            
         except Exception as e:
-            self.logger.error(f"加载MCP技能配置失败 {skill_md_path}: {e}")
+            self.logger.error(f"加载 SKILL.md 失败：{e}")
             return None
-
-    def _convert_mcp_to_standard(self, mcp_config: Dict[str, Any]) -> Dict[str, Any]:
-        """将MCP格式配置转换为标准格式
-
-        Args:
-            mcp_config: MCP格式配置
-
-        Returns:
-            标准格式配置
-        """
-        skill_name = mcp_config.get('name', 'unknown')
-        description = mcp_config.get('description', '')
-
-        return {
-            'skill_id': skill_name,
-            'skill_name': skill_name,
-            'version': mcp_config.get('version', '1.0.0'),
-            'type': 'mcp',
-            'description': description,
-            'mcp_config': mcp_config,  # 保留原始MCP配置
-            'parameters': []  # MCP技能参数动态确定
-        }
-
-    def _validate_json_config(self, config: Dict[str, Any]):
-        """验证JSON格式的技能配置
-
-        Args:
-            config: 技能配置字典
-
-        Raises:
-            ValueError: 配置验证失败
-        """
-        required_fields = ["skill_id", "skill_name", "version", "type", "description"]
-
-        for field in required_fields:
-            if field not in config:
-                raise ValueError(f"缺少必需字段: {field}")
-
-        skill_type = config.get("type")
-
-        if skill_type == "api":
-            if "api_url" not in config:
-                raise ValueError("API技能缺少api_url字段")
-
-        elif skill_type == "local":
-            pass
-
-        else:
-            raise ValueError(f"不支持的技能类型: {skill_type}")
-
-    def _register_skill(self, registry, skill_dir: str, config: Dict[str, Any]) -> bool:
-        """注册技能到注册表
-
-        Args:
-            registry: 技能注册表对象
-            skill_dir: 技能目录路径
-            config: 技能配置
-
-        Returns:
-            是否注册成功
-        """
-        skill_id = config.get("skill_id")
-        skill_name = config.get("skill_name")
-        skill_type = config.get("type")
-
-        self.logger.debug(f"注册技能: {skill_id} ({skill_name}), 类型: {skill_type}")
-
-        try:
-            success = registry.register_skill(config)
-
-            if success:
-                # 统一处理：所有技能都加载main.py模块
-                self._load_local_skill_module(skill_dir, skill_id)
-
-                # 保存技能类型信息
-                if skill_type == "mcp":
-                    self.mcp_skills[skill_id] = {
-                        'skill_dir': skill_dir,
-                        'config': config
-                    }
-                    self.logger.debug(f"MCP技能已注册: {skill_id}")
-
-                self.logger.debug(f"技能注册成功: {skill_id}")
-                return True
-            else:
-                self.logger.warning(f"技能注册失败: {skill_id}")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"注册技能异常 {skill_id}: {e}")
-            return False
-
+    
     def _parse_parameters(self, input_schema: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """解析输入参数配置
 
@@ -324,6 +304,14 @@ class SkillLoader:
             skill_dir: 技能目录路径
             skill_id: 技能ID
         """
+        # 检查缓存
+        if self.cache:
+            cached_module = self.cache.get_module(skill_id)
+            if cached_module:
+                self.logger.debug(f"使用缓存的技能模块：{skill_id}")
+                self.loaded_modules[skill_id] = cached_module
+                return
+        
         main_py_path = os.path.join(skill_dir, "main.py")
 
         if not os.path.exists(main_py_path):
@@ -339,6 +327,10 @@ class SkillLoader:
                 spec.loader.exec_module(module)
 
                 self.loaded_modules[skill_id] = module
+
+                # 添加到缓存
+                if self.cache:
+                    self.cache.set_module(skill_id, module, main_py_path)
 
                 if hasattr(module, "init"):
                     module.init()
@@ -363,6 +355,10 @@ class SkillLoader:
         if skill_id not in self.loaded_modules:
             return f"错误: 技能模块未加载: {skill_id}"
 
+        # 转换路径参数为绝对路径（基于当前工作目录）
+        if self.sandbox and parameters:
+            parameters = self._normalize_paths(parameters, skill_id)
+
         module = self.loaded_modules[skill_id]
 
         try:
@@ -382,6 +378,37 @@ class SkillLoader:
         except Exception as e:
             self.logger.error(f"执行技能失败 {skill_id}: {e}")
             return f"错误: 技能执行失败 - {str(e)}"
+
+    def _normalize_paths(self, parameters: Dict[str, Any], skill_id: str) -> Dict[str, Any]:
+        """转换路径参数为绝对路径（基于当前工作目录）
+
+        Args:
+            parameters: 技能参数
+            skill_id: 技能ID
+
+        Returns:
+            转换后的参数
+        """
+        from pathlib import Path
+        
+        # 定义需要转换路径的参数名
+        path_params = ['file_path', 'file', 'path', 'directory', 'dir', 'workspace', 'workspace_path']
+        
+        normalized = {}
+        for key, value in parameters.items():
+            if key in path_params and isinstance(value, str):
+                # 如果是相对路径，转换为基于工作目录的绝对路径
+                if not Path(value).is_absolute():
+                    workspace_root = self.sandbox.get_workspace_root()
+                    normalized_value = str(workspace_root / value)
+                    self.logger.debug(f"路径转换: {skill_id}.{key}: {value} -> {normalized_value}")
+                    normalized[key] = normalized_value
+                else:
+                    normalized[key] = value
+            else:
+                normalized[key] = value
+        
+        return normalized
 
     def install_skill(self, skill_source: str, registry, skill_name: str = None, overwrite: bool = False) -> bool:
         """安装技能到用户技能目录

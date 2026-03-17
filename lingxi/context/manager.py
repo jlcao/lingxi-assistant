@@ -36,6 +36,7 @@ class ContextMessage:
 class ContextManager:
     """上下文管理器 - 支持动态压缩"""
 
+
     def __init__(self, config: Dict[str, Any], session_id: str):
         """初始化上下文管理器
 
@@ -48,6 +49,7 @@ class ContextManager:
         self.messages: List[ContextMessage] = []
         self.current_task_id: Optional[str] = None
         self.token_usage = 0
+        self.soul_prompt: Optional[str] = None
 
         context_config = config.get("context_management", {})
         token_budget = context_config.get("token_budget", {})
@@ -78,6 +80,21 @@ class ContextManager:
 
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"初始化上下文管理器，会话ID: {session_id}")
+    def add_context_item(self,role:str,content:str):
+        """添加上下文项
+
+        Args:
+            role: 角色（user/assistant/tool/system）
+            content: 内容
+        """
+        self.add_message(role, content, ContentType.SYSTEM_MESSAGE)
+    def set_soul(self,soul_prompt:str):
+        """设置SOUL提示词
+
+        Args:
+            soul_prompt: SOUL提示词
+        """
+        self.soul_prompt=soul_prompt
 
     def add_message(self, role: str, content: str,
                    content_type: ContentType = None,

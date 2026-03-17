@@ -55,6 +55,9 @@ class SecuritySandbox:
     ):
         # 防止重复初始化
         if hasattr(self, '_initialized'):
+            # 如果已初始化，检查是否需要更新工作目录
+            if workspace_root != "./workspace":
+                self.update_workspace(Path(workspace_root))
             return
         
         self.workspace_root = Path(workspace_root).resolve()

@@ -1,15 +1,16 @@
 import logging
 import json
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 from concurrent.futures import ThreadPoolExecutor
-from lingxi.skills.registry import SkillRegistry
-from lingxi.skills.builtin import BuiltinSkills
+from lingxi.skills.skill_system import SkillSystem
 from lingxi.core.utils.security import SecuritySandbox, SecurityError
 
 # 创建线程池用于执行同步技能
 _skill_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="skill-executor")
 
+
+from lingxi.core.soul import SoulInjector
 
 class SkillCaller:
     """能力调用层，标准化 MCP/Skill 调用"""
@@ -37,23 +38,32 @@ class SkillCaller:
         self.verify_ssl = skill_call_config.get("verify_ssl", True)
 
         # 初始化技能管理器（包含技能注册表）
-        self.builtin_skills = BuiltinSkills(config)
-        # 使用技能管理器的注册表，避免创建两个独立的实例
-        self.skill_registry = self.builtin_skills.registry
 
-        # 初始化安全沙箱（V4.0新增）
-        security_config = config.get("security", {})
-        self.sandbox = SecuritySandbox(
-            workspace_root=security_config.get("workspace_root", "./workspace"),
-            max_file_size=security_config.get("max_file_size", 10 * 1024 * 1024),
-            allowed_commands=security_config.get("allowed_commands"),
-            safety_mode=security_config.get("safety_mode", True)
-        )
+        # 使用统一的 SkillSystem
+        self.skill_system = SkillSystem(config)
+        self.skill_registry = self.skill_system.registry
+        self.sandbox = self.skill_system.sandbox
+
 
         # 工作空间管理器（V4.0 新增）
         self.workspace_manager = None
         
-        self.logger.debug("初始化能力调用层")
+        # 初始化 SOUL 注入器
+        workspace_path = config.get("workspace", {}).get("default_path", "./workspace")
+        self.soul_injector = SoulInjector(workspace_path)
+        self.soul_injector.load()
+        self.logger.debug("SOUL 注入器已初始化")
+        
+        # 子代理调度器
+        from lingxi.core.subagent import SubAgentScheduler
+        self.subagent_scheduler = SubAgentScheduler(
+            session_manager=None,  # 由外部设置
+            skill_caller=self,
+            config=config
+        )
+        self.logger.debug("子代理调度器已初始化")
+        
+        self.logger.debug("初始化能力调用层（使用 SkillSystem）")
     
     def set_workspace_manager(self, workspace_manager):
         """设置工作空间管理器
@@ -107,7 +117,7 @@ class SkillCaller:
             return {"success": False, "error": str(e)}
 
     def _execute_with_retry(self, skill_name: str, parameters: Dict[str, Any]) -> str:
-        """执行技能（支持重试）
+        """执行技能（使用 SkillSystem）
 
         Args:
             skill_name: 技能名称
@@ -126,8 +136,10 @@ class SkillCaller:
 
         for attempt in range(self.retry_count + 1):
             try:
-                result = self.builtin_skills.execute_skill(skill_name, parameters)
-                self.logger.debug(f"执行技能返回：{skill_name} - {result.replace('\n', '\\n')}")
+                # 使用 SkillSystem 执行
+                result = self.skill_system.execute_skill(skill_name, parameters)
+                result_debug = result.replace('\n', '\\n')
+                self.logger.debug(f"执行技能返回：{skill_name} - {result_debug}")
                 return result
             except Exception as e:
                 last_error = e
@@ -450,3 +462,65 @@ class SkillCaller:
             _skill_executor,
             lambda: self.call_with_security_check(skill_name, parameters, require_confirmation)
         )
+
+    # ========== 子代理便捷方法 ==========
+    
+    async def spawn_subagent(
+        self,
+        task: str,
+        workspace_path: str = None,
+        timeout: int = None,
+        context: Dict[str, Any] = None,
+        callback: Callable = None
+    ) -> str:
+        """Spawn 子代理执行任务
+        
+        Args:
+            task: 任务描述
+            workspace_path: 工作目录（可选）
+            timeout: 超时时间（秒）
+            context: 额外上下文
+            callback: 完成回调函数
+        
+        Returns:
+            任务 ID
+        """
+        return await self.subagent_scheduler.spawn(
+            task=task,
+            workspace_path=workspace_path,
+            timeout=timeout,
+            context=context,
+            callback=callback
+        )
+    
+    def get_subagent_status(self, task_id: str) -> Optional[str]:
+        """获取子代理任务状态
+        
+        Args:
+            task_id: 任务 ID
+        
+        Returns:
+            任务状态（pending/running/completed/failed/timeout）
+        """
+        return self.subagent_scheduler.get_task_status(task_id)
+    
+    def list_subagents(self, status: str = None):
+        """列出所有子代理任务
+        
+        Args:
+            status: 按状态过滤（可选）
+        
+        Returns:
+            任务列表
+        """
+        return self.subagent_scheduler.list_tasks(status)
+    
+    def set_session_manager_for_subagents(self, session_manager):
+        """为子代理调度器设置 SessionManager
+        
+        Args:
+            session_manager: SessionManager 实例
+        """
+        if self.subagent_scheduler:
+            self.subagent_scheduler.session_manager = session_manager
+            self.logger.debug("子代理调度器的 SessionManager 已设置")

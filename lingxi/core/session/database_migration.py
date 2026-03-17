@@ -76,30 +76,52 @@ def _add_workspace_id_to_sessions(cursor: sqlite3.Cursor):
     """修改 sessions 表，添加 workspace_id 外键
 
     SQLite 不支持直接添加外键约束，需要：
-    1. 添加 workspace_id 字段
-    2. 创建新表带外键约束
-    3. 复制数据
-    4. 重命名表
+    1. 检查 sessions 表是否存在
+    2. 如果不存在，先创建 sessions 表
+    3. 检查 workspace_id 字段是否已存在
+    4. 添加 workspace_id 字段（不帶外键约束，SQLite 限制）
     """
-    # 检查 workspace_id 字段是否已存在
-    cursor.execute("PRAGMA table_info(sessions)")
-    columns = {row[1]: row[2] for row in cursor.fetchall()}
-
-    if 'workspace_id' in columns:
-        logger.debug("workspace_id 字段已存在，跳过迁移")
-        return
-
-    # 添加 workspace_id 字段（不帶外键约束，SQLite 限制）
+    # 检查 sessions 表是否存在
     cursor.execute("""
-        ALTER TABLE sessions ADD COLUMN workspace_id INTEGER
+        SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'
     """)
+    table_exists = cursor.fetchone() is not None
+
+    if not table_exists:
+        # sessions 表不存在，先创建基础表结构
+        logger.info("sessions 表不存在，创建基础表结构")
+        cursor.execute("""
+            CREATE TABLE sessions (
+                session_id TEXT PRIMARY KEY,
+                user_name TEXT NOT NULL DEFAULT 'user',
+                title TEXT NOT NULL DEFAULT '新会话',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                workspace_id INTEGER
+            )
+        """)
+        logger.debug("sessions 表创建完成")
+    else:
+        # sessions 表已存在，检查 workspace_id 字段是否已存在
+        cursor.execute("PRAGMA table_info(sessions)")
+        columns = {row[1]: row[2] for row in cursor.fetchall()}
+
+        if 'workspace_id' in columns:
+            logger.debug("workspace_id 字段已存在，跳过迁移")
+            return
+
+        # 添加 workspace_id 字段（不帶外键约束，SQLite 限制）
+        cursor.execute("""
+            ALTER TABLE sessions ADD COLUMN workspace_id INTEGER
+        """)
+        logger.debug("sessions 表 workspace_id 字段添加完成")
 
     # 添加外键约束的索引
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_sessions_workspace_id ON sessions(workspace_id)
     """)
-
-    logger.debug("sessions 表 workspace_id 字段添加完成")
+    logger.debug("sessions 表索引创建完成")
 
 
 def _create_migration_indexes(cursor: sqlite3.Cursor):

@@ -13,6 +13,7 @@ class CreateSessionRequest(BaseModel):
     """创建会话请求模型"""
     userName: Optional[str] = None
     user_name: Optional[str] = None  # 兼容 snake_case 格式
+    workspace_path: Optional[str] = None  # 工作目录路径
     
     class Config:
         # 允许使用别名
@@ -88,16 +89,18 @@ async def create_session(request: CreateSessionRequest) -> Dict[str, Any]:
         # 兼容 userName 和 user_name 字段
         user_name = request.userName if request.userName else (request.user_name if request.user_name else "新会话")
         
-        # 获取当前工作目录路径
-        workspace_path = None
-        try:
-            workspace_manager = get_workspace_manager()
-            current_workspace = workspace_manager.get_current_workspace()
-            if current_workspace:
-                workspace_path = str(current_workspace)
-                logger.debug(f"创建会话时的工作目录：{workspace_path}")
-        except Exception as e:
-            logger.warning(f"获取工作目录失败，将不关联工作目录：{e}")
+        # 优先使用前端传递的工作目录路径
+        workspace_path = request.workspace_path
+        if not workspace_path:
+            # 如果前端没有传递，从 workspace_manager 获取
+            try:
+                workspace_manager = get_workspace_manager()
+                current_workspace = workspace_manager.get_current_workspace()
+                if current_workspace:
+                    workspace_path = str(current_workspace)
+                    logger.debug(f"创建会话时的工作目录：{workspace_path}")
+            except Exception as e:
+                logger.warning(f"获取工作目录失败，将不关联工作目录：{e}")
         
         # 使用 create_session_by_id 方法，传入 session_id、user_name 和 workspace_path
         assistant.session_manager.create_session_by_id(session_id, user_name, workspace_path=workspace_path)

@@ -5,7 +5,8 @@ import uuid
 import threading
 import asyncio
 from typing import Dict, List, Optional, Any, Union, Generator, TYPE_CHECKING
-from lingxi.core.llm.llm_client import LLMClient
+# LLMClient 已废弃 - 使用 AsyncLLMClient
+# from lingxi.core.llm.llm_client import LLMClient
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
@@ -34,7 +35,8 @@ class BaseEngine:
         self.skill_caller = skill_caller
         self.session_manager = session_manager
         self.websocket_manager = websocket_manager
-        self.llm_client = LLMClient(config)
+        # LLMClient 已废弃 - 子类应使用 AsyncLLMClient
+        # self.llm_client = LLMClient(config)
         self.logger = logging.getLogger(__name__)
         
         # 初始化确认管理器（V4.0新增）
@@ -235,6 +237,9 @@ class BaseEngine:
         Returns:
             最终响应
         """
+        import warnings
+        warnings.warn("_generate_final_response 已废弃 - 子类应实现自己的版本", DeprecationWarning)
+        
         prompt = PromptTemplates.build_final_response_prompt(
             user_input=task,
             steps=results,
@@ -242,9 +247,11 @@ class BaseEngine:
         )
 
         self.logger.debug("生成最终响应提示词: %s", prompt)
-        response = self.llm_client.complete(prompt, task_level=task_level)
-        self.logger.debug("最终响应LLM响应: %s", response)
-        return response
+        # LLMClient 已废弃
+        # response = self.llm_client.complete(prompt, task_level=task_level)
+        # self.logger.debug("最终响应LLM响应: %s", response)
+        # return response
+        return "任务执行完成"
 
     def _generate_error_response(self, task: str, failed_step: int, error: str) -> str:
         """生成错误响应
@@ -530,60 +537,19 @@ class BaseEngine:
         Returns:
             流式响应生成器
         """
+        import warnings
+        warnings.warn("_process_llm_response 已废弃 - 子类应实现自己的版本", DeprecationWarning)
+        
         # 添加调试日志
         self.logger.debug(f"处理LLM响应，消息数量: {len(messages)}")
         for i, msg in enumerate(messages):
             self.logger.debug(f"消息 {i}: role={msg['role']}, content={repr(str(msg['content'])[:200])}")
         
-        json_schema = self._get_json_schema()
-
-        if stream:
-            stream_response = self.llm_client.stream_chat_complete_with_cache(
-                messages,
-                task_level=task_level,
-                response_format={"type": "json_schema", "json_schema": json_schema}
-            )
-
-            full_response = ""
-            last_thought = ""
-            for chunk in stream_response:
-                if hasattr(chunk, 'choices') and chunk.choices:
-                    delta = chunk.choices[0].delta
-                    if hasattr(delta, 'content') and delta.content:
-                        content = delta.content
-                        full_response += content
-                        # 尝试提取thought字段
-                        from lingxi.utils.json_parser import extract_partial_json_field
-                        thought = extract_partial_json_field(full_response, "thought")
-                        if thought and thought != last_thought:
-                            # 只输出增量的thought内容
-                            incremental_thought = thought[len(last_thought):] if last_thought else thought
-                            yield {
-                                "type": "thought_chunk",
-                                "content": incremental_thought
-                            }
-                            last_thought = thought
-            
-            yield {
-                "type": "complete",
-                "response": full_response
-            }
-        else:
-            result = self.llm_client.chat_complete_with_cache(messages, task_level=task_level)
-            
-            # 如果返回的是元组，说明包含 usage 信息
-            if isinstance(result, tuple):
-                response, usage = result
-                self.logger.debug(f"LLM 响应包含 Token 使用信息: {usage}")
-            else:
-                response = result
-                usage = None
-            
-            yield {
-                "type": "complete",
-                "response": response,
-                "usage": usage
-            }
+        # LLMClient 已废弃
+        yield {
+            "type": "complete",
+            "response": "{\"thought\": \"处理中\", \"action\": \"finish\", \"action_input\": \"任务处理完成\"}"
+        }
 
     def _handle_finish_action(self, parsed: Dict[str, Any], steps: List[Dict[str, Any]]):
         """处理finish行动

@@ -1,15 +1,14 @@
+import { ChildProcess, spawn } from 'child_process'
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import * as fs from 'fs'
+import * as path from 'path'
 import { ApiClient } from './apiClient'
 import { FileManager } from './fileManager'
 import { WindowManager } from './windowManager'
 import { WsClient } from './wsClient'
-import { spawn, ChildProcess } from 'child_process'
-import * as path from 'path'
-import * as fs from 'fs'
 
 // 导入日志模块
 import { logger } from './logger'
-import { tr } from 'element-plus/es/locales.mjs'
 
 class App {
   private windowManager: WindowManager
@@ -31,7 +30,7 @@ class App {
 
     this.setupIpcHandlers()
     // 移除直接初始化WS，改为延迟初始化
-    
+
     // 确保前端退出时后端也会退出（只添加一次）
     process.on('exit', () => {
       this.stopBackendService()
@@ -53,12 +52,12 @@ class App {
       try {
         // 获取后端可执行文件路径
         let appPath = app.getAppPath()
-        
+
         // 处理打包后的路径
         if (appPath.endsWith('.asar')) {
           appPath = path.dirname(appPath)
         }
-        
+
         // 尝试多个可能的路径
         const possiblePaths = [
           // 用户指定的路径
@@ -73,9 +72,9 @@ class App {
           path.join(path.dirname(appPath), 'lingxi-backend.exe'),
           path.join(path.dirname(appPath), 'resources', 'lingxi-backend.exe')
         ]
-        
+
         let backendPath = ''
-        
+
         for (const possiblePath of possiblePaths) {
           if (fs.existsSync(possiblePath)) {
             logger.log(`[App] 找到后端可执行文件: ${possiblePath}`)
@@ -83,7 +82,7 @@ class App {
             break
           }
         }
-        
+
         if (!backendPath) {
           // 后端可执行文件不存在，认为是开发模式，直接返回成功
           logger.log('[App] 后端可执行文件不存在，进入开发模式，直接连接后端端口')
@@ -109,19 +108,19 @@ class App {
         this.backendProcess.stdout?.on('data', (data) => {
           const output = data.toString()
           logger.log(`[Backend] ${output}`)
-          
+
           // 检测后端服务是否启动完成
           if (!backendStarted) {
             // 检查是否包含启动成功的关键词
             const startupKeywords = [
               'Started server process',
-              'Application startup complete', 
+              'Application startup complete',
               'Uvicorn running',
               'FastAPI 应用启动成功',
               'Running on http://',
               'Listening on http://'
             ]
-            
+
             for (const keyword of startupKeywords) {
               if (output.includes(keyword)) {
                 logger.log(`[App] 检测到启动关键词: ${keyword}`)
@@ -137,19 +136,19 @@ class App {
         this.backendProcess.stderr?.on('data', (data) => {
           const output = data.toString()
           console.error(`[Backend] ${output}`)
-          
+
           // 同样检测后端服务是否启动完成（因为输出可能在stderr）
           if (!backendStarted) {
             // 检查是否包含启动成功的关键词
             const startupKeywords = [
               'Started server process',
-              'Application startup complete', 
+              'Application startup complete',
               'Uvicorn running',
               'FastAPI 应用启动成功',
               'Running on http://',
               'Listening on http://'
             ]
-            
+
             for (const keyword of startupKeywords) {
               if (output.includes(keyword)) {
                 logger.log(`[App] 检测到启动关键词: ${keyword}`)
@@ -203,105 +202,105 @@ class App {
     })
   }
 
- /**
- * 停止后端服务（终极修复版）
- */
-private stopBackendService(): void {
-  // 提前引入依赖，避免运行时加载失败
-  const { execSync } = require('child_process');
-  const path = require('path');
-  debugger
-  try {
-    if (!this.backendProcess) {
-      logger.log('[App] 后端进程已不存在，无需停止');
-      return;
-    }
-
-    const pid = this.backendProcess.pid;
-    logger.log(`[App] 开始停止后端服务 (PID: ${pid})`);
-
-    // 标记进程正在停止，防止重复操作
-    let isStopping = true;
-
-    // ========== 步骤1：尝试优雅关闭 ==========
+  /**
+  * 停止后端服务（终极修复版）
+  */
+  private stopBackendService(): void {
+    // 提前引入依赖，避免运行时加载失败
+    const { execSync } = require('child_process');
+    const path = require('path');
+    debugger
     try {
-      // 先发送关闭信号
-      this.backendProcess.kill(); // 默认SIGTERM，兼容Windows
-      logger.log(`[App] 已发送终止信号到进程 ${pid}`);
-      
-      // 等待1秒，给进程优雅退出的时间
-      const startTime = Date.now();
-      while (Date.now() - startTime < 1000) {
-        // 检查进程是否还在
+      if (!this.backendProcess) {
+        logger.log('[App] 后端进程已不存在，无需停止');
+        return;
+      }
+
+      const pid = this.backendProcess.pid;
+      logger.log(`[App] 开始停止后端服务 (PID: ${pid})`);
+
+      // 标记进程正在停止，防止重复操作
+      let isStopping = true;
+
+      // ========== 步骤1：尝试优雅关闭 ==========
+      try {
+        // 先发送关闭信号
+        this.backendProcess.kill(); // 默认SIGTERM，兼容Windows
+        logger.log(`[App] 已发送终止信号到进程 ${pid}`);
+
+        // 等待1秒，给进程优雅退出的时间
+        const startTime = Date.now();
+        while (Date.now() - startTime < 1000) {
+          // 检查进程是否还在
+          try {
+            process.kill(pid, 0); // 0信号仅检查进程是否存在，不发送终止信号
+          } catch (e) {
+            logger.log(`[App] 进程 ${pid} 已优雅退出`);
+            isStopping = false;
+            break;
+          }
+        }
+      } catch (killError) {
+        logger.warn(`[App] 优雅关闭失败: ${killError.message}`);
+      }
+
+      // ========== 步骤2：Windows强制终止（仅进程仍在运行时） ==========
+      if (isStopping && process.platform === 'win32' && pid) {
         try {
-          process.kill(pid, 0); // 0信号仅检查进程是否存在，不发送终止信号
-        } catch (e) {
-          logger.log(`[App] 进程 ${pid} 已优雅退出`);
+          // 执行taskkill命令（强制终止进程树）
+          const cmd = `taskkill /F /PID ${pid} /T`;
+          logger.log(`[App] 执行强制终止命令: ${cmd}`);
+
+          // 关键：使用GBK编码，超时3秒，静默执行
+          const result = execSync(cmd, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            encoding: 'binary', // 先以二进制读取
+            timeout: 3000
+          });
+
+          // 解码输出（GBK转UTF-8）
+          const iconv = require('iconv-lite');
+          const output = iconv.decode(Buffer.from(result, 'binary'), 'gbk');
+          logger.log(`[App] taskkill执行成功: ${output.trim()}`);
           isStopping = false;
-          break;
+        } catch (taskkillError: any) {
+          logger.error(`[App] taskkill执行失败: ${taskkillError.message} (状态码: ${taskkillError.status || '未知'})`);
         }
       }
-    } catch (killError) {
-      logger.warn(`[App] 优雅关闭失败: ${killError.message}`);
-    }
 
-    // ========== 步骤2：Windows强制终止（仅进程仍在运行时） ==========
-    if (isStopping && process.platform === 'win32' && pid) {
+      // ========== 步骤3：最终状态清理 ==========
+      this.backendProcess = null;
+      this.isBackendStarted = false;
+
+
+      // ========== 步骤4：强制杀掉所有后端进程（防止残留） ==========
       try {
-        // 执行taskkill命令（强制终止进程树）
-        const cmd = `taskkill /F /PID ${pid} /T`;
-        logger.log(`[App] 执行强制终止命令: ${cmd}`);
-        
+        // 执行taskkill命令，强制杀掉所有 lingxi-backend.exe 进程
+        const killAllCmd = `taskkill /F /IM lingxi-backend.exe`;
+        logger.log(`[App] 执行强制杀掉所有后端进程命令: ${killAllCmd}`);
+
         // 关键：使用GBK编码，超时3秒，静默执行
-        const result = execSync(cmd, {
+        const killAllResult = execSync(killAllCmd, {
           stdio: ['ignore', 'pipe', 'pipe'],
           encoding: 'binary', // 先以二进制读取
           timeout: 3000
         });
-
         // 解码输出（GBK转UTF-8）
         const iconv = require('iconv-lite');
-        const output = iconv.decode(Buffer.from(result, 'binary'), 'gbk');
-        logger.log(`[App] taskkill执行成功: ${output.trim()}`);
-        isStopping = false;
-      } catch (taskkillError: any) {
-        logger.error(`[App] taskkill执行失败: ${taskkillError.message} (状态码: ${taskkillError.status || '未知'})`);
+        const killAllOutput = iconv.decode(Buffer.from(killAllResult, 'binary'), 'gbk');
+        logger.log(`[App] 强制杀掉所有后端进程成功: ${killAllOutput.trim()}`);
+      } catch (killAllError: any) {
+        logger.error(`[App] 强制杀掉所有后端进程失败: ${killAllError.message} (状态码: ${killAllError.status || '未知'})`);
       }
+      logger.log(`[App] 后端服务停止流程完成（PID: ${pid}）`);
+    } catch (error) {
+      // 捕获所有未预期错误
+      logger.error('[App] 停止后端服务时发生致命错误:', error);
+      // 兜底重置状态
+      this.backendProcess = null;
+      this.isBackendStarted = false;
     }
-
-    // ========== 步骤3：最终状态清理 ==========
-    this.backendProcess = null;
-    this.isBackendStarted = false;
-    
-    
-    // ========== 步骤4：强制杀掉所有后端进程（防止残留） ==========
-    try {
-      // 执行taskkill命令，强制杀掉所有 lingxi-backend.exe 进程
-      const killAllCmd = `taskkill /F /IM lingxi-backend.exe`;
-      logger.log(`[App] 执行强制杀掉所有后端进程命令: ${killAllCmd}`);
-      
-      // 关键：使用GBK编码，超时3秒，静默执行
-      const killAllResult = execSync(killAllCmd, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        encoding: 'binary', // 先以二进制读取
-        timeout: 3000
-      });
-      // 解码输出（GBK转UTF-8）
-      const iconv = require('iconv-lite');
-      const killAllOutput = iconv.decode(Buffer.from(killAllResult, 'binary'), 'gbk');
-      logger.log(`[App] 强制杀掉所有后端进程成功: ${killAllOutput.trim()}`);
-    } catch (killAllError: any) {
-      logger.error(`[App] 强制杀掉所有后端进程失败: ${killAllError.message} (状态码: ${killAllError.status || '未知'})`);
-    }
-    logger.log(`[App] 后端服务停止流程完成（PID: ${pid}）`);
-  } catch (error) {
-    // 捕获所有未预期错误
-    logger.error('[App] 停止后端服务时发生致命错误:', error);
-    // 兜底重置状态
-    this.backendProcess = null;
-    this.isBackendStarted = false;
   }
-}
 
   private safeSend(channel: string, ...args: any[]): void {
     const mainWindow = this.windowManager.getWindow()
@@ -345,10 +344,19 @@ private stopBackendService(): void {
       return this.fileManager.saveFile(defaultPath, filters)
     })
     ipcMain.handle('file:open-explorer', async (_, filePath) => {
+      logger.log(`[IPC] file:open-explorer: ${filePath}`)
       return this.fileManager.openInExplorer(filePath)
     })
     ipcMain.handle('file:open-file', async (_, filePath) => {
-      return this.fileManager.openFile(filePath)
+      logger.log(`[IPC] file:open-file: ${filePath}`)
+      try {
+        const result = await this.fileManager.openFile(filePath)
+        logger.log(`[IPC] file:open-file result: ${result}`)
+        return result
+      } catch (error) {
+        logger.error(`[IPC] file:open-file error:`, error)
+        throw error
+      }
     })
     ipcMain.handle('file:read-directory-tree', async (_, dirPath, maxDepth) => {
       return this.fileManager.readDirectoryTree(dirPath, maxDepth)
@@ -556,7 +564,7 @@ private stopBackendService(): void {
     })
 
     this.wsClient.on('think_stream', (data) => {
-      logger.log('[Date: ' + new Date().toLocaleString() + '] [Main] think_stream received:', JSON.stringify(data).substring(0, 200))
+      //logger.log('[Date: ' + new Date().toLocaleString() + '] [Main] think_stream received:', JSON.stringify(data).substring(0, 200))
       const mainWindow = this.windowManager.getWindow()
       if (mainWindow && !mainWindow.isDestroyed()) {
         logger.log('[Date: ' + new Date().toLocaleString() + '] [Main] Sending ws:think-stream to renderer')
@@ -601,12 +609,12 @@ private stopBackendService(): void {
       // 启动后端服务并等待完成
       logger.log('[App] 正在启动后端服务...')
       const backendStarted = await this.startBackendService()
-      
+
       if (backendStarted) {
         logger.log('[App] 后端服务启动成功，创建主窗口')
         // 创建主窗口
         this.windowManager.createMainWindow()
-        
+
         // 注意：这里注释掉WS初始化，改为通过IPC触发时才初始化
         // logger.log('[App] 初始化 WebSocket 客户端')
         // this.initWsClient()
@@ -632,13 +640,13 @@ private stopBackendService(): void {
       logger.log('[App] before-quit 事件触发，开始清理资源')
       event.preventDefault()
       this.isQuitting = true
-      
+
       // 使用 stopBackendService 方法优雅关闭后端服务
       this.stopBackendService()
-      
+
       // 清理其他资源
       this.cleanupResources()
-      
+
       // 直接退出，不使用 setTimeout
       logger.log('[App] 资源清理完成，退出应用')
       process.exit(0)

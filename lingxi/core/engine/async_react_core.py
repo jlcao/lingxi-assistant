@@ -7,11 +7,11 @@ import logging
 import time
 from typing import Dict, List, Optional, Any, Union
 from collections.abc import AsyncGenerator
-from lingxi.core.engine.base import BaseEngine
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.context import TaskContext
 from lingxi.core.llm.async_llm_client import AsyncLLMClient
+from .base import BaseEngine
 
 
 class AsyncReActCore(BaseEngine):
@@ -54,7 +54,7 @@ class AsyncReActCore(BaseEngine):
         
         return "\n".join(context_lines)
 
-    def _build_initial_messages(self, user_input: str, task_plan: List[str], task_info: Dict[str, Any], history_context: str, workspace_path: Optional[str] = None) -> List[
+    def _build_initial_messages(self, user_input: str, task_plan: List[str], task_info: Dict[str, Any], history_context: str, workspace_path: Optional[str] = None,soul_prompt: Optional[str] = None) -> List[
         Dict[str, Any]]:
         """构建初始消息
 
@@ -86,7 +86,8 @@ class AsyncReActCore(BaseEngine):
             skills_list=skills_list,
             steps=[],
             system_info=system_info,
-            task_plan=task_plan_str
+            task_plan=task_plan_str,
+            soul_prompt=soul_prompt
         )
 
     def _build_step_messages(self, messages: List[Dict[str, Any]], steps: List[Dict[str, Any]]):
@@ -334,7 +335,7 @@ class AsyncReActCore(BaseEngine):
         task_level = task_info.get("level", "simple")
         history_context = self._build_history_context(history)
         workspace_path = context.workspace_path
-        messages = self._build_initial_messages(user_input, task_plan, task_info, history_context, workspace_path)
+        messages = self._build_initial_messages(user_input, task_plan, task_info, history_context, workspace_path,context.session_context.soul_prompt)
         steps = []
 
         for step in range(self.max_steps):

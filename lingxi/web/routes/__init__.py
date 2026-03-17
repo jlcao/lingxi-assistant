@@ -1,5 +1,5 @@
 """API 路由模块"""
-from lingxi.web.routes import tasks, checkpoints, skills, config, sessions, workspace
+from lingxi.web.routes import tasks, checkpoints, skills, config, sessions, workspace, chat
 
 try:
     from lingxi.web.routes import resources
@@ -13,5 +13,6 @@ __all__ = [
     "resources",
     "config",
     "sessions",
-    "workspace"
+    "workspace",
+    "chat"
 ]

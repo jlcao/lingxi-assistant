@@ -12,6 +12,8 @@ from lingxi.core.session.database_manager import DatabaseManager
 from lingxi.core.session.task_manager import TaskManager, task_to_dict, dict_to_task
 from lingxi.core.session.step_manager import StepManager, step_to_dict, dict_to_step
 from lingxi.core.session.workspace_registry import WorkspaceRegistry
+from lingxi.core.soul import SoulInjector
+from lingxi.core.memory import MemoryManager, MemoryExtractor
 
 
 def session_to_dict(session: Session) -> dict:
@@ -59,7 +61,6 @@ class SessionManager:
             session_id: 会话ID
         """
         self.config = config
-        self.session_id = session_id
         self.db_path = config.get("session", {}).get("db_path", "data/assistant.db")
         self.max_history_turns = config.get("session", {}).get("max_history_turns", 50)
         self.memory_cache = {}
@@ -75,7 +76,34 @@ class SessionManager:
         self.workspace_registry = WorkspaceRegistry(self.db_path)
 
         self.context_manager = ContextManager(config, session_id)
+        
+        # 初始化 SOUL 注入器
+        self.workspace_path = config.get("workspace", {}).get("last_workspace", "./workspace")
+        self.soul_injector = SoulInjector(self.workspace_path)
+        self.soul_injector.load()  # 加载 SOUL.md
+        self.logger.debug(f"SOUL 注入器已初始化，工作目录：{self.workspace_path}")
+        
+        # 记忆管理器
+        self.memory_manager = MemoryManager(config)
+        self.memory_extractor = MemoryExtractor(self.memory_manager)
+        self.session_context_cache = {}
+        
+        # 自动加载 MEMORY.md
+        if self.workspace_path:
+            count = self.memory_manager.load_memory(self.workspace_path)
+            self.logger.info(f"加载了 {count} 条记忆")
+        
         self._initialized = True
+
+    def get_session_context(self,session_id:str) -> ContextManager:
+        """获取当前会话的上下文管理器"""
+        session_context = self.session_context_cache.get(session_id)
+        if session_context is None:
+            session_context = ContextManager(self.config, session_id)
+            self.session_context_cache[session_id] = session_context
+            self._build_soul_and_memory(session_id);
+        return session_context
+    
 
     def update_db_path(self, new_db_path: str):
         """更新数据库路径（用于工作区切换）
@@ -95,7 +123,21 @@ class SessionManager:
             self.db_manager.db_path = new_db_path
             self.db_manager._init_db()
         
+        # 更新工作目录注册表，使用新的数据库路径
+        self.workspace_registry = WorkspaceRegistry(new_db_path)
+        
         self.logger.info(f"数据库路径已更新：{new_db_path}")
+
+    def switch_workspace(self, workspace_path: str):
+        """切换工作目录并重新加载 SOUL
+
+        Args:
+            workspace_path: 新的工作目录路径
+        """
+        self.workspace_path = workspace_path
+        self.soul_injector = SoulInjector(workspace_path)
+        self.soul_injector.load()
+        self.logger.info(f"工作目录已切换到：{workspace_path}，SOUL 已重新加载")
 
     def get_history(self, session_id: str, max_turns: int = None, compress: bool = False) -> List[Dict[str, Any]]:
         """获取会话历史
@@ -589,25 +631,45 @@ class SessionManager:
         """列出所有会话
 
         Args:
-            workspace_path: 工作目录路径（可选），如果指定则返回该工作目录的会话
+            workspace_path: 工作目录路径（可选）
 
         Returns:
             会话列表，包含session_id、创建时间、更新时间、消息数量等信息
         """
-        # 如果指定了工作目录路径，使用 WorkspaceRegistry 获取该工作目录的会话
         if workspace_path:
-            return self.workspace_registry.get_sessions_by_workspace_path(workspace_path)
-
-        # 否则返回所有会话
-        conn = self.db_manager.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT s.session_id, s.title, s.created_at, s.updated_at, COUNT(t.task_id) as task_count
-            FROM sessions s
-            LEFT JOIN tasks t ON s.session_id = t.session_id
-            GROUP BY s.session_id
-            ORDER BY s.updated_at DESC
-        """)
+            # 从工作目录注册表中获取该工作目录关联的会话
+            workspace_sessions = self.workspace_registry.get_sessions_by_workspace_path(workspace_path)
+            
+            # 构建会话ID列表
+            session_ids = [s['session_id'] for s in workspace_sessions]
+            if not session_ids:
+                return []
+            
+            # 构建IN查询
+            conn = self.db_manager.get_connection()
+            cursor = conn.cursor()
+            placeholders = ','.join(['?'] * len(session_ids))
+            query = f"""
+                SELECT s.session_id, s.title, s.created_at, s.updated_at, COUNT(t.task_id) as task_count
+                FROM sessions s
+                LEFT JOIN tasks t ON s.session_id = t.session_id
+                WHERE s.session_id IN ({placeholders})
+                GROUP BY s.session_id
+                ORDER BY s.updated_at DESC
+            """
+            cursor.execute(query, session_ids)
+        else:
+            # 列出所有会话
+            conn = self.db_manager.get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT s.session_id, s.title, s.created_at, s.updated_at, COUNT(t.task_id) as task_count
+                FROM sessions s
+                LEFT JOIN tasks t ON s.session_id = t.session_id
+                GROUP BY s.session_id
+                ORDER BY s.updated_at DESC
+            """)
+        
         rows = cursor.fetchall()
         conn.close()
 
@@ -717,48 +779,140 @@ class SessionManager:
 
         return deleted
 
-    def create_session(self, user_name: str = "default") -> str:
+    def create_session(self, user_name: str = "default", system_prompt: str = None) -> str:
         """创建新会话
 
         Args:
             user_name: 用户名
+            system_prompt: 基础系统提示词（可选）
 
         Returns:
-            会话ID
+            会话 ID
         """
         import uuid
         session_id = str(uuid.uuid4())
+        return self.create_session_by_id(session_id, user_name, system_prompt)
 
+    def create_session_by_id(self, session_id: str, user_name: str = "default", system_prompt: str = None, workspace_path: Optional[str] = None) -> str:
+        """根据指定的会话 ID 创建新会话
+
+        Args:
+            session_id: 会话 ID
+            user_name: 用户名
+            system_prompt: 基础系统提示词（可选）
+            workspace_path: 工作目录路径（可选）
+
+        Returns:
+            会话 ID
+        """
         sql = """
             INSERT INTO sessions (session_id, user_name, title, total_tokens, created_at, updated_at)
             VALUES (?, ?, '新会话', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """
         self.db_manager.execute_sql(sql, (session_id, user_name))
 
+        # 如果指定了工作目录，关联会话和工作目录
+        if workspace_path:
+            success = self.workspace_registry.associate_session_with_workspace(session_id, workspace_path)
+            if success:
+                self.logger.debug(f"会话已关联到工作目录：{session_id} -> {workspace_path}")
+            else:
+                self.logger.warning(f"会话关联工作目录失败：{session_id} -> {workspace_path}")
+        # 注入 SOUL 到会话
+        self._build_soul_and_memory(session_id);
+
         self.logger.debug(f"会话已创建，session_id: {session_id}, user_name: {user_name}")
         return session_id
 
-    def create_session_by_id(self, session_id: str, user_name: str = "default", title: str = "新会话") -> str:
-        """使用指定ID创建会话
+    def _build_soul_and_memory(self,session_id: str) -> None :
+        if self.soul_injector.soul_data:
+            final_system_prompt = self.soul_injector.soul_content
+            
+            # 注入记忆到系统提示词
+            if self.memory_manager.memories:
+                memory_context = self._build_memory_context()
+                if memory_context:
+                    final_system_prompt += "\n\n# 用户记忆\n\n" + memory_context
+                    self.logger.debug(f"已注入 {len(self.memory_manager.memories)} 条记忆到系统提示词")
+            
+            # 将会话的系统提示词存储到上下文管理器
+            self.get_session_context(session_id).add_context_item("system", final_system_prompt)
+            self.get_session_context(session_id).set_soul(final_system_prompt)
+            self.logger.debug(f"SOUL 已注入到会话：{session_id}")    
 
+    def _build_memory_context(self) -> str:
+        """构建记忆上下文"""
+        # 获取高重要性记忆
+        important_memories = [
+            m for m in self.memory_manager.memories.values()
+            if m.importance >= 4
+        ]
+        
+        if not important_memories:
+            return ""
+        
+        # 按分类组织
+        by_category = {}
+        for memory in important_memories[:15]:  # 最多 15 条
+            cat = memory.category
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(memory.content)
+        
+        # 生成上下文
+        lines = []
+        category_names = {
+            "preference": "用户偏好",
+            "fact": "重要事实",
+            "decision": "历史决策"
+        }
+        
+        for cat, contents in by_category.items():
+            cat_name = category_names.get(cat, cat)
+            lines.append(f"## {cat_name}")
+            for content in contents:
+                lines.append(f"- {content}")
+            lines.append("")
+        
+        return "\n".join(lines)
+
+    def end_session(self, session_id: str, auto_extract_memory: bool = True):
+        """
+        结束会话并提取记忆
+        
         Args:
-            session_id: 会话ID
-            user_name: 用户名
-            title: 会话标题
-
-        Returns:
-            会话ID
+            session_id: 会话 ID
+            auto_extract_memory: 是否自动提取记忆
         """
-        sql = """
-            INSERT OR REPLACE INTO sessions (session_id, user_name, title, total_tokens, created_at, updated_at)
-            VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        """
-        self.db_manager.execute_sql(sql, (session_id, user_name, title))
+        # 获取会话历史（从任务管理器）
+        session_history = self.task_manager.get_tasks_by_session(session_id)
+        
+        # 转换为记忆提取器需要的格式
+        history_for_extraction = []
+        for task in session_history:
+            if task.get("user_input"):
+                history_for_extraction.append({"role": "user", "content": task["user_input"]})
+            if task.get("result"):
+                history_for_extraction.append({"role": "assistant", "content": task["result"]})
+        
+        # 自动提取记忆
+        if auto_extract_memory and history_for_extraction:
+            try:
+                memories = self.memory_extractor.extract_from_session(
+                    history_for_extraction,
+                    auto_save=True,
+                    min_importance=3
+                )
+                self.logger.info(f"会话结束提取了 {len(memories)} 条记忆")
+            except Exception as e:
+                self.logger.error(f"提取记忆失败：{e}")
+        
+        # 保存 MEMORY.md
+        try:
+            self.memory_manager.save_to_file()
+        except Exception as e:
+            self.logger.error(f"保存 MEMORY.md 失败：{e}")
 
-        self.logger.debug(f"会话已创建，session_id: {session_id}, user_name: {user_name}, title: {title}")
-        return session_id
-
-    @property
     def transaction(self):
         """事务上下文管理器（委托给数据库管理器）"""
         return self.db_manager.transaction

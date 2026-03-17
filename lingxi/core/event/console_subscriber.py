@@ -1,4 +1,5 @@
 import logging
+import sys
 from typing import Dict, Any
 from lingxi.core.event import global_event_publisher
 
@@ -22,6 +23,11 @@ class ConsoleSubscriber:
         self._final_result: str = ""
         self._subscribe_to_events()
         self._initialized = True
+    
+    def _print(self, *args, **kwargs):
+        """安全的打印方法，处理 stdout 关闭的情况"""
+        if hasattr(sys, 'stdout') and sys.stdout and not sys.stdout.closed:
+            print(*args, **kwargs)
 
     def _subscribe_to_events(self):
         global_event_publisher.subscribe('think_start', self.handle_think_start)
@@ -48,34 +54,34 @@ class ConsoleSubscriber:
         global_event_publisher.unsubscribe('task_end', self.handle_task_end)
 
     def handle_task_start(self, session_id: str, execution_id: str, **kwargs):
-        print("\n🚀 任务开始处理...")
+        self._print("\n🚀 任务开始处理...")
 
     def handle_think_start(self, session_id: str, execution_id: str, **kwargs):
-        print("💭 思考中...")
+        self._print("💭 思考中...")
 
     def handle_think_stream(self, session_id: str, execution_id: str, content: str, **kwargs):
-        print(f"{content}", end="", flush=True)
+        self._print(f"{content}", end="", flush=True)
 
     def handle_think_final(self, session_id: str, execution_id: str, content: str, **kwargs):
-        print()
+        self._print()
 
     def handle_plan_start(self, session_id: str, execution_id: str, **kwargs):
         pass
 
     def handle_plan_final(self, session_id: str, execution_id: str, plan: list, **kwargs):
-        print("\n📋 任务规划:")
+        self._print("\n📋 任务规划:")
         for i, step in enumerate(plan, 1):
             desc = step if isinstance(step, str) else step.get('description', str(step))
-            print(f"   {i}. {desc}")
+            self._print(f"   {i}. {desc}")
 
     def handle_step_start(self, session_id: str, execution_id: str, step_index: int, **kwargs):
         # description 可能包含换行符
         description = kwargs.get('description', '')
         if description:
             formatted_desc = self._format_console_output(description)
-            print(f"\n📍 执行步骤 {step_index + 1}: {formatted_desc}")
+            self._print(f"\n📍 执行步骤 {step_index + 1}: {formatted_desc}")
         else:
-            print(f"\n📍 执行步骤 {step_index + 1}...")
+            self._print(f"\n📍 执行步骤 {step_index + 1}...")
 
     def handle_step_end(self, session_id: str, execution_id: str, step_index: int, result: str, **kwargs):
         # result 可能是字符串或字典
@@ -83,7 +89,7 @@ class ConsoleSubscriber:
             # 格式化输出，处理换行符和 Markdown 格式
             formatted_result = self._format_console_output(result)
             preview = formatted_result[:200] + '...' if len(formatted_result) > 200 else formatted_result
-            print(f"\n   ✅ 完成：{preview}")
+            self._print(f"\n   ✅ 完成：{preview}")
 
     def _format_console_output(self, text: str) -> str:
         """格式化控制台输出文本
@@ -117,7 +123,7 @@ class ConsoleSubscriber:
         self._final_result = result if isinstance(result, str) else str(result)
         # 格式化输出，处理换行符和 Markdown 格式
         formatted_result = self._format_console_output(result)
-        print(f"\n✨ 最终结果:\n{formatted_result}")
+        self._print(f"\n✨ 最终结果:\n{formatted_result}")
 
     def get_final_result(self) -> str:
         return self._final_result

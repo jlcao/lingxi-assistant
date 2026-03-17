@@ -22,15 +22,22 @@ logger = logging.getLogger(__name__)
 
 
 class WorkspaceRegistry:
-    """工作目录注册表（单例模式）"""
+    """工作目录注册表（基于 db_path 的多实例模式）
+    
+    使用类级别的实例缓存，每个 db_path 对应一个实例。
+    这样既保持了单例的优点（同一数据库共享连接），又支持测试隔离。
+    """
 
-    _instance = None
+    _instances: Dict[str, 'WorkspaceRegistry'] = {}
 
     def __new__(cls, db_path: str):
-        """单例模式：确保只创建一个实例"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        """基于 db_path 的实例缓存"""
+        # 规范化路径以确保一致性
+        normalized_path = str(Path(db_path).resolve())
+        
+        if normalized_path not in cls._instances:
+            cls._instances[normalized_path] = super().__new__(cls)
+        return cls._instances[normalized_path]
 
     def __init__(self, db_path: str):
         """初始化工作目录注册表
@@ -38,11 +45,14 @@ class WorkspaceRegistry:
         Args:
             db_path: 数据库文件路径
         """
+        # 规范化路径
+        normalized_path = str(Path(db_path).resolve())
+        
         # 防止重复初始化
-        if hasattr(self, '_initialized'):
+        if hasattr(self, '_initialized') and self._initialized:
             return
 
-        self.db_path = db_path
+        self.db_path = normalized_path
         self._connection_cache: Optional[sqlite3.Connection] = None
 
         # 执行数据库迁移
@@ -177,8 +187,23 @@ class WorkspaceRegistry:
         return self.update_session_workspace(session_id, workspace_id)
 
     def close(self):
-        """关闭数据库连接"""
+        """关闭数据库连接并从实例缓存中移除"""
         if self._connection_cache:
             self._connection_cache.close()
             self._connection_cache = None
-            logger.debug("WorkspaceRegistry 数据库连接已关闭")
+        
+        # 从实例缓存中移除
+        if self.db_path in WorkspaceRegistry._instances:
+            del WorkspaceRegistry._instances[self.db_path]
+        
+        self._initialized = False
+        logger.debug("WorkspaceRegistry 数据库连接已关闭，实例已移除")
+
+    @classmethod
+    def clear_instances(cls):
+        """清除所有实例缓存（用于测试）"""
+        for instance in cls._instances.values():
+            if instance._connection_cache:
+                instance._connection_cache.close()
+        cls._instances.clear()
+        logger.debug("WorkspaceRegistry 所有实例缓存已清除")

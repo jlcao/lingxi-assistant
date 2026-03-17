@@ -8,10 +8,12 @@ import uuid
 import logging
 from typing import Dict, List, Any, Union, Optional
 from collections.abc import AsyncGenerator
-from lingxi.core.engine.plan_react_core import PlanReActCore
 from lingxi.core.context import TaskContext
 from lingxi.core.engine.async_react_core import AsyncReActCore
 from lingxi.core.prompts.prompts import PromptTemplates
+
+# PlanReActCore 已废弃 - 2026-03-15
+# from lingxi.core.engine.plan_react_core import PlanReActCore
 
 
 class AsyncPlanReActEngine(AsyncReActCore):
@@ -125,7 +127,8 @@ class AsyncPlanReActEngine(AsyncReActCore):
                     task_id=task_id,
                     execution_id=execution_id,
                     workspace_path=context.workspace_path,
-                    thinking_mode=context.thinking_mode
+                    thinking_mode=context.thinking_mode,
+                    session_context=context.session_context
                 )
 
                 final_result = None
@@ -265,11 +268,11 @@ class AsyncPlanReActEngine(AsyncReActCore):
         task_level = task_info.get("level", "simple")
         history_context = self._build_history_context(history)
 
-        self.logger.debug(f"异步 PlanReActCore 处理任务：level={task_level}, task={task}")
+        self.logger.debug(f"异步 Plan+ReAct 引擎处理任务：level={task_level}, task={task}")
     
         self._publish_task_start(session_id, execution_id, task, task_info, task_id)
         
-        analysis = await self._analyze_task_and_plan(task, task_info, history_context, session_id, execution_id,thinking_mode)
+        analysis = await self._analyze_task_and_plan(context , history_context)
         
         if not analysis:
             self.logger.warning("任务分析失败，降级为父类执行")
@@ -331,12 +334,8 @@ class AsyncPlanReActEngine(AsyncReActCore):
 
     async def _analyze_task_and_plan(
         self,
-        task: str,
-        task_info: Dict[str, Any],
+        context: TaskContext,
         history_context: str,
-        session_id: str,
-        execution_id: str,
-        thinking_mode: bool = False
     ) -> Optional[Dict[str, Any]]:
         """分析任务并生成计划（异步）
 
@@ -350,16 +349,23 @@ class AsyncPlanReActEngine(AsyncReActCore):
         Returns:
             分析结果
         """
+        session_id = context.session_id
+        execution_id = context.execution_id
+        task = context.user_input
+        task_info = context.task_info
         available_skills = self.skill_caller.list_available_skills(enabled_only=True) if self.skill_caller else []
         skills_list = PromptTemplates.format_skills_list(available_skills)
         system_info = PromptTemplates.get_system_info()
+        soul_prompt = context.session_context.soul_prompt
+        thinking_mode = context.thinking_mode
         
         messages = PromptTemplates.build_task_analysis_messages_with_cache(
             task=task,
             history_context=history_context,
             skills_list=skills_list,
             system_info=system_info,
-            max_plan_steps=self.max_plan_steps
+            max_plan_steps=self.max_plan_steps,
+            soul_system_prompt=soul_prompt
         )
         self.logger.debug(f"发往 LLM 的任务计划消息：{messages}")
         last_thought = ""
