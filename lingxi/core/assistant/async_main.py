@@ -46,6 +46,8 @@ class AsyncLingxiAssistant(BaseAssistant):
 
             engine = AsyncPlanReActEngine(self.config, self.skill_caller, self.session_manager)
 
+            session_context = self.session_manager.get_session_context(session_id)
+
             workspace_path = str(self.workspace_manager.current_workspace) if self.workspace_manager.current_workspace else None
 
             context = TaskContext(
@@ -55,7 +57,8 @@ class AsyncLingxiAssistant(BaseAssistant):
                 session_history=history,
                 stream=stream,
                 workspace_path=workspace_path,
-                thinking_mode=thinking_mode
+                thinking_mode=thinking_mode,
+                session_context=session_context
             )
 
             response = await engine.process(context)

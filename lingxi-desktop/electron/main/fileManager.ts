@@ -51,8 +51,21 @@ export class FileManager {
     await shell.showItemInFolder(filePath)
   }
 
-  async openFile(filePath: string): Promise<void> {
-    await shell.openPath(filePath)
+  async openFile(filePath: string): Promise<string> {
+    console.log('[FileManager] openFile called with:', filePath)
+    try {
+      const result = await shell.openPath(filePath)
+      console.log('[FileManager] File open result:', result, 'for:', filePath)
+      if (result) {
+        console.error('[FileManager] File open failed with error:', result)
+        throw new Error(`shell.openPath 返回错误：${result}`)
+      }
+      console.log('[FileManager] 文件打开成功！', filePath)
+      return 'success'
+    } catch (error) {
+      console.error('[FileManager] Failed to open file:', filePath, error)
+      throw error
+    }
   }
 
   async openExternal(url: string): Promise<void> {

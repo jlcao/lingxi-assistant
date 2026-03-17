@@ -820,13 +820,16 @@ watch(turns, (newTurns) => {
   display: block;
   text-align: left;
 
-  ::marker {
-    unicode-bidi: isolate;
-    font-variant-numeric: tabular-nums;
-    text-transform: none;
-    text-indent: 0px !important;
-    text-align: start !important;
-    text-align-last: start !important;
+  ul, ol {
+    margin: 8px 0;
+    padding-left: 32px;
+    text-indent: 0;
+  }
+
+  li {
+    margin: 4px 0;
+    padding-left: 4px;
+    text-indent: 0;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -848,15 +851,6 @@ watch(turns, (newTurns) => {
 
   p {
     margin: 8px 0;
-  }
-
-  ul, ol {
-    margin: 8px 0;
-    padding-left: 24px;
-  }
-
-  li {
-    margin: 4px 0;
   }
 
   code {
@@ -909,6 +903,50 @@ watch(turns, (newTurns) => {
     th {
       background-color: #f6f8fa;
       font-weight: 600;
+    }
+  }
+}
+
+// 全局样式 - 用于 v-html 渲染的 Markdown 内容
+:deep(.message-text) {
+  ul, ol {
+    margin: 8px 0;
+    padding-left: 32px !important;
+    text-indent: 0 !important;
+    
+    li {
+      margin: 4px 0;
+      padding-left: 4px !important;
+      text-indent: 0 !important;
+      list-style-position: outside !important;
+      
+      // 确保列表项内容正确缩进
+      > * {
+        text-indent: 0;
+      }
+    }
+  }
+  
+  // 有序列表特殊处理
+  ol {
+    li {
+      list-style-type: decimal;
+      position: relative;
+      
+      &::marker {
+        display: inline-block;
+        min-width: 20px;
+        text-align: right;
+        padding-right: 8px;
+      }
+    }
+  }
+  
+  // 无序列表特殊处理
+  ul {
+    li {
+      list-style-type: disc;
+      position: relative;
     }
   }
 }

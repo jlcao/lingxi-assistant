@@ -3,6 +3,7 @@
 
 import logging
 from typing import Dict, List, Optional, Any
+from lingxi.management import workspace
 from lingxi.skills.registry import SkillRegistry
 from lingxi.skills.registry_memory import SkillRegistry as SkillRegistryMemory
 from lingxi.skills.skill_loader import SkillLoader
@@ -43,8 +44,10 @@ class SkillSystem:
         
         # 2. 初始化安全沙箱
         security_config = config.get("security", {})
+        workspace_config=config.get('workspace',{})
+
         self.sandbox = SecuritySandbox(
-            workspace_root=None,  # 不设置默认值，等待实际工作目录
+            workspace_root=workspace_config.get("last_workspace",'./workspace'),  # 不设置默认值，等待实际工作目录
             max_file_size=security_config.get("max_file_size", 10 * 1024 * 1024),
             allowed_commands=security_config.get("allowed_commands"),
             safety_mode=security_config.get("safety_mode", True)

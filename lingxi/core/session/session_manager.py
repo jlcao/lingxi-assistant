@@ -61,7 +61,6 @@ class SessionManager:
             session_id: 会话ID
         """
         self.config = config
-        self.session_id = session_id
         self.db_path = config.get("session", {}).get("db_path", "data/assistant.db")
         self.max_history_turns = config.get("session", {}).get("max_history_turns", 50)
         self.memory_cache = {}
@@ -79,7 +78,7 @@ class SessionManager:
         self.context_manager = ContextManager(config, session_id)
         
         # 初始化 SOUL 注入器
-        self.workspace_path = config.get("workspace", {}).get("default_path", "./workspace")
+        self.workspace_path = config.get("workspace", {}).get("last_workspace", "./workspace")
         self.soul_injector = SoulInjector(self.workspace_path)
         self.soul_injector.load()  # 加载 SOUL.md
         self.logger.debug(f"SOUL 注入器已初始化，工作目录：{self.workspace_path}")
@@ -87,6 +86,7 @@ class SessionManager:
         # 记忆管理器
         self.memory_manager = MemoryManager(config)
         self.memory_extractor = MemoryExtractor(self.memory_manager)
+        self.session_context_cache = {}
         
         # 自动加载 MEMORY.md
         if self.workspace_path:
@@ -94,6 +94,16 @@ class SessionManager:
             self.logger.info(f"加载了 {count} 条记忆")
         
         self._initialized = True
+
+    def get_session_context(self,session_id:str) -> ContextManager:
+        """获取当前会话的上下文管理器"""
+        session_context = self.session_context_cache.get(session_id)
+        if session_context is None:
+            session_context = ContextManager(self.config, session_id)
+            self.session_context_cache[session_id] = session_context
+            self._build_soul_and_memory(session_id);
+        return session_context
+    
 
     def update_db_path(self, new_db_path: str):
         """更新数据库路径（用于工作区切换）
@@ -808,12 +818,15 @@ class SessionManager:
                 self.logger.debug(f"会话已关联到工作目录：{session_id} -> {workspace_path}")
             else:
                 self.logger.warning(f"会话关联工作目录失败：{session_id} -> {workspace_path}")
-
         # 注入 SOUL 到会话
+        self._build_soul_and_memory(session_id);
+
+        self.logger.debug(f"会话已创建，session_id: {session_id}, user_name: {user_name}")
+        return session_id
+
+    def _build_soul_and_memory(self,session_id: str) -> None :
         if self.soul_injector.soul_data:
-            if system_prompt is None:
-                system_prompt = f"你是{self.soul_injector.soul_data.get('identity', {}).get('name', '灵犀')}智能助手。"
-            final_system_prompt = self.soul_injector.build_system_prompt(system_prompt)
+            final_system_prompt = self.soul_injector.soul_content
             
             # 注入记忆到系统提示词
             if self.memory_manager.memories:
@@ -823,12 +836,9 @@ class SessionManager:
                     self.logger.debug(f"已注入 {len(self.memory_manager.memories)} 条记忆到系统提示词")
             
             # 将会话的系统提示词存储到上下文管理器
-            if hasattr(self, 'context_manager'):
-                self.context_manager.add_context_item("system", final_system_prompt)
-            self.logger.debug(f"SOUL 已注入到会话：{session_id}")
-
-        self.logger.debug(f"会话已创建，session_id: {session_id}, user_name: {user_name}")
-        return session_id
+            self.get_session_context(session_id).add_context_item("system", final_system_prompt)
+            self.get_session_context(session_id).set_soul(final_system_prompt)
+            self.logger.debug(f"SOUL 已注入到会话：{session_id}")    
 
     def _build_memory_context(self) -> str:
         """构建记忆上下文"""

@@ -21,7 +21,7 @@
         :expand-on-click-node="false"
         class="file-tree"
         @node-contextmenu="handleNodeContextMenu"
-        @node-dblclick="handleNodeDblClick"
+        @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
           <div class="file-tree-node">
@@ -174,15 +174,55 @@ function handleNodeContextMenu(event: MouseEvent, data: TreeNode) {
   contextMenuRef.value?.handleOpen()
 }
 
-// 双击处理函数
-async function handleNodeDblClick(data: TreeNode) {
-  // 只对文件执行双击打开操作，目录不处理
-  if (!data.isDirectory) {
-    try {
-      await window.electronAPI.file.openFile(data.path)
-    } catch (error) {
-      console.error('Failed to open file:', error)
+// 双击处理函数（使用单击事件检测双击）
+let clickTimeout: NodeJS.Timeout | null = null
+let lastClickNode: TreeNode | null = null
+
+async function handleNodeClick(data: TreeNode, node: any, event: MouseEvent) {
+  console.log('[FileWorkspace] ====== 单击事件触发 ======')
+  console.log('[FileWorkspace] handleNodeClick -', {
+    label: data?.label,
+    path: data?.path,
+    isDirectory: data?.isDirectory
+  })
+  
+  // 如果是目录，不处理
+  if (data?.isDirectory) {
+    return
+  }
+  
+  const now = Date.now()
+  const isDoubleClick = lastClickNode?.path === data?.path && clickTimeout !== null
+  
+  if (isDoubleClick) {
+    // 清除之前的定时器，执行双击操作
+    if (clickTimeout) {
+      clearTimeout(clickTimeout)
+      clickTimeout = null
     }
+    console.log('[FileWorkspace] ====== 检测到双击 ======')
+    console.log('[FileWorkspace] 尝试打开文件:', data?.path)
+    
+    try {
+      const result = await window.electronAPI.file.openFile(data?.path)
+      console.log('[FileWorkspace] 文件打开结果:', result)
+    } catch (error) {
+      console.error('[FileWorkspace] Failed to open file:', error)
+      alert(`打开文件失败：${error}`)
+    }
+    
+    lastClickNode = null
+  } else {
+    // 设置定时器，等待第二次点击
+    if (clickTimeout) {
+      clearTimeout(clickTimeout)
+    }
+    clickTimeout = setTimeout(() => {
+      clickTimeout = null
+      lastClickNode = null
+    }, 300) // 300ms 内再次点击视为双击
+    
+    lastClickNode = data
   }
 }
 
@@ -212,7 +252,11 @@ function handleContextMenuVisibleChange(visible: boolean) {
 }
 
 onMounted(() => {
+  console.log('[FileWorkspace] ====== 组件已加载 ======')
   console.log('[FileWorkspace] onMounted called')
+  console.log('[FileWorkspace] currentWorkspace:', currentWorkspace.value)
+  console.log('[FileWorkspace] workspacePath:', workspacePath.value)
+  console.log('[FileWorkspace] fileTree:', fileTree.value)
   workspaceStore.setDirectoryTreeRefreshCallback(refreshTree)
   workspaceStore.setupFileChangeListener()
 })
@@ -270,6 +314,10 @@ watch(workspacePath, async (newPath) => {
 
 .file-tree {
   padding: 8px 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
   
   :deep(.el-tree-node.is-current > .el-tree-node__content) {
     background-color: #e6f7ff;
@@ -278,6 +326,10 @@ watch(workspacePath, async (newPath) => {
   :deep(.el-tree-node__content) {
     height: 32px;
     padding: 0 8px;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
     
     &:hover {
       background-color: #f5f7fa;

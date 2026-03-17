@@ -217,7 +217,8 @@ class PromptTemplates:
         skills_list: str,
         steps: List[Dict[str, str]],
         system_info: Optional[Dict[str, str]] = None,
-        task_plan: str = None
+        task_plan: str = None,
+        soul_prompt: str = ""
     ) -> List[Dict[str, Any]]:
         """构建ReAct模式消息列表（支持上下文缓存）
 
@@ -242,7 +243,8 @@ class PromptTemplates:
 
         executed_steps = PromptTemplates.format_executed_steps(steps, include_thought=False, max_prev_length=5000)
 
-        system_prompt = f"""你是万能的灵犀智能助手，使用ReAct模式解决问题。
+        system_prompt = f"""你是灵犀智能助手。
+        {soul_prompt}
 
 系统环境: {system_info['os_info']}
 当前工作目录: {system_info['current_dir']}
@@ -318,11 +320,12 @@ Action Input: {{"file_path": "test.txt"}}
         history_context: str,
         skills_list: str,
         system_info: Optional[Dict[str, str]] = None,
-        max_plan_steps: int = 8
+        max_plan_steps: int = 8,
+        soul_system_prompt: str = ""
     ) -> List[Dict[str, Any]]:
         """构建任务分析消息列表（支持上下文缓存）
 
-        统一分析任务并输出处理方案，一次LLM调用完成分类+计划+行动。
+        统一分析任务并输出处理方案，一次 LLM 调用完成分类 + 计划 + 行动。
         缓存策略：
         - 系统信息、工具列表等静态内容标记为缓存
         - 用户任务、历史上下文等动态内容不标记缓存
@@ -333,6 +336,7 @@ Action Input: {{"file_path": "test.txt"}}
             skills_list: 可用技能列表
             system_info: 系统信息（可选）
             max_plan_steps: 最大计划步骤数
+            soul_system_prompt: SOUL 系统提示词（可选）
 
         Returns:
             消息列表，支持 cache_control 标记
@@ -340,18 +344,21 @@ Action Input: {{"file_path": "test.txt"}}
         if system_info is None:
             system_info = PromptTemplates.get_system_info()
 
-        system_prompt = f"""你是灵犀智能助手，需要完成用户任务分类。
+        # 构建基础系统提示词
+        base_system_prompt = f"""你是灵犀智能助手
+
+        {soul_system_prompt}
   
-系统环境: {system_info['os_info']}
-当前工作目录: {system_info['current_dir']}
-Shell类型: {system_info['shell_type']}
-当前日期: {system_info['current_date']}
-当前时间: {system_info['current_time']}
+系统环境：{system_info['os_info']}
+当前工作目录：{system_info['current_dir']}
+Shell 类型：{system_info['shell_type']}
+当前日期：{system_info['current_date']}
+当前时间：{system_info['current_time']}
 
 可用工具:
 {skills_list}
 
-请严格按照以下JSON格式输出，不要包含任何其他文字：
+请严格按照以下 JSON 格式输出，不要包含任何其他文字：
 {{
   "thought": "你的思考过程",
   "level": "direct|simple|complex",
@@ -369,11 +376,13 @@ Shell类型: {system_info['shell_type']}
 - complex: 多步骤、多工具调用、需要规划（如：旅行规划、数据分析、多文件处理）
 
 注意事项：
-- 如果是simple任务，plan字段可以为空数组
-- 如果是complex任务，必须填写plan字段
-- 如果是问候类或可直接回答的问题，level设为direct，direct_answer为回答内容
-- 如果是complex任务，plan最多{max_plan_steps}个步骤，每个步骤描述要精炼，优先使用已有的技能处理
-- 必须返回有效的JSON格式"""
+- 如果是 simple 任务，plan 字段可以为空数组
+- 如果是 complex 任务，必须填写 plan 字段
+- 如果是问候类或可直接回答的问题，level 设为 direct，direct_answer 为回答内容
+- 如果是 complex 任务，plan 最多{max_plan_steps}个步骤，每个步骤描述要精炼，优先使用已有的技能处理
+- 必须返回有效的 JSON 格式"""
+    
+        system_prompt = base_system_prompt
 
         history_part = f"""历史上下文：
 {history_context if history_context else "无"}"""

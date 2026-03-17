@@ -1,6 +1,7 @@
 """SOUL 提示词注入器 - 核心注入逻辑"""
 
 import os
+from pathlib import Path
 from typing import Optional, List, Dict
 try:
     from .soul_parser import SoulParser
@@ -12,6 +13,13 @@ except ImportError:
 
 class SoulInjector:
     """SOUL 提示词注入器"""
+    _instance = None
+
+    def __new__(cls, workspace_path: str):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        cls._instance.workspace_path = workspace_path
+        return cls._instance
     
     def __init__(self, workspace_path: str):
         self.workspace_path = workspace_path
@@ -20,47 +28,98 @@ class SoulInjector:
         self.cache = SoulCache()
         self.soul_content: Optional[str] = None
         self.soul_data: Optional[dict] = None
+        import logging
+        self.logger = logging.getLogger(__name__)
     
-    def load(self) -> bool:
+    def load(self, fallback_to_user_dir: bool = True) -> bool:
         """
         加载 SOUL.md
-        1. 先检查缓存
-        2. 缓存未命中则读取文件
-        3. 解析并缓存
+        1. 先检查工作区路径的 SOUL.md
+        2. 如果不存在且 fallback_to_user_dir=True，则尝试用户目录 ~/.lingxi/conf/SOUL.md
+        3. 如果用户目录也没有，则创建默认的 SOUL.md
+        4. 检查缓存
+        5. 读取并解析文件
+        6. 缓存结果
         
+        Args:
+            fallback_to_user_dir: 是否回退到用户目录
+            
         Returns:
             bool: 加载是否成功
         """
-        # 检查文件是否存在
-        if not os.path.exists(self.soul_path):
+        # 优先检查工作区路径
+        if os.path.exists(self.soul_path):
+            soul_path_to_load = self.soul_path
+            self.logger.info(f"[SoulInjector] 从工作区加载 SOUL.md: {self.soul_path}")
+        elif fallback_to_user_dir:
+            # 回退到用户目录 ~/.lingxi/conf/SOUL.md
+            user_home = Path.home()
+            user_conf_dir = user_home / ".lingxi" / "conf"
+            user_soul_path = user_conf_dir / "SOUL.md"
+            
+            if user_soul_path.exists():
+                soul_path_to_load = str(user_soul_path)
+                self.logger.info(f"[SoulInjector] 从用户目录加载 SOUL.md: {user_soul_path}")
+            else:
+                # 用户目录也没有，创建默认的 SOUL.md
+                self.logger.info("[SoulInjector] 用户目录未找到 SOUL.md，创建默认文件")
+                try:
+                    # 确保目录存在
+                    user_conf_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # 读取项目根目录的默认 SOUL.md
+                    project_root = Path(__file__).parent.parent.parent.parent
+                    default_soul_path = project_root / "SOUL.md"
+                    
+                    if default_soul_path.exists():
+                        with open(default_soul_path, 'r', encoding='utf-8') as f:
+                            default_content = f.read()
+                        
+                        # 写入到用户目录
+                        with open(user_soul_path, 'w', encoding='utf-8') as f:
+                            f.write(default_content)
+                        
+                        self.logger.info(f"[SoulInjector] 默认 SOUL.md 已创建：{user_soul_path}")
+                        soul_path_to_load = str(user_soul_path)
+                    else:
+                        self.logger.warning(f"[SoulInjector] 默认 SOUL.md 不存在：{default_soul_path}")
+                        return False
+                except Exception as e:
+                    self.logger.error(f"[SoulInjector] 创建默认 SOUL.md 失败：{e}")
+                    return False
+        else:
+            self.logger.debug("[SoulInjector] 工作区未找到 SOUL.md 且不允许回退")
             return False
         
         # 读取文件内容
         try:
-            with open(self.soul_path, 'r', encoding='utf-8') as f:
+            with open(soul_path_to_load, 'r', encoding='utf-8') as f:
                 content = f.read()
         except Exception as e:
-            print(f"[SoulInjector] 读取 SOUL.md 失败：{e}")
+            self.logger.error(f"[SoulInjector] 读取 SOUL.md 失败：{e}")
             return False
         
-        # 检查缓存
-        cached_data = self.cache.get(self.workspace_path)
+        # 检查缓存（使用实际加载的路径作为 key）
+        cache_key = os.path.dirname(soul_path_to_load)
+        cached_data = self.cache.get(cache_key)
         if cached_data is not None:
             # 缓存命中，验证内容是否变化
-            if self.cache.is_valid(self.workspace_path, content):
+            if self.cache.is_valid(cache_key, content):
                 self.soul_content = content
                 self.soul_data = cached_data
+                self.logger.debug(f"[SoulInjector] 缓存命中：{cache_key}")
                 return True
         
         # 缓存未命中或内容已变化，重新解析
         try:
             data = self.parser.parse(content)
-            self.cache.set(self.workspace_path, content, data)
+            self.cache.set(cache_key, content, data)
             self.soul_content = content
             self.soul_data = data
+            self.logger.debug(f"[SoulInjector] 解析并缓存：{cache_key}")
             return True
         except Exception as e:
-            print(f"[SoulInjector] 解析 SOUL.md 失败：{e}")
+            self.logger.error(f"[SoulInjector] 解析 SOUL.md 失败：{e}")
             return False
     
     def parse(self) -> dict:

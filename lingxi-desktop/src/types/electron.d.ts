@@ -22,7 +22,7 @@ declare global {
         selectFiles: (filters?: any) => Promise<string[]>
         save: (defaultPath?: string, filters?: any) => Promise<string | null>
         openExplorer: (filePath: string) => Promise<void>
-        openFile: (filePath: string) => Promise<void>
+        openFile: (filePath: string) => Promise<string>
         readDirectoryTree: (dirPath: string, maxDepth?: number) => Promise<FileTreeNode | null>
       }
       api: {
