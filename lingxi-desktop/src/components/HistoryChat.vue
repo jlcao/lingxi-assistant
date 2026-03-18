@@ -145,14 +145,15 @@ async function handleSelectWorkspace() {
 
 function formatSessionTime(timestamp?: number): string {
   if (!timestamp) return '刚刚'
-  const now = Date.now()
-  const diff = now - timestamp
+  const now = new Date()
+  const sessionTime = new Date(timestamp)
+  const diff = now.getTime() - sessionTime.getTime()
   
   if (diff < 60000) return '刚刚'
   if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
   if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
   if (diff < 604800000) return `${Math.floor(diff / 86400000)} 天前`
-  return new Date(timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  return sessionTime.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
 async function handleNewSession() {
