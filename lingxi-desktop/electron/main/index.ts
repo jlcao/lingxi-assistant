@@ -567,7 +567,7 @@ class App {
       //logger.log('[Date: ' + new Date().toLocaleString() + '] [Main] think_stream received:', JSON.stringify(data).substring(0, 200))
       const mainWindow = this.windowManager.getWindow()
       if (mainWindow && !mainWindow.isDestroyed()) {
-        logger.log('[Date: ' + new Date().toLocaleString() + '] [Main] Sending ws:think-stream to renderer')
+        //logger.log('[Date: ' + new Date().toLocaleString() + '] [Main] Sending ws:think-stream to renderer')
         this.safeSend('ws:think-stream', data)
       } else {
         logger.log('[Date: ' + new Date().toLocaleString() + '] [Main] No main window available')

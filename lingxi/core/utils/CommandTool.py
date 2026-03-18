@@ -37,7 +37,8 @@ class CommandTool(ToolBase):
         result = {
             "status": "F",
             "error": "",
-            "output": ""
+            "output": "",
+            "result_description": f"执行命令: {str(parameters)}"
         }
         
         try:
@@ -151,6 +152,9 @@ class CommandTool(ToolBase):
             
             # 5. 处理执行结果
             full_output = stdout + stderr
+            # 限制输出长度，最长保留1000个字符
+            if len(full_output) > 1000:
+                full_output = full_output[:1000] + "..."
             result["output"] = full_output
             
             # 检查Python错误

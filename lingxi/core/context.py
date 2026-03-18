@@ -1,6 +1,7 @@
 # lingxi/core/context.py
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
+from lingxi.context.manager import ContextManager
 
 @dataclass
 class TaskContext:

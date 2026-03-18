@@ -203,7 +203,8 @@ class SessionStoreSubscriber:
                 thought=kwargs.get('thought', ''),
                 action=kwargs.get('action', ''),
                 action_input=kwargs.get('action_input', ''),
-                description=kwargs.get('description', '')
+                description=kwargs.get('description', ''),
+                result_description=kwargs.get('result_description', '')
             )
         else:
             self.logger.warning("sessionManage 未初始化")

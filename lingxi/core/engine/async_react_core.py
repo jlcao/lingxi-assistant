@@ -28,7 +28,7 @@ class AsyncReActCore(BaseEngine):
         """
         super().__init__(config, skill_caller, session_manager, websocket_manager)
 
-        self.max_steps = int(config.get("engine", {}).get("max_steps", 10))
+        self.max_steps = int(config.get("engine", {}).get("max_steps", 50))
         self.timeout = int(config.get("engine", {}).get("timeout", 60))
 
         # 异步 LLM 客户端
@@ -298,7 +298,7 @@ None
             self._publish_step_end(
                 session_id, execution_id, step, "failed", None,
                 "无法解析 LLM 响应", thought,
-                description, task_id
+                description, task_id,None
             )
             self._publish_task_failed(session_id, execution_id, "无法解析 LLM 响应", task_id)
             return {"parsed": parsed, "usage": usage}
@@ -308,7 +308,7 @@ None
             self._publish_step_end(
                 session_id, execution_id, step, "completed", None,
                 final_answer, parsed.get("thought"),
-                parsed.get("description", ""), task_id
+                parsed.get("description", ""), task_id,None
             )
             self._handle_finish_action(parsed, steps)
             return {"parsed": parsed, "usage": usage}
@@ -318,7 +318,7 @@ None
         self._publish_step_end(
             session_id, execution_id, step, "completed", None,
             observation, parsed.get("thought"),
-            parsed.get("description", ""), task_id
+            parsed.get("description", ""), task_id,chunk.get("result_description", "")
         )
         return {"parsed": parsed, "usage": usage}
 

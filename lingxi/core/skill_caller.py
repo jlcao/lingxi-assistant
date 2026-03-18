@@ -11,7 +11,6 @@ from lingxi.core.skill_executor import SkillExecutor
 # 创建线程池用于执行同步技能
 _skill_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="skill-executor")
 
-
 from lingxi.core.soul import SoulInjector
 
 class SkillCaller:
@@ -204,9 +203,9 @@ class SkillCaller:
             if tool_status == 'F':
                 error_msg = f"工具执行失败: {skill_name} : {tool_res.get('error')}"
                 self.logger.warning(error_msg)
-                return {"success": False, "error": error_msg}
+                return {"success": False, "error": error_msg, "result_description": tool_res.get('result_description')}
             elif tool_status == 'S':
-                return {"success": True, "result": tool_res}
+                return {"success": True, "result": str(tool_res), "result_description": tool_res.get('result_description')}
         else :
             return self.skill_executor.execute_skill(skill_name, parameters)
 

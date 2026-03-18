@@ -110,7 +110,7 @@ class BaseEngine:
             return action_input
 
         if not self.skill_caller:
-            return f"错误: 技能调用器未初始化"
+            return {"success": False, "error": "技能调用器未初始化", "result_description": f"{action} 执行失败，技能调用器未初始化"}
 
         try:
             # 如果 action_input 是字符串，尝试解析为参数字典
@@ -129,7 +129,7 @@ class BaseEngine:
             
             # 如果需要确认且用户拒绝，直接返回
             if confirmation_result:
-                return confirmation_result
+                return {"success": False, "error": "用户拒绝执行高危操作", "result_description": f"{action} 执行失败，用户拒绝执行高危操作"}
             
             # 使用带安全检查的技能调用
             result = self.skill_caller.call_with_security_check(
@@ -139,27 +139,13 @@ class BaseEngine:
                 require_confirmation=False
             )
 
-            if result.get("success"):
-                if isinstance(result["result"], dict):
-                    content_str = str(result["result"])
-                    return action + " " + content_str
-                else:
-                    return action + " " + result.get("result", "执行成功")
-            else:
-                error_msg = result.get('error', '未知错误')
-                error_code = result.get('error_code', '')
-                
-                # 如果是安全错误，返回详细信息
-                if error_code:
-                    return f"{action} 执行失败: {error_msg} (错误码: {error_code})"
-                else:
-                    return action + " " + f"执行失败: {error_msg}"
+            return result
         except SecurityError as e:
             self.logger.error(f"安全检查失败: {e}")
-            return f"{action} 安全检查失败: {str(e)} (错误码: {e.error_code})"
+            return {"success": False, "error": str(e), "result_description": f"{action} 安全检查失败"}
         except Exception as e:
             self.logger.error(f"执行行动失败: {e}")
-            return action + " " + f"执行失败: {str(e)}"
+            return {"success": False, "error": str(e), "result_description": f"{action} 执行失败"}
 
     def _parse_action_parameters(self, action_input: str) -> Dict[str, Any]:
         """解析行动参数
@@ -438,7 +424,7 @@ class BaseEngine:
             total_steps=total_steps
         )
 
-    def _publish_step_end(self, session_id: str, execution_id: str, step_idx: int, status: str, error: str = None, result: str = "", thought: str = "",description:str="", task_id: str = None):
+    def _publish_step_end(self, session_id: str, execution_id: str, step_idx: int, status: str, error: str = None, result: str = "", thought: str = "",description:str="", task_id: str = None,result_description:str=""):
         """发布步骤结束事件
 
         Args:
@@ -460,7 +446,8 @@ class BaseEngine:
             error=error,
             result=result,
             thought=thought,
-            description=description
+            description=description,
+            result_description=result_description
         )
 
     def _publish_task_end(self, result: str, context: TaskContext):
@@ -607,12 +594,19 @@ class BaseEngine:
         Returns:
             步骤完成信息
         """
-        observation = self._execute_action(parsed.get("action"),parsed.get("action_type"), parsed.get("action_input"))
-        parsed["observation"] = observation
+        result = self._execute_action(parsed.get("action"),parsed.get("action_type"), parsed.get("action_input"))
+        if result.get("success", False):
+            parsed["observation"] = result.get("result", "")
+        else:
+            parsed["observation"] = result.get("error", "")
 
         self.logger.debug(f"思考: {parsed.get('thought')}")
         self.logger.debug(f"行动: {parsed.get('action')} - {parsed.get('action_input')}")
-        self.logger.debug(f"观察: {observation.replace(chr(10), chr(92) + 'n')}")
+        observation_value = result.get("result", "")
+        if isinstance(observation_value, str):
+            self.logger.debug(f"观察: {observation_value.replace(chr(10), chr(92) + 'n')}")
+        else:
+            self.logger.debug(f"观察: {observation_value}")
 
         return {
             "type": "step_complete",
@@ -620,7 +614,8 @@ class BaseEngine:
             "thought": parsed.get('thought'),
             "action": parsed.get('action'),
             "action_input": parsed.get('action_input'),
-            "observation": observation,
+            "observation": result.get("result", ""),
+            "result_description": result.get("result_description", ""),
             "success": True
         }
 

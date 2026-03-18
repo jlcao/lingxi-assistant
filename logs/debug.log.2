@@ -1,0 +1,11 @@
+2026-03-18 22:33:47,151 - DEBUG - 收到 step_end 事件：session=session_1f62ffd1, task_id=task_session_1f62ffd1_ce0cb71e, step=0
+2026-03-18 22:33:47,216 - DEBUG - 步骤已添加，session_id: session_1f62ffd1, task_id: task_session_1f62ffd1_ce0cb71e, step_index: 0
+2026-03-18 22:33:47,216 - DEBUG - 步骤 1 Token 使用：input=0, output=0
+2026-03-18 22:33:47,216 - DEBUG - 步骤 2/10
+2026-03-18 22:33:47,216 - DEBUG - 发布事件: step_start，参数: {'session_id': 'session_1f62ffd1', 'execution_id': 'exec_1773844404', 'step_index': 1, 'total_steps': 10}
+2026-03-18 22:33:47,226 - DEBUG - 构建步骤消息，消息数量: 2
+2026-03-18 22:33:47,227 - DEBUG - 消息 0: role=system, content="[{'type': 'text', 'text': '你是灵犀智能助手\\n\\n## 系统工具\\nfile : 用于对本地文本文件进行安全、可控的读取/删除/创建/改操作，支持整文件/行级两种粒度，带文件大小安全限制 \\nexecute : 用于执行shell命令，支持powershell、bash等多种shell类型\\nread_skill : 用于读取技能的详细使用说明\\n\\n## 工具调用示例"
+2026-03-18 22:33:47,264 - DEBUG - 消息 1: role=user, content='[{\'type\': \'text\', \'text\': \'已执行步骤:\\n步骤 1:\\n行动: execute - cwd=D:\\\\workspace\\\\work2, command=Get-ChildItem -Path "./lingxi" -Recurse | Select-Object FullName, Length | Format-Table -AutoSize, shell_type='
+2026-03-18 22:33:47,265 - DEBUG - 生成思考和行动（stream=True，thinking_mode=False）
+2026-03-18 22:33:47,266 - DEBUG - 发布事件: think_start，参数: {'session_id': 'session_1f62ffd1', 'execution_id': 'exec_1773844404', 'step_index': 1, 'content': ''}
+2026-03-18 22:33:47,266 - DEBUG - 开始流式 LLM 调用

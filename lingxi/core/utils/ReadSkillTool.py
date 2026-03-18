@@ -14,6 +14,14 @@ from lingxi.core.utils.Tool import ToolBase
 
 class ReadSkillTool(ToolBase):
     """读取技能使用说明工具类"""
+
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        """实现单例模式"""
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+        return cls._instance
     
     def __init__(self, skill_system=None):
         """初始化工具
@@ -48,13 +56,14 @@ class ReadSkillTool(ToolBase):
                 "error": ""  # 错误信息（成功时为空）
             }
         """
+        skill_name = parameters.get("skill_name")
+        
         result = {
             "status": "F",
             "content": [],
-            "error": ""
+            "error": "",
+            "result_description": f"加载技能: {skill_name}"
         }
-        
-        skill_name = parameters.get("skill_name")
         
         if not skill_name:
             result["error"] = "缺少必要参数: skill_name"

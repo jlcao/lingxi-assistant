@@ -44,13 +44,13 @@ class SkillExecutor:
         if not skill_info:
             error_msg = f"技能不存在: {skill_name}"
             self.logger.warning(error_msg)
-            return {"success": False, "error": error_msg}
+            return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败，技能不存在"}
         
         # 2. 检查技能是否启用
         if not skill_info.get("enabled", True):
             error_msg = f"技能未启用: {skill_name}"
             self.logger.warning(error_msg)
-            return {"success": False, "error": error_msg}
+            return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败，技能未启用"}
         
         # 3. 检查操作风险级别
         skill_risk = DangerousSkillChecker.check_skill_risk(skill_name)
@@ -74,22 +74,23 @@ class SkillExecutor:
             )
             self.logger.warning(error_msg)
             raise SecurityError(error_msg, "DANGEROUS_OPERATION")
-        
-        # 5. 处理文件操作类技能，将相对路径转换为绝对路径
-        if skill_name in ["create_file", "delete_file", "read_file", "modify_file"]:
-            if "file_path" in parameters:
-                parameters = parameters.copy()
-                parameters["file_path"] = self._normalize_file_path(parameters["file_path"])
-        
+  
         # 6. 使用 SkillSystem 执行技能
         try:
             result = self.skill_system.execute_skill(skill_name, parameters)
             self.logger.debug(f"技能执行成功：{skill_name}")
-            return {"success": True, "result": result}
+            if result is not None and "错误" in result:
+                error_msg = f"技能执行返回错误：{skill_name} - {result}"
+                self.logger.warning(error_msg)
+                return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败"}
+            elif result is not None:    
+                return {"success": True, "result": result, "result_description": f"执行技能 {skill_name} 成功"}
+            else:
+                return {"success": True, "result": result, "result_description": f"执行技能 {skill_name} 成功，无返回结果"}
         except Exception as e:
             error_msg = f"技能执行失败：{skill_name} - {str(e)}"
             self.logger.error(error_msg)
-            return {"success": False, "error": error_msg}
+            return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败"}
     
     def _normalize_file_path(self, file_path: str) -> str:
         """

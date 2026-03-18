@@ -18,6 +18,7 @@ class Step:
     thought: str = ""
     result: str = ""
     skill_call: str = ""
+    result_description: str = ""
     created_at: datetime = datetime.now()
 
 

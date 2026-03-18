@@ -295,8 +295,12 @@ class AsyncPlanReActEngine(AsyncReActCore):
             plan_descriptions = [step.get("description", str(step)) for step in plan]
         self._publish_plan_events(session_id, execution_id, plan_descriptions, task_id)
         self.logger.debug(f"分析结果：level={analyzed_level}, has_next_action={next_action is not None}, plan_steps={len(plan)}")
-
-        if analyzed_level == "simple":
+        
+        if analyzed_level == "simple" and analysis.get("direct_answer", "") not in ["", None]:
+            self.logger.debug("直接回答任务，执行 next_action")
+            async for chunk in self._execute_direct_action(analysis.get("direct_answer", ""), context):
+                yield chunk
+        elif analyzed_level == "simple":
              self.logger.warning("简单任务分析未提供 next_action，降级为父类执行")
              async for chunk in super()._execute_task_stream(context):
                 yield chunk

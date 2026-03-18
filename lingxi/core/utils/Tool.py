@@ -105,7 +105,8 @@ class Tool:
             return {
                 "status": "F",
                 "content": [],
-                "error": f"工具 {tool_name} 未注册"
+                "error": f"工具 {tool_name} 未注册",
+                "result_description": f"调用工具 {tool_name} 失败，工具未注册"
             }
         
         tool = self.tools[tool_name]
@@ -116,7 +117,8 @@ class Tool:
             return {
                 "status": "F",
                 "content": [],
-                "error": validation_error
+                "error": validation_error,
+                "result_description": f"调用工具 {tool_name} 参数验证失败"
             }
         
         # 执行工具

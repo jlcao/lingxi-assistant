@@ -94,9 +94,8 @@ class FileTool(ToolBase):
     
     def _read(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """读取文件操作"""
-        result = {"status": "F", "content": [], "error": ""}
-        
         file_path = params.get("file_path", "")
+        result = {"status": "F", "content": [], "error": "", "result_description": f"读取文件: {file_path}"}
         encoding = params.get("encoding", self.default_encoding)
         operate_scope = params.get("operate_scope", "full").lower()
         line_params = params.get("line_params", {})
@@ -146,9 +145,10 @@ class FileTool(ToolBase):
     
     def _write(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """写入文件操作"""
-        result = {"status": "F", "content": [], "error": ""}
-        
         file_path = params.get("file_path", "")
+        result = {"status": "F", "content": [], "error": "", "result_description": f"写入文件: {file_path}"}
+        
+        
         encoding = params.get("encoding", self.default_encoding)
         operate_scope = params.get("operate_scope", "full").lower()
         line_params = params.get("line_params", {})
@@ -217,9 +217,10 @@ class FileTool(ToolBase):
     
     def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """删除文件/行操作"""
-        result = {"status": "F", "content": [], "error": ""}
-        
         file_path = params.get("file_path", "")
+        result = {"status": "F", "content": [], "error": "", "result_description": f"删除文件: {file_path}"}
+        
+        
         encoding = params.get("encoding", self.default_encoding)
         operate_scope = params.get("operate_scope", "full").lower()
         line_params = params.get("line_params", {})
@@ -236,6 +237,7 @@ class FileTool(ToolBase):
                 os.remove(file_path)
                 result["content"] = [{"line": "0", "str": "文件已删除"}]
                 result["status"] = "S"
+                result["result_description"] = f"文件已删除: {file_path}"
             elif operate_scope == "line":
                 start_line = line_params.get("start_line", 1)
                 end_line = line_params.get("end_line", start_line)
@@ -261,6 +263,7 @@ class FileTool(ToolBase):
                 
                 result["content"] = deleted_content
                 result["status"] = "S"
+                result["result_description"] = f"已删除{file_path}文件的行 {start_line}-{end_line}"
         except Exception as e:
             result["error"] = f"删除异常: {str(e)}"
         
@@ -268,9 +271,10 @@ class FileTool(ToolBase):
     
     def _create(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """创建文件操作"""
-        result = {"status": "F", "content": [], "error": ""}
-        
         file_path = params.get("file_path", "")
+        result = {"status": "F", "content": [], "error": "", "result_description": f"创建文件: {file_path}"}
+        
+        
         encoding = params.get("encoding", self.default_encoding)
         content_params = params.get("content_params", {})
         security_params = params.get("security_params", {})
