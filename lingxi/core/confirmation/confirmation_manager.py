@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from datetime import datetime
 from typing import Dict, Optional, Callable
 
@@ -261,6 +262,8 @@ class ConfirmationManager:
 
 class DangerousSkillChecker:
     """高危技能检查器"""
+
+    logger = logging.getLogger(__name__)
     
     DANGEROUS_SKILLS = {
         'system.exec': RiskLevel.HIGH,
@@ -272,8 +275,8 @@ class DangerousSkillChecker:
     }
     
     DANGEROUS_PATTERNS = [
-        'rm', 'del', 'format', 'shutdown', 'reboot',
-        'drop', 'truncate', 'delete from', 'truncate table'
+        r'(?<!-)\brm\b(?![a-z-])', r'(?<!-)\bdel\b(?![a-z-])', r'(?<!-)\bformat\b(?![a-z-])', r'(?<!-)\bshutdown\b(?![a-z-])', r'(?<!-)\breboot\b(?![a-z-])',
+        r'(?<!-)\bdrop\b(?![a-z-])', r'(?<!-)\btruncate\b(?![a-z-])', r'(?<!-)\bdelete from\b', r'(?<!-)\btruncate table\b'
     ]
     
     @classmethod
@@ -301,7 +304,8 @@ class DangerousSkillChecker:
         command_lower = command.lower()
         
         for pattern in cls.DANGEROUS_PATTERNS:
-            if pattern in command_lower:
+            if re.search(pattern, command_lower):
+                cls.logger.warning(f"检测到高危命令模式：{pattern} 在命令中 ：{command}")
                 return RiskLevel.HIGH
         
         return RiskLevel.LOW

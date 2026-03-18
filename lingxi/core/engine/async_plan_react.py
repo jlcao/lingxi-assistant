@@ -64,6 +64,17 @@ class AsyncPlanReActEngine(AsyncReActCore):
         """保存计划检查点"""
         if self.session_manager:
             self.session_manager.save_checkpoint(session_id, checkpoint)
+    
+    def _need_resume(self, checkpoint: Dict[str, Any], task: str, task_id: str, plan: List[str]) -> bool:
+        """判断是否需要从检查点恢复执行"""
+        if checkpoint and checkpoint.get("execution_status") in ["running", "failed"]:
+            checkpoint_task = checkpoint.get("task", "")
+            if checkpoint_task == task and checkpoint.get("task_id") == task_id:
+                self.logger.debug(f"从检查点恢复执行，当前步骤：{checkpoint.get('current_step_idx', 0)}/{len(plan)}")
+                return True
+            else:
+                self.logger.debug(f"检查点任务不匹配，创建新任务")
+        return False
 
     async def _execute_plan_steps(
         self,
@@ -90,14 +101,8 @@ class AsyncPlanReActEngine(AsyncReActCore):
         
         checkpoint = self.session_manager.restore_checkpoint(session_id) if self.session_manager else None
         
-        should_resume = False
-        if checkpoint and checkpoint.get("execution_status") in ["running", "failed"]:
-            checkpoint_task = checkpoint.get("task", "")
-            if checkpoint_task == task:
-                should_resume = True
-                self.logger.debug(f"从检查点恢复执行，当前步骤：{checkpoint.get('current_step_idx', 0)}/{len(plan)}")
-            else:
-                self.logger.debug(f"检查点任务不匹配，创建新任务")
+        should_resume = self._need_resume(checkpoint, task, task_id, plan)
+        
         
         if should_resume:
             async for chunk in self._resume_from_checkpoint(checkpoint, context):
@@ -393,12 +398,35 @@ class AsyncPlanReActEngine(AsyncReActCore):
             self._publish_think_end(session_id, execution_id, 0, last_thought)
             import json
             import re
+            
+            # 尝试提取 JSON，使用多种方法提高容错性
             json_match = re.search(r'\{.*\}', full_response, re.DOTALL)
             if json_match:
                 json_str = json_match.group()
-                return json.loads(json_str)
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError as json_error:
+                    # 尝试清理无效的转义序列
+                    self.logger.warning(f"JSON 解析失败，尝试清理转义字符：{json_error}")
+                    try:
+                        # 清理路径中的无效转义序列（如 \\w, \\工 等）
+                        # 只保留有效的 JSON 转义序列
+                        cleaned_json = re.sub(r'\\([^\\nrtbf"\'\\])', r'\\\\\1', json_str)
+                        # 再次尝试解析
+                        return json.loads(cleaned_json)
+                    except Exception as cleanup_error:
+                        self.logger.error(f"JSON 清理后仍然失败：{cleanup_error}")
+                        # 如果清理后仍然失败，尝试更激进的清理
+                        try:
+                            # 移除所有无效的转义序列
+                            aggressive_cleaned = re.sub(r'\\[^\\nrtbf"\'\\]', r'\\\\', json_str)
+                            return json.loads(aggressive_cleaned)
+                        except Exception as aggressive_error:
+                            self.logger.error(f"激进清理后仍然失败：{aggressive_error}")
+                            raise json_error
         except Exception as e:
             self.logger.error(f"任务分析失败：{e}", exc_info=True)
+            raise e
         
         return None
 

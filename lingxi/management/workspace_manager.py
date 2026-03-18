@@ -161,10 +161,10 @@ class WorkspaceManager:
         
         # 7. 发布事件
         if self.event_publisher:
-            self.event_publisher.publish("workspace_initialized", {
-                "workspace": str(workspace_path),
-                "lingxi_dir": str(lingxi_dir)
-            })
+            self.event_publisher.publish("workspace_initialized", 
+                workspace=str(workspace_path),
+                lingxi_dir=str(lingxi_dir)
+            )
         
         self.logger.info(f"工作目录初始化完成：{workspace_path}")
         return lingxi_dir
@@ -213,12 +213,12 @@ class WorkspaceManager:
         
         # 9. 发布事件
         if self.event_publisher:
-            self.event_publisher.publish("workspace_switched", {
-                "previous_workspace": str(self.previous_workspace),
-                "current_workspace": str(workspace_path),
-                "lingxi_dir": str(lingxi_dir),
-                "switched_at": datetime.now().isoformat()
-            })
+            self.event_publisher.publish("workspace_switched",
+                previous_workspace=str(self.previous_workspace),
+                current_workspace=str(workspace_path),
+                lingxi_dir=str(lingxi_dir),
+                switched_at=datetime.now().isoformat()
+            )
         
         # 10. 更新 SkillSystem 的工作目录
         if self.skill_system:
