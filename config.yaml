@@ -116,3 +116,8 @@ web:
     ping_timeout: 30
 workspace:
   last_workspace: D:\workspace\work2
+
+engine:
+  default: react
+  max_steps: 50
+  timeout: 60

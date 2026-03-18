@@ -150,3 +150,8 @@ context_management:
     storage: "sqlite"
     vector_dim: 384
     retrieval_top_k: 5
+
+engine:
+  default: react
+  max_steps: 50
+  timeout: 60
