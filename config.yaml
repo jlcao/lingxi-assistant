@@ -17,6 +17,10 @@ context_management:
     compression_trigger: 0.7
     critical_threshold: 0.9
     max_tokens: 8000
+engine:
+  default: react
+  max_steps: 50
+  timeout: 60
 execution_mode:
   complex:
     enable_replanning: true
@@ -115,9 +119,4 @@ web:
     ping_interval: 20
     ping_timeout: 30
 workspace:
-  last_workspace: D:\workspace\work2
-
-engine:
-  default: react
-  max_steps: 50
-  timeout: 60
+  last_workspace: D:\workspace\work3

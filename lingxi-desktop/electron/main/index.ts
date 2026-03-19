@@ -114,17 +114,23 @@ class App {
         this.backendProcess = spawn(backendPath, [], {
           detached: false,
           stdio: 'pipe',
-          killSignal: 'SIGTERM'
+          killSignal: 'SIGTERM',
+          env: { ...process.env, PYTHONIOENCODING: 'utf-8' }  // 新增这行
         })
 
         // 标记后端启动中
         this.isBackendStarted = true
-
+        const iconv = require('iconv-lite')
         let backendStarted = false
 
         // 监听后端服务输出
         this.backendProcess.stdout?.on('data', (data) => {
-          const output = data.toString()
+          let output: string
+          try {
+            output = iconv.decode(data, 'gbk')  // 使用 GBK 解码
+          } catch (e) {
+            output = data.toString()
+          }
           logger.log(`[Backend] ${output}`)
 
           // 检测后端服务是否启动完成
@@ -135,10 +141,11 @@ class App {
               'Application startup complete',
               'Uvicorn running',
               'FastAPI 应用启动成功',
+              '服务器配置',  // 新增
               'Running on http://',
-              'Listening on http://'
+              'Listening on http://',
+              'http://localhost:5000'  // 新增
             ]
-
             for (const keyword of startupKeywords) {
               if (output.includes(keyword)) {
                 logger.log(`[App] 检测到启动关键词: ${keyword}`)
@@ -152,7 +159,12 @@ class App {
         })
 
         this.backendProcess.stderr?.on('data', (data) => {
-          const output = data.toString()
+          let output: string
+          try {
+            output = iconv.decode(data, 'gbk')  // 使用 GBK 解码
+          } catch (e) {
+            output = data.toString()
+          }
           console.error(`[Backend] ${output}`)
 
           // 同样检测后端服务是否启动完成（因为输出可能在stderr）
@@ -163,8 +175,10 @@ class App {
               'Application startup complete',
               'Uvicorn running',
               'FastAPI 应用启动成功',
+              '服务器配置',  // 新增
               'Running on http://',
-              'Listening on http://'
+              'Listening on http://',
+              'http://localhost:5000'  // 新增
             ]
 
             for (const keyword of startupKeywords) {

@@ -1,4 +1,4 @@
-import { BrowserWindow, screen, Tray, nativeImage, Menu, app } from 'electron'
+import { BrowserWindow, Menu, Tray, app, nativeImage, screen } from 'electron'
 import path from 'path'
 
 export class WindowManager {
@@ -49,11 +49,38 @@ export class WindowManager {
 
   private setupTray(): void {
     try {
-      const iconPath = path.join(__dirname, '../../build/icon.ico')
-      const trayIcon = nativeImage.createFromPath(iconPath)
+      // 尝试多种可能的图标路径
+      const possibleIconPaths = [
+        path.join(__dirname, '../../src/assets/images/logo_256x256.ico'),
+        path.join(__dirname, '../../../src/assets/images/logo_256x256.ico'),
+        path.join(__dirname, '../../build/icon.ico'),
+        path.join(process.resourcesPath, 'app.asar.unpacked/build/icon.ico'),
+        path.join(process.resourcesPath, 'app.asar/build/icon.ico')
+      ]
+
+      let trayIcon = null
+      for (const iconPath of possibleIconPaths) {
+        try {
+          trayIcon = nativeImage.createFromPath(iconPath)
+          if (!trayIcon.isEmpty()) {
+            console.log(`[Tray] 使用图标路径：${iconPath}`)
+            break
+          }
+        } catch (error) {
+          continue
+        }
+      }
+
+      if (!trayIcon || trayIcon.isEmpty()) {
+        // 如果所有路径都失败，创建一个简单的图标
+        console.warn('[Tray] 未找到图标文件，使用默认图标')
+        trayIcon = nativeImage.createEmpty()
+      }
+
       this.tray = new Tray(trayIcon)
     } catch (error) {
-      // If icon file doesn't exist, use default tray
+      console.error('[Tray] 创建系统托盘失败:', error)
+      // If all else fails, use default tray
       this.tray = new Tray(nativeImage.createEmpty())
     }
     this.tray.setToolTip('Lingxi Agent')

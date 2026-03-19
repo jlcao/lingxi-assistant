@@ -43,9 +43,9 @@ class WorkspaceManager:
         # 资源引用（切换时更新）
         self.sandbox = None
         self.skill_caller = None
+        self.skill_system = None 
         self.session_store = None
         self.event_publisher = None
-        
         self.logger = logging.getLogger(__name__)
         
         # 初始化用户目录下的全局 .lingxi 目录
@@ -91,7 +91,7 @@ class WorkspaceManager:
         
         self.logger.info(f"全局 .lingxi 目录初始化完成：{global_lingxi_dir}")
     
-    def set_resources(self, sandbox=None, skill_caller=None, session_store=None, event_publisher=None):
+    def set_resources(self, sandbox=None, skill_caller=None, skill_system=None, session_store=None, event_publisher=None):
         """设置资源引用
         
         Args:

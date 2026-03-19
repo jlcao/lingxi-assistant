@@ -1,6 +1,6 @@
 {
   "name": "lingxi-desktop",
-  "version": "2.0.0",
+  "version": "0.2.0",
   "description": "Lingxi Agent 终端助手 - V2.0 纯客户端架构",
   "main": "dist-electron/main/index.js",
   "author": "Lingxi Team",
@@ -23,6 +23,7 @@
     "axios": "^1.6.2",
     "bufferutil": "^4.1.0",
     "element-plus": "^2.4.4",
+    "iconv-lite": "^0.6.3",
     "localforage": "^1.10.0",
     "marked": "^17.0.3",
     "mitt": "^3.0.1",
@@ -74,14 +75,14 @@
         "nsis",
         "portable"
       ],
-      "icon": "build/icon.ico"
+      "icon": "src/assets/images/logo_256x256.ico"
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "icon": "build/icon.ico",
+      "icon": "src/assets/images/logo_256x256.ico",
       "category": "public.app-category.productivity"
     },
     "linux": {
@@ -89,7 +90,7 @@
         "AppImage",
         "deb"
       ],
-      "icon": "build/icon.ico",
+      "icon": "src/assets/images/logo_256x256.ico",
       "category": "Utility"
     }
   }
