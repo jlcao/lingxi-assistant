@@ -430,6 +430,7 @@ qwen3.5-plus
 **请严格按照JSON格式返回，不要返回多余的其它内容**
 **JSON格式示例：**
 {{
+  
   "thought": "你的思考过程",
   "level": "direct|simple|complex",
   "confidence": 0.0-1.0,
@@ -438,7 +439,8 @@ qwen3.5-plus
   "plan": [
     {{"step": 1, "description": "步骤描述"}},
     {{"step": 2, "description": "步骤描述"}}
-  ]
+  ],
+  "summary": "任务摘要"
 }}
 
 ## 分类标准：
