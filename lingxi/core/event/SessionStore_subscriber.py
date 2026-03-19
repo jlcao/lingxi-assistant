@@ -103,6 +103,7 @@ class SessionStoreSubscriber:
         task_id = kwargs.get('task_id')
         task_input = kwargs.get('task_info', {}).get('description', '')
         task_level = kwargs.get('task_level', 'none')
+        summary = kwargs.get('summary', '')
         self.logger.debug(f"收到 plan_start 事件：session={session_id}, task_id={task_id}")
         if not task_id:
             self.logger.warning(f"处理 plan_start 事件时缺少 task_id: {session_id}, kwargs={kwargs}")
@@ -113,8 +114,18 @@ class SessionStoreSubscriber:
             session_info = self.sessionManage.get_session_info(session_id)
             if not session_info:
                 self.sessionManage.create_session_by_id(session_id=session_id)
+                # 新会话，保存 LLM 返回的摘要到 title 字段
+                if summary:
+                    self.sessionManage.update_session_title(session_id, summary)
+                    self.logger.debug(f"新会话，已设置摘要：session={session_id}, summary={summary[:50]}...")
             else:
                 self.logger.debug(f"会话已存在：session={session_id}")
+                # 会话已存在，检查 title 是否为默认值
+                title = session_info.get('title', '')
+                if title == '新会话' and summary:
+                    # 是默认值，更新为 LLM 返回的摘要
+                    self.sessionManage.update_session_title(session_id, summary)
+                    self.logger.debug(f"会话 title 为默认值，已更新摘要：session={session_id}, summary={summary[:50]}...")
             
             # 检查任务是否已存在，避免重复创建
             existing_task = self.sessionManage.get_task(session_id, task_id)

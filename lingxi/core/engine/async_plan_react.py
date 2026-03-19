@@ -286,7 +286,8 @@ class AsyncPlanReActEngine(AsyncReActCore):
             return
         
         analyzed_level = analysis.get("level", "simple")
-        self._publish_plan_start(session_id, execution_id, task_id, analyzed_level)
+        summary = analysis.get("summary", "")
+        self._publish_plan_start(session_id, execution_id, task_id, analyzed_level, summary)
         context.task_info["level"] = analyzed_level
         next_action = analysis.get("next_action")
         plan = analysis.get("plan", [])

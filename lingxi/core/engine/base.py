@@ -490,21 +490,23 @@ class BaseEngine:
             error=error
         )
 
-    def _publish_plan_start(self, session_id: str, execution_id: str, task_id: str = None, task_level: str = "none"):
+    def _publish_plan_start(self, session_id: str, execution_id: str, task_id: str = None, task_level: str = "none", summary: str = None):
         """发布计划开始事件
 
         Args:
-            session_id: 会话ID
-            execution_id: 执行ID
-            task_id: 任务ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
+            task_id: 任务 ID
             task_level: 任务级别
+            summary: 任务摘要
         """
         global_event_publisher.publish(
             'plan_start',
             session_id=session_id,
             execution_id=execution_id,
             task_id=task_id,
-            task_level=task_level
+            task_level=task_level,
+            summary=summary
         )
 
     def _publish_plan_events(self, session_id: str, execution_id: str, plan: List[str], task_id: str = None):
