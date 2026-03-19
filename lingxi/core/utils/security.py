@@ -78,6 +78,86 @@ class SecuritySandbox:
         self.logger.info(f"安全沙箱初始化：workspace={self.workspace_root}, "
                        f"max_file_size={max_file_size}, safety_mode={safety_mode}")
         self._initialized = True
+
+    def check_security_parameters(self, skill_name: str, action_type: str, params: dict):
+        """检查参数是否符合安全要求
+
+        Args:
+            skill_name: 技能名称
+            action_type: 行动类型
+            params: 要检查的参数字典
+
+        Returns:
+            bool: 所有路径参数验证通过返回 True，否则返回 False
+
+        Raises:
+            SecurityError: 参数超出安全范围
+        """
+        if not params:
+            return True
+        
+        path_keywords = ['path', 'file', 'dir', 'directory', 'folder', 'filepath', 'dirpath']
+        
+        for key, value in params.items():
+            if value is None:
+                continue
+            
+            is_path_param = any(keyword in key.lower() for keyword in path_keywords)
+            
+            if is_path_param:
+                if isinstance(value, list):
+                    for path_value in value:
+                        if path_value is not None:
+                            self.validate_path(str(path_value))
+                else:
+                    self.validate_path(str(value))
+        
+        if skill_name == "execute" and action_type == "tool":
+            cwd = params.get("cwd")
+            if cwd:
+                self.validate_path(cwd)
+            
+            command = params.get("command", "")
+            if command:
+                self._extract_and_validate_paths_in_command(command)
+        
+        return True
+    
+    def _extract_and_validate_paths_in_command(self, command: str):
+        """从命令字符串中提取并验证路径
+        
+        Args:
+            command: 命令字符串
+            
+        Raises:
+            SecurityError: 如果命令中包含工作目录外的路径
+        """
+        import re
+        
+        path_patterns = [
+            r'["\']([^"\']*\.(py|sh|bat|cmd|exe|txt|json|yaml|yml|xml|csv|log))["\']',
+            r'(?<![a-zA-Z0-9_\-\.])([a-zA-Z]:[\\/][a-zA-Z0-9_\-\.\\\/]+\.[a-zA-Z0-9]+)(?![a-zA-Z0-9_\-\.])',
+            r'(?<![a-zA-Z0-9_\-\.])([\\/][a-zA-Z0-9_\-\.\\\/]+\.[a-zA-Z0-9]+)(?![a-zA-Z0-9_\-\.])',
+        ]
+        
+        found_paths = set()
+        
+        for pattern in path_patterns:
+            matches = re.findall(pattern, command, re.IGNORECASE)
+            for match in matches:
+                if isinstance(match, tuple):
+                    path = match[0] if match[0] else match[1]
+                else:
+                    path = match
+                if path and not path.startswith(('http://', 'https://')):
+                    found_paths.add(path)
+        
+        for path_str in found_paths:
+            try:
+                if '/' in path_str or '\\' in path_str:
+                    self.validate_path(path_str)
+            except SecurityError:
+                raise
     
     def validate_path(self, file_path: str) -> Path:
         """验证文件路径是否在允许范围内

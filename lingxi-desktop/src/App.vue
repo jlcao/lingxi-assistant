@@ -413,6 +413,7 @@ function setupWebSocketListeners() {
             ...updatedTurns[targetIndex].steps[stepIndex],
             step_index: stepIndex,  // 确保 step_index 字段存在
             description: data.description || updatedTurns[targetIndex].steps[stepIndex].description,
+            result_description: data.result_description || '',  // 新增 result_description 字段
             status: data.status || 'completed',
             result: data.result,
             thought: thought  // 使用后端返回的纯文本 thought

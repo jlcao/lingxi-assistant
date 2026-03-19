@@ -163,7 +163,8 @@ class FileTool(ToolBase):
         
         try:
             if operate_scope == "full":
-                new_content = content_params.get("new_content", "")
+                # 支持简单的 content 参数或 content_params.new_content
+                new_content = params.get("content") or content_params.get("new_content", "")
                 append_content = content_params.get("append_content", "")
                 content = new_content
                 
@@ -185,7 +186,8 @@ class FileTool(ToolBase):
             elif operate_scope == "line":
                 start_line = line_params.get("start_line", 1)
                 end_line = line_params.get("end_line", start_line)
-                insert_content = content_params.get("insert_content", "")
+                # 支持直接使用 content 参数或 content_params.insert_content
+                insert_content = params.get("content") or content_params.get("insert_content", "")
                 
                 with open(file_path, 'r', encoding=encoding) as f:
                     all_lines = [line.rstrip('\n') + '\n' for line in f.readlines()]
@@ -196,7 +198,12 @@ class FileTool(ToolBase):
                                          f"请求范围：{start_line}-{end_line}")
                     return result
                 
-                insert_lines = [line + '\n' for line in insert_content.split('\n')]
+                # 分割内容并过滤掉末尾的空行（避免 split 产生多余空行）
+                content_lines = insert_content.split('\n')
+                if content_lines and content_lines[-1] == '':
+                    content_lines = content_lines[:-1]
+                
+                insert_lines = [line + '\n' for line in content_lines]
                 del all_lines[start_line-1:end_line]
                 for idx, line in enumerate(insert_lines):
                     all_lines.insert(start_line-1 + idx, line)
@@ -286,7 +293,8 @@ class FileTool(ToolBase):
             return result
         
         try:
-            new_content = content_params.get("new_content", "")
+            # 支持简单的 content 参数或 content_params.new_content
+            new_content = params.get("content") or content_params.get("new_content", "")
             append_content = content_params.get("append_content", "")
             content = new_content
             

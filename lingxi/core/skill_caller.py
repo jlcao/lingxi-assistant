@@ -193,6 +193,12 @@ class SkillCaller:
         # 规范化 parameters 中所有包含 "path" 的参数为绝对路径
         parameters = self._normalize_paths_in_parameters(parameters)
 
+        try:
+            self.sandbox.check_security_parameters(skill_name, action_type, parameters)
+        except SecurityError as e:
+            self.logger.error(f"安全检查失败: {e}")
+            return {"success": False, "error": f"该任务无法完成，只能操作工作空间内的文件或目录: {str(e)}"}
+
         if action_type not in ["tool", "skill"]:
             error_msg = f"无效的行动类型: {action_type}"
             self.logger.warning(error_msg)

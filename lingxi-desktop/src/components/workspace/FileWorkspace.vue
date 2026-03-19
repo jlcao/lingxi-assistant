@@ -156,9 +156,13 @@ async function loadDirectoryTree(dirPath: string) {
 }
 
 function refreshTree() {
-  if (workspacePath.value) {
-    console.log('[FileWorkspace] 刷新目录树:', workspacePath.value)
-    loadDirectoryTree(workspacePath.value)
+  // 修改：检查 workspacePath 或 currentWorkspace，只要有一个存在就刷新
+  const pathToRefresh = workspacePath.value || currentWorkspace.value
+  if (pathToRefresh) {
+    console.log('[FileWorkspace] 刷新目录树:', pathToRefresh)
+    loadDirectoryTree(pathToRefresh)
+  } else {
+    console.log('[FileWorkspace] 无法刷新目录树，工作区路径为空')
   }
 }
 
@@ -251,14 +255,28 @@ function handleContextMenuVisibleChange(visible: boolean) {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   console.log('[FileWorkspace] ====== 组件已加载 ======')
   console.log('[FileWorkspace] onMounted called')
   console.log('[FileWorkspace] currentWorkspace:', currentWorkspace.value)
   console.log('[FileWorkspace] workspacePath:', workspacePath.value)
   console.log('[FileWorkspace] fileTree:', fileTree.value)
+  
+  // 设置回调
   workspaceStore.setDirectoryTreeRefreshCallback(refreshTree)
   workspaceStore.setupFileChangeListener()
+  
+  // 等待 App.vue 的异步加载完成
+  await new Promise(resolve => setTimeout(resolve, 200))
+  
+  // 再次检查并加载
+  const pathToLoad = workspacePath.value || currentWorkspace.value
+  if (pathToLoad) {
+    console.log('[FileWorkspace] 工作区路径存在，直接加载初始目录树:', pathToLoad)
+    await loadDirectoryTree(pathToLoad)
+  } else {
+    console.log('[FileWorkspace] 工作区路径仍为 null，等待 watch 触发')
+  }
 })
 
 onUnmounted(() => {

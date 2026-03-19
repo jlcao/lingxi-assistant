@@ -22,6 +22,24 @@ class App {
   private isBackendStarted: boolean = false
   // 新增：标记WS是否已初始化，防止重复初始化
   private isWsInitialized: boolean = false
+  // 文件监控相关
+  private workspaceWatcher: fs.FSWatcher | null = null
+  private workspacePath: string | null = null
+  private fileChangeTimeout: NodeJS.Timeout | null = null
+  private pendingChanges: Map<string, 'added' | 'modified' | 'deleted'> = new Map()
+
+  // 忽略的文件和目录
+  private readonly IGNORE_PATTERNS = [
+    'node_modules',
+    '.git',
+    '.svn',
+    '__pycache__',
+    '.DS_Store',
+    'dist',
+    'build',
+    '.cache',
+    '.log'
+  ]
 
   constructor() {
     this.windowManager = new WindowManager()
@@ -42,7 +60,7 @@ class App {
    */
   private startBackendService(): Promise<boolean> {
     // 防止重复启动
-    debugger
+
     if (this.isBackendStarted || this.backendProcess) {
       logger.log('[App] 后端服务已启动，跳过重复启动')
       return Promise.resolve(true)
@@ -209,7 +227,6 @@ class App {
     // 提前引入依赖，避免运行时加载失败
     const { execSync } = require('child_process');
     const path = require('path');
-    debugger
     try {
       if (!this.backendProcess) {
         logger.log('[App] 后端进程已不存在，无需停止');
@@ -457,15 +474,38 @@ class App {
     })
 
     ipcMain.handle('workspace:get-current', async () => {
-      return this.apiClient.getWorkspaceCurrent()
+      const workspacePath = this.workspacePath || await this.apiClient.getWorkspaceCurrent()
+      // 返回对象格式，而不是字符串
+      if (workspacePath) {
+        return {
+          workspace: workspacePath,
+          lingxi_dir: require('path').join(workspacePath, '.lingxi'),
+          is_initialized: true
+        }
+      }
+      return null
     })
 
     ipcMain.handle('workspace:switch', async (_, workspacePath, force) => {
-      return this.apiClient.switchWorkspace(workspacePath, force)
+      logger.log(`[App] workspace:switch called with: ${workspacePath}`)
+
+      const result = await this.apiClient.switchWorkspace(workspacePath, force)
+
+      // 设置文件监控
+      this.setupFileWatcher(workspacePath)
+
+      return result
     })
 
     ipcMain.handle('workspace:initialize', async (_, workspacePath) => {
-      return this.apiClient.initializeWorkspace(workspacePath)
+      logger.log(`[App] workspace:initialize called with: ${workspacePath}`)
+
+      const result = await this.apiClient.initializeWorkspace(workspacePath)
+
+      // 设置文件监控
+      this.setupFileWatcher(workspacePath)
+
+      return result
     })
 
     ipcMain.handle('workspace:validate', async (_, workspacePath) => {
@@ -615,9 +655,16 @@ class App {
         // 创建主窗口
         this.windowManager.createMainWindow()
 
-        // 注意：这里注释掉WS初始化，改为通过IPC触发时才初始化
-        // logger.log('[App] 初始化 WebSocket 客户端')
-        // this.initWsClient()
+        // 新增：自动初始化工作区监控
+        try {
+          const currentWorkspace = await this.apiClient.getWorkspaceCurrent()
+          if (currentWorkspace && currentWorkspace.workspace) {
+            logger.log(`[App] 自动初始化工作区监控: ${currentWorkspace.workspace}`)
+            this.setupFileWatcher(currentWorkspace.workspace)
+          }
+        } catch (error) {
+          logger.error('[App] 获取当前工作区失败:', error)
+        }
       } else {
         logger.error('[App] 后端服务启动失败，无法继续')
         // 可以选择退出应用或显示错误界面
@@ -671,6 +718,23 @@ class App {
     logger.log('[App] 开始清理资源')
 
     try {
+      // 清理文件监控器
+      if (this.workspaceWatcher) {
+        logger.log('[App] 关闭文件监控器')
+        this.workspaceWatcher.close()
+        this.workspaceWatcher = null
+      }
+
+      if (this.fileChangeTimeout) {
+        clearTimeout(this.fileChangeTimeout)
+        this.fileChangeTimeout = null
+      }
+
+      this.pendingChanges.clear()
+    } catch (error) {
+      logger.error('[App] 清理文件监控器时出错:', error)
+    }
+    try {
       if (this.wsClient) {
         logger.log('[App] 断开 WebSocket 连接')
         this.wsClient.disconnect()
@@ -693,7 +757,97 @@ class App {
 
     logger.log('[App] 资源清理完成')
   }
+  /**
+   * 设置文件监控器
+   */
+  private setupFileWatcher(workspace: string): void {
+    logger.log(`[App] Setting up file watcher for workspace: ${workspace}`)
+
+    if (this.workspaceWatcher) {
+      this.workspaceWatcher.close()
+      this.workspaceWatcher = null
+    }
+
+    try {
+      if (!fs.existsSync(workspace)) {
+        logger.log(`[App] Workspace directory does not exist: ${workspace}`)
+        return
+      }
+
+      this.workspacePath = workspace
+      this.workspaceWatcher = fs.watch(workspace, {
+        recursive: true,
+        persistent: true,
+        //ignoreInitial: true,
+        //awaitWriteFinish: false,
+        encoding: 'utf8'
+      }, (eventType, filename) => {
+        if (this.shouldIgnoreFile(filename)) {
+          return
+        }
+        debugger
+        logger.log(`[App] File change detected: ${eventType}, ${filename}`)
+
+        const changeKey = `${eventType}:${filename}`
+        const existingChange = this.pendingChanges.get(changeKey)
+
+        if (existingChange) {
+          logger.log(`[App] Change already pending, skipping: ${changeKey}`)
+          return
+        }
+
+        this.pendingChanges.set(changeKey, eventType)
+
+        if (this.fileChangeTimeout) {
+          clearTimeout(this.fileChangeTimeout)
+        }
+
+        this.fileChangeTimeout = setTimeout(() => {
+          this.sendFileChangeEvent(workspace)
+          this.pendingChanges.clear()
+          this.fileChangeTimeout = null
+        }, 2000)
+      })
+    } catch (error) {
+      logger.error(`[App] Failed to set up file watcher: ${error}`)
+    }
+  }
+
+  /**
+   * 判断是否应该忽略文件
+   */
+  private shouldIgnoreFile(filename: string): boolean {
+    const basename = path.basename(filename)
+    return this.IGNORE_PATTERNS.some(pattern => basename.includes(pattern))
+  }
+
+  /**
+   * 发送文件变化事件到前端
+   */
+  private sendFileChangeEvent(workspace: string): void {
+    const mainWindow = this.windowManager.getWindow()
+    if (!mainWindow) {
+      logger.log('[App] No main window, skipping file change event')
+      return
+    }
+
+    logger.log('[App] Sending workspace_files_changed event')
+
+    // 获取待发送的变化列表
+    const changes = Array.from(this.pendingChanges.entries()).map(([key, type]) => ({
+      path: key.split(':')[1] || key,
+      type: type
+    }))
+
+    mainWindow.webContents.send('ws:workspace-files-changed', {
+      source: 'file_watcher',
+      workspace: workspace,
+      changes: changes,
+      timestamp: Date.now()
+    })
+  }
 }
+
 
 // 修复：确保只实例化一次App
 let appInstance: App | null = null

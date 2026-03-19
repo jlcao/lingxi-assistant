@@ -290,7 +290,7 @@ read_skill : 用于读取技能的详细使用说明
 finish(answer) - 完成任务并返回答案
 
 ## 记忆
-
+无
 ## 模型
 qwen3.5-plus
 
@@ -339,6 +339,9 @@ Action Input: {{"file_path": "test.txt"}}
   - 避免在字符串中使用未转义的特殊字符
   - 确保生成的Python代码语法正确，不会导致JSON解析错误
   - 确保生成的代码里面使用的所有路径都是绝对路径，例如：当前工作目录/1.txt
+
+## SOUL
+{soul_prompt}
 
 ## 历史上下文:
 {history_context}
