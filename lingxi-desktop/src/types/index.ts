@@ -19,6 +19,24 @@ export interface Session {
   checkpointExpiry?: number
 }
 
+export interface SessionWithTasks extends Session {
+  tasks: Task[]
+}
+
+export interface Task {
+  task_id: string
+  user_input: string
+  result?: string
+  status: 'running' | 'completed' | 'failed'
+  task_level?: 'simple' | 'complex' | 'trivial'
+  created_at: number
+  updated_at: number
+  steps?: Step[]
+  thought?: string
+  thought_chain?: any
+  plan?: any
+}
+
 export interface HistoryResponse {
   sessionId: string
   turns: Turn[]

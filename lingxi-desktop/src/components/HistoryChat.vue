@@ -83,10 +83,10 @@ import { computed } from 'vue'
 
 const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
-const { sessions, currentSessionId } = storeToRefs(appStore)
+const { currentSessionId, sessionList } = storeToRefs(appStore)
 
 const filteredSessions = computed(() => {
-  return sessions.value.filter(session => session && session.id)
+  return sessionList.value.filter(session => session && session.id)
 })
 
 async function handleSelectWorkspace() {
@@ -106,31 +106,31 @@ async function handleSelectWorkspace() {
         const switchResult = await window.electronAPI.workspace.switch(selectedPath, false)
         
         if (switchResult && switchResult.success) {
-          // 重新加载工作区信息
-          await workspaceStore.loadCurrentWorkspace()
-          
-          // 重新加载会话列表（使用工作目录特定的 API）
-          const sessionsResult = await window.electronAPI.api.getWorkspaceSessions(selectedPath)
-          const sessions = sessionsResult.sessions || []
-          const formattedSessions = (sessions || []).map((session: any) => ({
-            id: session.session_id || session.id,
-            name: session.title || session.name || '新会话',
-            createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
-            updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
-          }))
-          
-          appStore.setSessions(formattedSessions)
-          
-          // 如果有会话，选择第一个；否则清空当前会话
-          if (formattedSessions && formattedSessions.length > 0) {
-            appStore.setCurrentSession(formattedSessions[0].id)
-          } else {
-            appStore.setCurrentSession(null)
-            appStore.setTurns([])
-          }
-          
-          alert('工作区切换成功！')
+        // 重新加载工作区信息
+        await workspaceStore.loadCurrentWorkspace()
+        
+        // 重新加载会话列表（使用工作目录特定的 API）
+        const sessionsResult = await window.electronAPI.api.getWorkspaceSessions(selectedPath)
+        const sessions = sessionsResult.sessions || []
+        const formattedSessions = (sessions || []).map((session: any) => ({
+          id: session.session_id || session.id,
+          name: session.title || session.name || '新会话',
+          createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
+          updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now(),
+          tasks: []
+        }))
+        
+        appStore.setSessions(formattedSessions)
+        
+        // 如果有会话，选择第一个；否则清空当前会话
+        if (formattedSessions && formattedSessions.length > 0) {
+          appStore.setCurrentSession(formattedSessions[0].id)
         } else {
+          appStore.setCurrentSession(null)
+        }
+        
+        alert('工作区切换成功！')
+      } else {
           throw new Error(switchResult?.error || '切换失败')
         }
       } else {
@@ -162,9 +162,10 @@ async function handleNewSession() {
       id: sessionData.session_id,
       name: sessionData.first_message || '新会话',
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      tasks: []
     }
-    appStore.setSessions([...sessions.value, session])
+    appStore.addSession(session)
     await handleSelectSession(session.id)
   } catch (error) {
     console.error('Failed to create session:', error)
@@ -175,7 +176,6 @@ async function handleSelectSession(sessionId: string) {
   console.log('handleSelectSession called with sessionId:', sessionId)  
   if (!sessionId) {
     console.error('Invalid sessionId')
-    appStore.setTurns([])
     return
   }
   
@@ -185,51 +185,30 @@ async function handleSelectSession(sessionId: string) {
     const sessionInfo = await window.electronAPI.api.getSessionInfo(sessionId)
     console.log('Received sessionInfo:', sessionInfo)
     
-    const turns: any[] = []
+    const tasks: any[] = []
     if (sessionInfo.task_list && Array.isArray(sessionInfo.task_list)) {
-      sessionInfo.task_list.forEach((task: any, taskIndex: number) => {
-        // 添加用户消息
-        if (task.user_input) {
-          turns.push({
-            id: `${sessionId}_${taskIndex}_user`,
-            role: 'user',
-            content: task.user_input,
-            time: task.created_at || Date.now(),
-            timestamp: task.created_at || Date.now()
-          })
-        }
-        
-        // 添加助手消息
-        turns.push({
-          id: `${sessionId}_${taskIndex}_assistant`,
-          role: 'assistant',
-          content: task.result || '',
-          time: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
-          timestamp: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
+      sessionInfo.task_list.forEach((task: any) => {
+        tasks.push({
+          task_id: task.task_id || task.session_id,
+          user_input: task.user_input || '',
+          result: task.result || '',
+          status: task.status || 'completed',
+          task_level: task.task_level || 'simple',
+          created_at: task.created_at ? new Date(task.created_at).getTime() : Date.now(),
+          updated_at: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
           steps: task.steps || [],
-          plan: task.plan || null,
-          executionId: task.task_id || null,
-          status: task.status || null,
-          isStreaming: false
+          thought: task.thought || '',
+          thought_chain: task.thought_chain || null,
+          plan: task.plan || null
         })
       })
     }
-    appStore.setTurns(turns)
+    appStore.setSessionTasks(sessionId, tasks)
   } catch (error: any) {
     console.error('Failed to load session info:', error)
     if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
       console.log('Session does not exist, removing from list')
-      const updatedSessions = sessions.value.filter(s => s.id !== sessionId)
-      appStore.setSessions(updatedSessions)
-      
-      if (updatedSessions.length > 0) {
-        appStore.setCurrentSession(updatedSessions[0].id)
-      } else {
-        appStore.setCurrentSession(null)
-      }
-      appStore.setTurns([])
-    } else {
-      appStore.setTurns([])
+      appStore.deleteSession(sessionId)
     }
   }
 }
@@ -249,10 +228,7 @@ async function handleCommand(command: string, session: any) {
         if (window.electronAPI.api.updateSessionName) {
           await window.electronAPI.api.updateSessionName(session.id, value)
         }
-        const updatedSessions = sessions.value.map(s =>
-          s.id === session.id ? { ...s, name: value, updatedAt: Date.now() } : s
-        )
-        appStore.setSessions(updatedSessions)
+        appStore.updateSession(session.id, { name: value, updatedAt: Date.now() })
       }
     } catch {
       console.log('Rename cancelled')
@@ -273,13 +249,7 @@ async function handleCommand(command: string, session: any) {
       if (window.electronAPI.api.deleteSession) {
         await window.electronAPI.api.deleteSession(session.id)
       }
-      const updatedSessions = sessions.value.filter(s => s.id !== session.id)
-      appStore.setSessions(updatedSessions)
-      
-      if (currentSessionId.value === session.id) {
-        appStore.setCurrentSession(updatedSessions[0]?.id || null)
-        appStore.setTurns([])
-      }
+      appStore.deleteSession(session.id)
     } catch {
       console.log('Delete cancelled')
     }

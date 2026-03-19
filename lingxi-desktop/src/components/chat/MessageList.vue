@@ -108,9 +108,40 @@ marked.setOptions({
 })
 
 const appStore = useAppStore()
-const { turns } = storeToRefs(appStore)
+const { currentTasks } = storeToRefs(appStore)
 
 const scrollContainer = ref<HTMLElement>()
+
+const turns = computed(() => {
+  const result: any[] = []
+  currentTasks.value.forEach((task, taskIndex) => {
+    if (task.user_input) {
+      result.push({
+        id: `${task.task_id}_user`,
+        role: 'user',
+        content: task.user_input,
+        time: task.created_at || task.timestamp,
+        timestamp: task.created_at || task.timestamp
+      })
+    }
+    
+    result.push({
+      id: `${task.task_id}_assistant`,
+      role: 'assistant',
+      content: task.result || '',
+      time: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
+      timestamp: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
+      steps: task.steps || [],
+      plan: task.plan || null,
+      executionId: task.task_id || null,
+      status: task.status || null,
+      isStreaming: task.status === 'running',
+      isThinking: task.status === 'running',
+      thought_chain: task.thought_chain || null
+    })
+  })
+  return result
+})
 
 watch(turns, () => {
   nextTick(() => {

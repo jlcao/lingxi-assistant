@@ -114,7 +114,7 @@ const isDragging = ref(false)
 const thinkingMode = ref(false)
 
 const currentSessionName = computed(() => {
-  const session = appStore.sessions.find(s => s.id === appStore.currentSessionId)
+  const session = appStore.currentSession
   return session ? session.name : '新会话'
 })
 
@@ -168,10 +168,7 @@ async function handleRenameSession() {
         await window.electronAPI.api.updateSessionName(appStore.currentSessionId, value)
       }
       // 更新前端会话列表
-      const updatedSessions = appStore.sessions.map(s =>
-        s.id === appStore.currentSessionId ? { ...s, name: value } : s
-      )
-      appStore.setSessions(updatedSessions)
+      appStore.updateSession(appStore.currentSessionId, { name: value })
     }
   } catch {
     console.log('Rename cancelled')
@@ -213,15 +210,8 @@ async function handleDeleteSession() {
     if (window.electronAPI.api.deleteSession) {
       await window.electronAPI.api.deleteSession(appStore.currentSessionId)
     }
-    // 更新前端会话列表
-    const updatedSessions = appStore.sessions.filter(
-      s => s.id !== appStore.currentSessionId
-    )
-    appStore.setSessions(updatedSessions)
-    // 切换到第一个会话
-    if (updatedSessions.length > 0) {
-      appStore.setCurrentSession(updatedSessions[0].id)
-    }
+    // 删除会话
+    appStore.deleteSession(appStore.currentSessionId)
   } catch {
     console.log('Delete cancelled')
   }
@@ -262,10 +252,13 @@ async function handleSend() {
         const result = await window.electronAPI.api.createSession('新会话')
         if (result && result.session_id) {
           appStore.setCurrentSession(result.session_id)
-          appStore.setSessions([...appStore.sessions, {
+          appStore.addSession({
             id: result.session_id,
-            name: '新会话'
-          }])
+            name: '新会话',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            tasks: []
+          })
         } else {
           throw new Error('创建会话失败')
         }
@@ -275,29 +268,21 @@ async function handleSend() {
       }
     }
 
-    // 添加用户消息到聊天区
-    appStore.setTurns([...appStore.turns, {
-      id: `user-${timestamp}`,
-      role: 'user',
-      content: userMessage,
-      time: timestamp
-    }])
-
-    // 创建一个临时的助手消息，用于接收流式响应
-    const tempAssistantMessage = {
-      id: `assistant-${timestamp}`,
-      role: 'assistant',
-      content: '',
-      time: timestamp + 100,
-      executionId: `temp_${timestamp}`,
-      status: 'running',
-      isStreaming: true,
-      isThinking: false,
-      thought: '',
+    // 创建一个新的任务
+    const newTask = {
+      task_id: `temp_${timestamp}`,
+      user_input: userMessage,
+      result: '',
+      status: 'running' as const,
+      task_level: 'simple',
+      created_at: timestamp,
+      updated_at: timestamp,
       steps: [],
+      thought: '',
+      thought_chain: null,
       plan: null
     }
-    appStore.setTurns([...appStore.turns, tempAssistantMessage])
+    appStore.addTaskToSession(appStore.currentSessionId || '', newTask)
 
     inputText.value = ''
 
@@ -311,18 +296,11 @@ async function handleSend() {
         )
       } catch (error) {
         console.error('Failed to send message:', error)
-        // 更新助手消息为失败状态
-        const updatedTurns = [...appStore.turns]
-        const targetIndex = updatedTurns.findIndex(turn => turn.executionId === `temp_${timestamp}`)
-        if (targetIndex !== -1) {
-          updatedTurns[targetIndex] = {
-            ...updatedTurns[targetIndex],
-            status: 'failed',
-            error: '发送消息失败',
-            isStreaming: false
-          }
-          appStore.setTurns(updatedTurns)
-        }
+        // 更新任务为失败状态
+        appStore.updateTaskInSession(appStore.currentSessionId || '', `temp_${timestamp}`, {
+          status: 'failed',
+          error: '发送消息失败'
+        })
       }
     }
   }
