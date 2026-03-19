@@ -96,7 +96,7 @@ class BaseEngine:
             self.logger.warning(f"解析失败，响应内容: {repr(response)}")
         return parsed
 
-    def _execute_action(self, action: str, action_input: Any) -> str:
+    def _execute_action(self, action: str, action_type: str, action_input: Any) -> str:
         """执行行动
 
         Args:
@@ -110,7 +110,7 @@ class BaseEngine:
             return action_input
 
         if not self.skill_caller:
-            return f"错误: 技能调用器未初始化"
+            return {"success": False, "error": "技能调用器未初始化", "result_description": f"{action} 执行失败，技能调用器未初始化"}
 
         try:
             # 如果 action_input 是字符串，尝试解析为参数字典
@@ -121,74 +121,31 @@ class BaseEngine:
                 # action_input 已经是字典（对象）
                 parameters = action_input if isinstance(action_input, dict) else {}
             
-            # 检查是否为高危操作（V4.0新增）
-            skill_risk = DangerousSkillChecker.check_skill_risk(action)
-            command_risk = RiskLevel.LOW
+            # 处理高危操作确认
+            confirmation_result = self._handle_dangerous_operation_with_confirmation(
+                action,
+                parameters
+            )
             
-            if action == "system.exec" and isinstance(parameters.get("command"), str):
-                command_risk = DangerousSkillChecker.check_command_risk(parameters["command"])
-            
-            # 如果是高危操作，需要用户确认
-            if skill_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL] or command_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL]:
-                self.logger.info(f"检测到高危操作: {action}, 风险级别: {skill_risk.value if skill_risk != RiskLevel.LOW else command_risk.value}")
-                
-                # 创建确认请求
-                request = self.confirmation_manager.create_request(
-                    operation=action,
-                    description=f"参数: {parameters}",
-                    risk_level=skill_risk if skill_risk != RiskLevel.LOW else command_risk,
-                    metadata={"parameters": parameters}
-                )
-                
-                # 发送确认请求事件
-                global_event_publisher.publish(
-                    "require_confirmation",
-                    {
-                        "request_id": request.request_id,
-                        "operation": action,
-                        "description": f"参数: {parameters}",
-                        "risk_level": request.risk_level.value,
-                        "timeout": request.timeout
-                    }
-                )
-                
-                # 等待用户确认
-                try:
-                    confirmed = asyncio.run(self.confirmation_manager.wait_for_confirmation(request.request_id))
-                    
-                    if not confirmed:
-                        self.logger.warning(f"用户拒绝高危操作: {action}")
-                        return f"{action} 操作已被用户拒绝"
-                    
-                    self.logger.info(f"用户确认高危操作: {action}")
-                except Exception as e:
-                    self.logger.error(f"等待确认失败: {e}")
-                    return f"{action} 确认失败: {str(e)}"
+            # 如果需要确认且用户拒绝，直接返回
+            if confirmation_result:
+                return {"success": False, "error": "用户拒绝执行高危操作", "result_description": f"{action} 执行失败，用户拒绝执行高危操作"}
             
             # 使用带安全检查的技能调用
             result = self.skill_caller.call_with_security_check(
                 action,
+                action_type,
                 parameters,
                 require_confirmation=False
             )
 
-            if result.get("success"):
-                return action + " " + result.get("result", "执行成功")
-            else:
-                error_msg = result.get('error', '未知错误')
-                error_code = result.get('error_code', '')
-                
-                # 如果是安全错误，返回详细信息
-                if error_code:
-                    return f"{action} 执行失败: {error_msg} (错误码: {error_code})"
-                else:
-                    return action + " " + f"执行失败: {error_msg}"
+            return result
         except SecurityError as e:
             self.logger.error(f"安全检查失败: {e}")
-            return f"{action} 安全检查失败: {str(e)} (错误码: {e.error_code})"
+            return {"success": False, "error": str(e), "result_description": f"{action} 安全检查失败"}
         except Exception as e:
             self.logger.error(f"执行行动失败: {e}")
-            return action + " " + f"执行失败: {str(e)}"
+            return {"success": False, "error": str(e), "result_description": f"{action} 执行失败"}
 
     def _parse_action_parameters(self, action_input: str) -> Dict[str, Any]:
         """解析行动参数
@@ -252,6 +209,70 @@ class BaseEngine:
         # self.logger.debug("最终响应LLM响应: %s", response)
         # return response
         return "任务执行完成"
+
+    def _handle_dangerous_operation_with_confirmation(self, action: str, parameters: Dict[str, Any]) -> Optional[str]:
+        """处理高危操作，需要用户确认
+        
+        Args:
+            action: 行动名称
+            parameters: 行动参数
+            
+        Returns:
+            如果需要确认且用户拒绝，返回拒绝信息；否则返回 None
+        """
+        # 检查操作风险级别
+        skill_risk = DangerousSkillChecker.check_skill_risk(action)
+        command_risk = RiskLevel.LOW
+        
+        # 检查命令风险（如果是 execute 操作）
+        if action == "execute" and isinstance(parameters.get("command"), str):
+            command_risk = DangerousSkillChecker.check_command_risk(parameters["command"])
+        
+        # 判断是否需要确认
+        needs_confirmation = (
+            skill_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL] or
+            command_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL]
+        )
+        
+        if not needs_confirmation:
+            # 低风险操作，直接返回 None（继续执行）
+            self.logger.debug(f"低风险操作，无需确认：{action}")
+            return None
+        
+        # 高风险操作，需要用户确认
+        self.logger.info(f"检测到高危操作：{action}, 风险级别：{skill_risk.value if skill_risk != RiskLevel.LOW else command_risk.value}")
+        
+        # 创建确认请求
+        request = self.confirmation_manager.create_request(
+            operation=action,
+            description=f"参数：{parameters}",
+            risk_level=skill_risk if skill_risk != RiskLevel.LOW else command_risk,
+            metadata={"parameters": parameters}
+        )
+        
+        # 发送确认请求事件
+        global_event_publisher.publish(
+            "require_confirmation",
+            request_id=request.request_id,
+            operation=action,
+            description=f"参数：{parameters}",
+            risk_level=request.risk_level.value,
+            timeout=request.timeout
+        )
+        
+        # 等待用户确认
+        try:
+            confirmed = asyncio.run(self.confirmation_manager.wait_for_confirmation(request.request_id))
+            
+            if not confirmed:
+                self.logger.warning(f"用户拒绝高危操作：{action}")
+                return f"{action} 操作已被用户拒绝"
+            
+            self.logger.info(f"用户确认高危操作：{action}")
+            return None  # 确认后返回 None，继续执行
+        except Exception as e:
+            self.logger.error(f"等待确认失败：{e}")
+            return f"{action} 确认失败：{str(e)}"
 
     def _generate_error_response(self, task: str, failed_step: int, error: str) -> str:
         """生成错误响应
@@ -403,7 +424,7 @@ class BaseEngine:
             total_steps=total_steps
         )
 
-    def _publish_step_end(self, session_id: str, execution_id: str, step_idx: int, status: str, error: str = None, result: str = "", thought: str = "",description:str="", task_id: str = None):
+    def _publish_step_end(self, session_id: str, execution_id: str, step_idx: int, status: str, error: str = None, result: str = "", thought: str = "",description:str="", task_id: str = None,result_description:str=""):
         """发布步骤结束事件
 
         Args:
@@ -425,7 +446,8 @@ class BaseEngine:
             error=error,
             result=result,
             thought=thought,
-            description=description
+            description=description,
+            result_description=result_description
         )
 
     def _publish_task_end(self, result: str, context: TaskContext):
@@ -468,21 +490,23 @@ class BaseEngine:
             error=error
         )
 
-    def _publish_plan_start(self, session_id: str, execution_id: str, task_id: str = None, task_level: str = "none"):
+    def _publish_plan_start(self, session_id: str, execution_id: str, task_id: str = None, task_level: str = "none", summary: str = None):
         """发布计划开始事件
 
         Args:
-            session_id: 会话ID
-            execution_id: 执行ID
-            task_id: 任务ID
+            session_id: 会话 ID
+            execution_id: 执行 ID
+            task_id: 任务 ID
             task_level: 任务级别
+            summary: 任务摘要
         """
         global_event_publisher.publish(
             'plan_start',
             session_id=session_id,
             execution_id=execution_id,
             task_id=task_id,
-            task_level=task_level
+            task_level=task_level,
+            summary=summary
         )
 
     def _publish_plan_events(self, session_id: str, execution_id: str, plan: List[str], task_id: str = None):
@@ -572,12 +596,19 @@ class BaseEngine:
         Returns:
             步骤完成信息
         """
-        observation = self._execute_action(parsed.get("action"), parsed.get("action_input"))
-        parsed["observation"] = observation
+        result = self._execute_action(parsed.get("action"),parsed.get("action_type"), parsed.get("action_input"))
+        if result.get("success", False):
+            parsed["observation"] = result.get("result", "")
+        else:
+            parsed["observation"] = result.get("error", "")
 
         self.logger.debug(f"思考: {parsed.get('thought')}")
         self.logger.debug(f"行动: {parsed.get('action')} - {parsed.get('action_input')}")
-        self.logger.debug(f"观察: {observation.replace(chr(10), chr(92) + 'n')}")
+        observation_value = result.get("result", "")
+        if isinstance(observation_value, str):
+            self.logger.debug(f"观察: {observation_value.replace(chr(10), chr(92) + 'n')}")
+        else:
+            self.logger.debug(f"观察: {observation_value}")
 
         return {
             "type": "step_complete",
@@ -585,7 +616,8 @@ class BaseEngine:
             "thought": parsed.get('thought'),
             "action": parsed.get('action'),
             "action_input": parsed.get('action_input'),
-            "observation": observation,
+            "observation": result.get("result", ""),
+            "result_description": result.get("result_description", ""),
             "success": True
         }
 

@@ -28,7 +28,7 @@ class AsyncReActCore(BaseEngine):
         """
         super().__init__(config, skill_caller, session_manager, websocket_manager)
 
-        self.max_steps = int(config.get("engine", {}).get("max_steps", 10))
+        self.max_steps = int(config.get("engine", {}).get("max_steps", 50))
         self.timeout = int(config.get("engine", {}).get("timeout", 60))
 
         # 异步 LLM 客户端
@@ -42,19 +42,53 @@ class AsyncReActCore(BaseEngine):
         await self.async_llm_client.close()
 
     def _build_history_context(self, history: List[Dict[str, Any]]) -> str:
-        """构建历史上下文"""
+        """构建历史上下文
+        
+'task_id' =
+'task_session_e71ac9b2_ebfa92ce'
+'session_id' =
+'session_e71ac9b2'
+'task_type' =
+'task'
+'task_level' =
+'simple'
+'plan' =
+'[{"step": 1, "description": "\\u8bbe\\u8ba1\\u8868\\u683c\\u7ed3\\u6784\\uff1a\\u786e\\u5b9a\\u5916\\u8bbe\\u767b\\u8bb0\\u6240\\u9700\\u5b57\\u6bb5\\uff08\\u5e8f\\u53f7\\u3001\\u5916\\u8bbe\\u540d\\u79f0\\u3001\\u5916\\u8bbe\\u7c7b\\u578b\\u3001\\u5382\\u5bb6/\\u54c1\\u724c\\u3001\\u578b\\u53f7\\u3001\\u914d\\u7f6e\\u53c2\\u6570\\u3001\\u5e8f\\u5217\\u53f7\\u3001\\u8d2d\\u7f6e\\u65e5\\u671f\\u3001\\u4f7f\\u7528\\u90e8\\u95e8\\u3001\\u72b6\\u6001\\u3001\\u5907\\u6ce8\\u7b49\\uff09"}, {"step": 2, "description": "\\u4f7f\\u7528xlsx\\u6280\\u80fd\\u521b\\u5efaExcel\\u6587\\u4ef6\\uff0c\\u8bbe\\u7f6e\\u8868\\u5934\\u548c\\u57fa\\u7840\\u683c\\u5f0f"}, {"step": 3, "description": "\\u6dfb\\u52a0\\u793a\\u4f8b\\u6570\\u636e\\u884c\\uff0c\\u65b9\\u4fbf\\u7528\\u6237\\u7406\\u89e3\\u586b\\u5199\\u89c4\\u8303"}]'
+'user_input' =
+'帮我创建一个excel文件，用于登记工行的终端外设列表记录了外设的厂家和配置'
+'result' =
+'已成功创建工行终端外设登记表Excel文件！\n\n📁 文件路径：D:\\workspace\\work2\\工行终端外设登记表.xlsx\n\n📋 包含字段（共13项）：\n1. 序号\n2. 设备名称\n3. 设备类型\n4. 厂家/品牌\n5. 型号\n6. 配置信息\n7. 序列号\n8. 数量\n9. 使用部门\n10. 位置/网点\n11. 登记日期\n12. 状态\n13. 备注\n\n✨ 文件特点：\n- 蓝色表头，白色加粗字体\n- 已添加5条示例数据供参考\n- 列宽已优化设置\n- 首行冻结，方便滚动查看\n- 包含边框和居中对齐样式\n- 配置信息和备注列左对齐，便于阅读长文本\n\n您可以直接打开文件进行编辑和登记使用！'
+'status' =
+'completed'
+'current_step_idx' =
+0
+'replan_count' =
+0
+'error_info' =
+None
+'input_tokens' =
+0
+'output_tokens' =
+0
+'created_at' =
+'2026-03-18 10:37:28'
+'updated_at' =
+'2026-03-18 10:41:32'
+        """
         if not history:
             return ""
+
+        
         
         context_lines = []
         for msg in history[-10:]:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            context_lines.append(f"{role}: {content}")
+            user_input = f"用户输入：{msg.get('user_input', '')}"
+            result = f"处理结果：{msg.get('result', '')}"
+            context_lines.append(f"{user_input}\n{result}")
         
         return "\n".join(context_lines)
 
-    def _build_initial_messages(self, user_input: str, task_plan: List[str], task_info: Dict[str, Any], history_context: str, workspace_path: Optional[str] = None,soul_prompt: Optional[str] = None) -> List[
+    def _build_initial_messages(self, context: TaskContext, history_context: str) -> List[
         Dict[str, Any]]:
         """构建初始消息
 
@@ -73,21 +107,21 @@ class AsyncReActCore(BaseEngine):
         skills_list = PromptTemplates.format_skills_list(available_skills)
 
         # 获取系统信息
-        system_info = PromptTemplates.get_system_info(workspace_path)
+        system_info = PromptTemplates.get_system_info(context.workspace_path)
         
         # 格式化任务计划
-        task_plan_str = PromptTemplates.format_task_plan(task_plan)
+        task_plan_str = PromptTemplates.format_task_plan(context.task_info.get("plan", []))
 
         # 使用build_react_messages_with_cache构建消息列表
         return PromptTemplates.build_react_messages_with_cache(
-            user_input=user_input,
-            task_info=task_info,
+            user_input=context.user_input,
+            task_info=context.task_info,
             history_context=history_context,
             skills_list=skills_list,
             steps=[],
             system_info=system_info,
             task_plan=task_plan_str,
-            soul_prompt=soul_prompt
+            soul_prompt=context.session_context.soul_prompt
         )
 
     def _build_step_messages(self, messages: List[Dict[str, Any]], steps: List[Dict[str, Any]]):
@@ -208,25 +242,6 @@ class AsyncReActCore(BaseEngine):
         except Exception as e:
             self.logger.error(f"JSON 格式解析失败：{e}，尝试文本格式")
             raise e
-        
-
-    def _execute_action(self, action: str, action_input: Any) -> str:
-        """执行行动（同步，在线程池中调用）"""
-        if action == "finish":
-            return action_input if isinstance(action_input, str) else str(action_input)
-        
-        try:
-            if self.skill_caller:
-                result = self.skill_caller.call(action, action_input if isinstance(action_input, dict) else {})
-                if result.get("success"):
-                    return result.get("result", "执行成功")
-                else:
-                    return f"执行失败：{result.get('error', '未知错误')}"
-            else:
-                return f"技能调用器未初始化"
-        except Exception as e:
-            self.logger.error(f"执行行动失败：{e}")
-            return f"执行失败：{str(e)}"
 
     async def _execute_step(
         self,
@@ -283,7 +298,7 @@ class AsyncReActCore(BaseEngine):
             self._publish_step_end(
                 session_id, execution_id, step, "failed", None,
                 "无法解析 LLM 响应", thought,
-                description, task_id
+                description, task_id,None
             )
             self._publish_task_failed(session_id, execution_id, "无法解析 LLM 响应", task_id)
             return {"parsed": parsed, "usage": usage}
@@ -293,17 +308,17 @@ class AsyncReActCore(BaseEngine):
             self._publish_step_end(
                 session_id, execution_id, step, "completed", None,
                 final_answer, parsed.get("thought"),
-                parsed.get("description", ""), task_id
+                parsed.get("description", ""), task_id,None
             )
             self._handle_finish_action(parsed, steps)
             return {"parsed": parsed, "usage": usage}
-
+        # 调用工具或者技能
         chunk = self._handle_step_complete(parsed, step)
         observation = chunk.get("observation", "")
         self._publish_step_end(
             session_id, execution_id, step, "completed", None,
             observation, parsed.get("thought"),
-            parsed.get("description", ""), task_id
+            parsed.get("description", ""), task_id,chunk.get("result_description", "")
         )
         return {"parsed": parsed, "usage": usage}
 
@@ -320,22 +335,18 @@ class AsyncReActCore(BaseEngine):
             流式响应块
         """
         user_input = context.user_input
-        task_plan = context.task_info.get("plan", [])
         task_info = context.task_info
         history = context.session_history
         session_id = context.session_id
         execution_id = context.execution_id
         stream = context.stream
-        thinking_mode = context.thinking_mode
-        task_id = context.task_id
         
         self.logger.debug(f"异步 ReAct 处理任务：{task_info.get('task_type')} (stream={stream})")
         self.logger.debug(f"用户输入：{user_input}")
 
         task_level = task_info.get("level", "simple")
         history_context = self._build_history_context(history)
-        workspace_path = context.workspace_path
-        messages = self._build_initial_messages(user_input, task_plan, task_info, history_context, workspace_path,context.session_context.soul_prompt)
+        messages = self._build_initial_messages(context, history_context)
         steps = []
 
         for step in range(self.max_steps):

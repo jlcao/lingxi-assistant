@@ -34,7 +34,7 @@ class SkillRegistry:
         self.skill_cache: Dict[str, Dict[str, Any]] = {}
 
         # 加载技能配置
-        self._load_config()
+        #self._load_config()
 
         self.logger.debug(f"初始化技能注册表（纯内存版本）: {self.config_path}")
         

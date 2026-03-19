@@ -20,13 +20,14 @@ def step_to_dict(step: Step) -> dict:
         "thought": step.thought,
         "result": step.result,
         "skill_call": step.skill_call,
+        "result_description": step.result_description,
         "created_at": step.created_at.isoformat() if step.created_at else None
     }
 
 
 def dict_to_step(step_dict: dict) -> Step:
     """将字典转换为 Step 对象"""
-    return Step(
+    step = Step(
         step_id=step_dict.get("step_id", ""),
         task_id=step_dict.get("task_id", ""),
         step_index=step_dict.get("step_index", 0),
@@ -36,8 +37,10 @@ def dict_to_step(step_dict: dict) -> Step:
         thought=step_dict.get("thought", ""),
         result=step_dict.get("result", ""),
         skill_call=step_dict.get("skill_call", ""),
+        result_description=step_dict.get("result_description", ""),
         created_at=datetime.fromisoformat(step_dict["created_at"]) if step_dict.get("created_at") else None
     )
+    return step
 
 
 class StepManager:
@@ -61,7 +64,7 @@ class StepManager:
         self.logger = logger
         self._initialized = True
 
-    def add_step(self, session_id: str, task_id: str, step_index: int, result: str, status: str = None, thought: str = None, action: str = None, action_input: str = None, description: str = None):
+    def add_step(self, session_id: str, task_id: str, step_index: int, result: str, status: str = None, thought: str = None, action: str = None, action_input: str = None, description: str = None, result_description: str = None):
         """添加任务步骤
 
         Args:
@@ -73,13 +76,14 @@ class StepManager:
             action: 执行行动
             action_input: 行动输入
             description: 步骤描述
+            result_description: 结果描述
         """
         with self.db_manager.transaction() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO steps 
-                (step_id, task_id, step_index, step_type, description, thought, result, skill_call, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                (step_id, task_id, step_index, step_type, description, thought, result, skill_call, status, result_description, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """, (
                 f"{task_id}_step_{step_index}",
                 task_id,
@@ -89,7 +93,8 @@ class StepManager:
                 thought or "",
                 result,
                 action or "",
-                status or "completed"
+                status or "completed",
+                result_description or ""
             ))
 
         self.logger.debug(f"步骤已添加，session_id: {session_id}, task_id: {task_id}, step_index: {step_index}")
@@ -108,11 +113,12 @@ class StepManager:
 
         cursor.execute("""
             SELECT step_id, task_id, step_index, step_type, description, 
-                   thought, result, skill_call, status, created_at
+                   thought, result, skill_call, status, result_description, created_at
             FROM steps
             WHERE task_id = ?
             ORDER BY step_index ASC
-        """, (task_id,))
+        """
+        , (task_id,))
 
         rows = cursor.fetchall()
         conn.close()
@@ -129,7 +135,8 @@ class StepManager:
                 "result": row[6],
                 "skill_call": row[7],
                 "status": row[8],
-                "created_at": row[9]
+                "result_description": row[9],
+                "created_at": row[10]
             })
 
         return steps
@@ -148,11 +155,12 @@ class StepManager:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT step_id, task_id, step_index, step_type, description, thought, result, skill_call, status, created_at
+            SELECT step_id, task_id, step_index, step_type, description, thought, result, skill_call, status, result_description, created_at
             FROM steps
             WHERE task_id = ? AND step_index < ?
             ORDER BY step_index ASC
-        """, (task_id, current_idx))
+        """
+        , (task_id, current_idx))
 
         rows = cursor.fetchall()
         conn.close()
@@ -169,7 +177,8 @@ class StepManager:
                 "result": row[6],
                 "skill_call": row[7],
                 "status": row[8],
-                "created_at": row[9]
+                "result_description": row[9],
+                "created_at": row[10]
             })
 
         return completed_steps

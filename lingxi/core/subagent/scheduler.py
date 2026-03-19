@@ -159,7 +159,7 @@ class SubAgentScheduler:
             
             # 发布任务开始事件
             self.event_publisher.publish(
-                event_type="task_start",
+                "task_start",
                 task_id=task_id,
                 session_id=session.id,
                 task=task,
@@ -192,7 +192,7 @@ class SubAgentScheduler:
             
             # 发布任务完成事件
             self.event_publisher.publish(
-                event_type="task_end",
+                "task_end",
                 task_id=task_id,
                 session_id=session.id,
                 result=result,
@@ -210,7 +210,7 @@ class SubAgentScheduler:
             
             # 发布超时事件
             self.event_publisher.publish(
-                event_type="task_timeout",
+                "task_timeout",
                 task_id=task_id,
                 session_id=session.id,
                 timeout=timeout,
@@ -228,7 +228,7 @@ class SubAgentScheduler:
             
             # 发布失败事件
             self.event_publisher.publish(
-                event_type="task_failed",
+                "task_failed",
                 task_id=task_id,
                 session_id=session.id,
                 error=str(e),

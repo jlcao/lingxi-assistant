@@ -36,6 +36,7 @@ class DatabaseManager:
 
         self._migrate_sessions_table(cursor)
         self._migrate_tasks_table(cursor)
+        self._migrate_steps_table(cursor)
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
@@ -82,6 +83,7 @@ class DatabaseManager:
                 result TEXT,
                 skill_call TEXT,
                 status TEXT NOT NULL DEFAULT 'completed',
+                result_description TEXT,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE
             )
@@ -134,6 +136,19 @@ class DatabaseManager:
 
         for column, sql in migrations:
             if task_columns and column not in task_columns:
+                cursor.execute(sql)
+
+    def _migrate_steps_table(self, cursor: sqlite3.Cursor):
+        """迁移 steps 表结构"""
+        cursor.execute("PRAGMA table_info(steps)")
+        step_columns = {row[1]: row[2] for row in cursor.fetchall()}
+
+        migrations = [
+            ('result_description', "ALTER TABLE steps ADD COLUMN result_description TEXT")
+        ]
+
+        for column, sql in migrations:
+            if step_columns and column not in step_columns:
                 cursor.execute(sql)
 
     def _create_indexes(self, cursor: sqlite3.Cursor):

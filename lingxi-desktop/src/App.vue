@@ -247,6 +247,9 @@ function setupWebSocketListeners() {
       
       // 任务结束后刷新工作区目录
       workspaceStore.refreshDirectoryTree()
+      
+      // 任务结束后刷新历史会话列表，重新加载会话名称
+      refreshSessionsList()
     })
 
     window.electronAPI.ws.onThinkStart((data) => {
@@ -413,6 +416,7 @@ function setupWebSocketListeners() {
             ...updatedTurns[targetIndex].steps[stepIndex],
             step_index: stepIndex,  // 确保 step_index 字段存在
             description: data.description || updatedTurns[targetIndex].steps[stepIndex].description,
+            result_description: data.result_description || '',  // 新增 result_description 字段
             status: data.status || 'completed',
             result: data.result,
             thought: thought  // 使用后端返回的纯文本 thought
@@ -437,6 +441,35 @@ function setupWebSocketListeners() {
         appStore.setTurns(updatedTurns)
       }
     })
+  }
+}
+
+async function refreshSessionsList() {
+  console.log('[App] Refreshing sessions list...')
+  try {
+    let sessions
+    const currentWorkspace = workspaceStore.currentWorkspace
+    if (currentWorkspace?.workspace) {
+      console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
+      const result = await window.electronAPI.api.getWorkspaceSessions(currentWorkspace.workspace)
+      sessions = result.sessions || []
+    } else {
+      console.log('[App] No workspace initialized, loading all sessions')
+      sessions = await window.electronAPI.api.getSessions()
+    }
+
+    // 转换后端返回的会话数据格式为前端期望的格式
+    const formattedSessions = (sessions || []).map((session: any) => ({
+      id: session.session_id || session.id,
+      name: session.title || session.name || '新会话',
+      createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
+      updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
+    }))
+
+    appStore.setSessions(formattedSessions)
+    console.log('[App] Sessions list refreshed:', formattedSessions.length, 'sessions')
+  } catch (error) {
+    console.error('[App] Failed to refresh sessions list:', error)
   }
 }
 </script>

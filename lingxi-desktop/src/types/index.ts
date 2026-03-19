@@ -147,6 +147,7 @@ export interface Step {
   result: string
   skill_call: string | null
   status: 'completed' | 'failed' | 'running'
+  result_description?: string
   created_at: DateTime
 }
 

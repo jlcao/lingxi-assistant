@@ -35,7 +35,10 @@ def migrate_database(db_path: str) -> bool:
         # 2. 修改 sessions 表，添加 workspace_id 字段
         _add_workspace_id_to_sessions(cursor)
 
-        # 3. 创建索引
+        # 3. 修改 steps 表，添加 result_description 字段
+        _add_result_description_to_steps(cursor)
+
+        # 4. 创建索引
         _create_migration_indexes(cursor)
 
         conn.commit()
@@ -122,6 +125,33 @@ def _add_workspace_id_to_sessions(cursor: sqlite3.Cursor):
         CREATE INDEX IF NOT EXISTS idx_sessions_workspace_id ON sessions(workspace_id)
     """)
     logger.debug("sessions 表索引创建完成")
+
+
+def _add_result_description_to_steps(cursor: sqlite3.Cursor):
+    """修改 steps 表，添加 result_description 字段"""
+    # 检查 steps 表是否存在
+    cursor.execute("""
+        SELECT name FROM sqlite_master WHERE type='table' AND name='steps'
+    """)
+    table_exists = cursor.fetchone() is not None
+
+    if not table_exists:
+        # steps 表不存在，不需要迁移（会在 database_manager 中创建）
+        return
+
+    # 检查 result_description 字段是否已存在
+    cursor.execute("PRAGMA table_info(steps)")
+    columns = {row[1]: row[2] for row in cursor.fetchall()}
+
+    if 'result_description' in columns:
+        logger.debug("result_description 字段已存在，跳过迁移")
+        return
+
+    # 添加 result_description 字段
+    cursor.execute("""
+        ALTER TABLE steps ADD COLUMN result_description TEXT
+    """)
+    logger.debug("steps 表 result_description 字段添加完成")
 
 
 def _create_migration_indexes(cursor: sqlite3.Cursor):

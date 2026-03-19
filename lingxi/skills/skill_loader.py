@@ -195,7 +195,7 @@ class SkillLoader:
 
         # 尝试 SKILL.md（MCP 格式）
         skill_md_path = os.path.join(skill_dir, "SKILL.md")
-
+        
         if os.path.exists(skill_md_path):
             config = self._load_mcp_config(skill_md_path)
             if config:
@@ -205,8 +205,20 @@ class SkillLoader:
                 if self.cache:
                     file_path = skill_md_path if os.path.exists(skill_md_path) else os.path.join(skill_dir, "main.py")
                     self.cache.set_config(skill_id, config, file_path)
+                
+                # 读取并缓存 SKILL.md 内容
+                try:
+                    with open(skill_md_path, 'r', encoding='utf-8') as f:
+                        md_content = f.read()
+                    # 缓存 SKILL.md 内容
+                    if self.cache:
+                        self.cache.set_md_content(skill_id, md_content, skill_md_path)
+                        self.logger.debug(f"SKILL.md 内容已缓存：{skill_id}")
+                except Exception as e:
+                    self.logger.warning(f"读取 SKILL.md 内容失败：{e}")
+            
             return config
-
+        
         self.logger.warning(f"技能配置文件不存在：{skill_dir}")
         return None
     

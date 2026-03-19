@@ -823,6 +823,29 @@ class SessionManager:
 
         self.logger.debug(f"会话已创建，session_id: {session_id}, user_name: {user_name}")
         return session_id
+    
+    def update_session_title(self, session_id: str, title: str) -> bool:
+        """更新会话标题
+        
+        Args:
+            session_id: 会话 ID
+            title: 新的标题
+            
+        Returns:
+            是否更新成功
+        """
+        sql = """
+            UPDATE sessions 
+            SET title = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE session_id = ?
+        """
+        try:
+            self.db_manager.execute_sql(sql, (title, session_id))
+            self.logger.debug(f"会话标题已更新：session_id={session_id}, title={title[:50]}...")
+            return True
+        except Exception as e:
+            self.logger.error(f"更新会话标题失败：{e}")
+            return False
 
     def _build_soul_and_memory(self,session_id: str) -> None :
         if self.soul_injector.soul_data:

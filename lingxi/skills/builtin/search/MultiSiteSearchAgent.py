@@ -21,7 +21,8 @@ class MultiSiteSearchAgent:
         self.supported_sites = {
             'csdn': 'site:csdn.net',
             'baike': 'site:baike.baidu.com',
-            'qqnews': 'site:news.qq.com'
+            'qqnews': 'site:news.qq.com',
+            'bing': 'site:bing.com'
         }
         self.search_base_url = 'https://www.baidu.com/s'
 

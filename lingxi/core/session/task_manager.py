@@ -59,7 +59,7 @@ class TaskManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, db_manager, step_manager, logger: logging.Logger):
+    def __init__(self, db_manager, step_manager: StepManager, logger: logging.Logger):
         """初始化任务管理器
 
         Args:
@@ -367,7 +367,7 @@ class TaskManager:
                    input_tokens, output_tokens, created_at, updated_at
             FROM tasks
             WHERE session_id = ?
-            ORDER BY created_at DESC
+            ORDER BY created_at ASC
         """, (session_id,))
 
         rows = cursor.fetchall()

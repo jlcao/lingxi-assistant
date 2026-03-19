@@ -193,7 +193,40 @@ def _create_excel(parameters: Dict[str, Any]) -> str:
                 )
             if not content.strip():
                 return "错误: content 参数为空字符串，无法创建Excel文件"
-            df = pd.read_csv(StringIO(content))
+            
+            # 尝试多种方式解析 CSV
+            df = None
+            errors = []
+            
+            # 方式 1: 尝试使用中文逗号作为分隔符（优先）
+            try:
+                df = pd.read_csv(StringIO(content), sep='，')
+            except Exception as e:
+                errors.append(f"中文逗号解析失败：{str(e)}")
+            
+            # 方式 2: 如果中文逗号失败，尝试英文逗号
+            if df is None:
+                try:
+                    df = pd.read_csv(StringIO(content))
+                except Exception as e:
+                    errors.append(f"英文逗号解析失败：{str(e)}")
+            
+            # 方式 3: 如果都失败，尝试制表符
+            if df is None:
+                try:
+                    df = pd.read_csv(StringIO(content), sep='\t')
+                except Exception as e:
+                    errors.append(f"制表符解析失败：{str(e)}")
+            
+            # 如果所有方式都失败，返回错误信息
+            if df is None:
+                error_msg = "错误: 创建Excel文件失败 - CSV 解析失败\n"
+                error_msg += "\n".join(errors)
+                error_msg += "\n\n建议：\n"
+                error_msg += "1. 使用中文逗号（，）作为列分隔符\n"
+                error_msg += "2. 或使用英文逗号（,）并用引号包裹包含逗号的字段，如：\"T60,IC 卡读卡器\"\n"
+                error_msg += "3. 或使用 data 参数（Python 列表/字典格式）"
+                return error_msg
         
         # 检查 DataFrame 是否为空
         if df.empty:

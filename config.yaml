@@ -35,21 +35,21 @@ execution_mode:
 llm:
   api_key: your-dashscope-api-key-here
   base_url: https://coding.dashscope.aliyuncs.com/v1
-  default_model: kimi-k2.5
+  default_model: qwen3.5-plus
   max_tokens: 32000
   model: qwen3.5-plus
   models:
     complex:
       max_tokens: 32000
-      model: kimi-k2.5
+      model: qwen3.5-plus
       temperature: 0.7
     simple:
       max_tokens: 32000
-      model: kimi-k2.5
+      model: qwen3.5-plus
       temperature: 0.7
     trivial:
       max_tokens: 32000
-      model: kimi-k2.5
+      model: qwen3.5-plus
       temperature: 0.7
   provider: openai
   temperature: 0.7
@@ -116,3 +116,8 @@ web:
     ping_timeout: 30
 workspace:
   last_workspace: D:\workspace\work2
+
+engine:
+  default: react
+  max_steps: 50
+  timeout: 60

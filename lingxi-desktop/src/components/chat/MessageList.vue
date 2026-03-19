@@ -60,7 +60,7 @@
                     <div class="thought-label">思考过程：</div>
                     <div class="thought-content">{{ step.thought }}</div>
                   </div>
-                  <div v-if="step.result" class="step-result">{{ step.result }}</div>
+                  <div v-if="step.result" class="step-result">{{ step.result_description || step.result }}</div>
                 </div>
               </transition>
             </div>

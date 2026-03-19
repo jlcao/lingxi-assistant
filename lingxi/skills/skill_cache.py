@@ -24,6 +24,7 @@ class SkillCache:
         """
         self._module_cache: Dict[str, dict] = {}  # skill_id -> {module, hash, timestamp}
         self._config_cache: Dict[str, dict] = {}  # skill_id -> {config, hash, timestamp}
+        self._md_content_cache: Dict[str, dict] = {}  # skill_id -> {md_content, hash, timestamp}
         self._ttl = ttl
         self.logger = logging.getLogger(__name__)
     
@@ -121,12 +122,72 @@ class SkillCache:
         
         return False
     
+    def get_md_content(self, skill_id: str) -> Optional[str]:
+        """获取缓存的 SKILL.md 内容
+        
+        Args:
+            skill_id: 技能ID
+            
+        Returns:
+            SKILL.md 文件内容，如果缓存不存在或过期返回 None
+        """
+        if skill_id not in self._md_content_cache:
+            return None
+        
+        cache_entry = self._md_content_cache[skill_id]
+        if self._is_expired(cache_entry['timestamp']):
+            self.logger.debug(f"SKILL.md 内容缓存过期：{skill_id}")
+            del self._md_content_cache[skill_id]
+            return None
+        
+        return cache_entry.get('content')
+    
+    def set_md_content(self, skill_id: str, md_content: str, file_path: str) -> None:
+        """缓存 SKILL.md 内容
+        
+        Args:
+            skill_id: 技能ID
+            md_content: SKILL.md 文件内容
+            file_path: SKILL.md 文件路径（用于计算哈希）
+        """
+        file_hash = self._compute_file_hash(file_path)
+        self._md_content_cache[skill_id] = {
+            'content': md_content,
+            'hash': file_hash,
+            'timestamp': datetime.now()
+        }
+        self.logger.debug(f"SKILL.md 内容已缓存：{skill_id}")
+    
+    def invalidate(self, skill_id: str) -> None:
+        """使缓存失效"""
+        if skill_id in self._module_cache:
+            del self._module_cache[skill_id]
+            self.logger.debug(f"技能模块缓存已失效：{skill_id}")
+        
+        if skill_id in self._config_cache:
+            del self._config_cache[skill_id]
+            self.logger.debug(f"技能配置缓存已失效：{skill_id}")
+        
+        if skill_id in self._md_content_cache:
+            del self._md_content_cache[skill_id]
+            self.logger.debug(f"SKILL.md 内容缓存已失效：{skill_id}")
+    
+    def invalidate_all(self) -> None:
+        """清空所有缓存"""
+        count = len(self._module_cache) + len(self._config_cache) + len(self._md_content_cache)
+        self._module_cache.clear()
+        self._config_cache.clear()
+        self._md_content_cache.clear()
+        self.logger.info(f"所有技能缓存已清空，共 {count} 个条目")
+    
     def get_stats(self) -> Dict[str, Any]:
         """获取缓存统计信息"""
         return {
             'module_cache_size': len(self._module_cache),
             'config_cache_size': len(self._config_cache),
+            'md_content_cache_size': len(self._md_content_cache),
             'ttl_seconds': self._ttl,
             'modules': list(self._module_cache.keys()),
-            'configs': list(self._config_cache.keys())
+            'configs': list(self._config_cache.keys()),
+            'md_contents': list(self._md_content_cache.keys())
         }
