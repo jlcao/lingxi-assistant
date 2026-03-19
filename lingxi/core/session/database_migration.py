@@ -245,24 +245,40 @@ def get_sessions_by_workspace(conn: sqlite3.Connection, workspace_id: int) -> li
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT session_id, title, created_at, updated_at, total_tokens
-        FROM sessions
-        WHERE workspace_id = ?
-        ORDER BY updated_at DESC
+        SELECT s.session_id, s.title, s.created_at, s.updated_at, COUNT(t.task_id) as task_count
+        FROM sessions s
+        LEFT JOIN tasks t ON s.session_id = t.session_id
+        WHERE s.workspace_id = ?
+        GROUP BY s.session_id
+        ORDER BY s.updated_at DESC
     """, (workspace_id,))
 
     rows = cursor.fetchall()
 
     sessions = []
-    for row in rows:
-        sessions.append({
-            "session_id": row[0],
-            "title": row[1],
-            "created_at": row[2],
-            "updated_at": row[3],
-            "total_tokens": row[4],
-            "workspace_id": workspace_id
-        })
+    for session_id, title, created_at, updated_at, task_count in rows:
+        try:
+            c = conn.cursor()
+            c.execute("""
+                SELECT user_input FROM tasks
+                WHERE session_id = ? AND user_input IS NOT NULL
+                ORDER BY created_at ASC
+                LIMIT 1
+            """, (session_id,))
+            first_message_row = c.fetchone()
+            first_message = first_message_row[0][:50] if first_message_row and first_message_row[0] else ""
+
+            sessions.append({
+                "session_id": session_id,
+                "title": title,
+                "message_count": task_count,
+                "first_message": first_message,
+                "created_at": created_at,
+                "updated_at": updated_at,
+                "has_checkpoint": False
+            })
+        except Exception as e:
+            logger.error(f"解析会话{session_id}时出错：{e}")
 
     logger.debug(f"获取工作目录 {workspace_id} 的会话列表，共 {len(sessions)} 个")
     return sessions
