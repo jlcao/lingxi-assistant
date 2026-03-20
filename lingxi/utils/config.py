@@ -20,10 +20,26 @@ DEFAULT_CONFIG = {
     "llm": {
         "provider": "openai",
         "api_key": "",
-        "model": "gpt-4",
+        "base_url": "https://coding.dashscope.aliyuncs.com/v1",
+        "model": "qwen3.5-plus",
         "temperature": 0.7,
         "max_tokens": 2048,
-        "timeout": 30
+        "timeout": 30,
+        "provider": "openai" ,
+        "temperature": 0.7,
+        "timeout": 300,
+        "models": {
+            "complex": {
+                "max_tokens": 32000 ,  
+                "model": "qwen3.5-plus",
+                "temperature": 0.7
+            },
+            "simple": {
+                "max_tokens": 32000,
+                "model": "qwen3.5-plus",
+                "temperature": 0.7
+            }
+        }
     },
     "database": {
         "lingxi_db": str(GLOBAL_LINGXI_DIR / "data" / "lingxi.db"),
@@ -52,7 +68,7 @@ DEFAULT_CONFIG = {
     },
     "engine": {
         "default": "react",
-        "max_steps": 10,
+        "max_steps": 50,
         "timeout": 60
     }
 }
