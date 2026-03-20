@@ -14,7 +14,7 @@ GLOBAL_LINGXI_DIR = USER_HOME / ".lingxi"
 DEFAULT_CONFIG = {
     "system": {
         "name": "灵犀",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "description": "智能任务处理系统"
     },
     "llm": {
@@ -80,6 +80,8 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
     global _config
     if _config:
         return _config
+
+    
     
     # 使用默认配置作为基础
     config = DEFAULT_CONFIG.copy()
@@ -121,6 +123,15 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
                     config = _merge_configs(config, user_config)
         except Exception as e:
             logger.error(f"加载用户目录配置失败：{e}")
+    else:
+        # 用户目录配置不存在，初始化默认配置
+        logger.info(f"用户目录配置不存在，初始化默认配置到：{user_config_path}")
+        try:
+            with open(user_config_path, "w", encoding="utf-8") as f:
+                yaml.dump(DEFAULT_CONFIG, f, allow_unicode=True, default_flow_style=False)
+            logger.info(f"默认配置已成功写入：{user_config_path}")
+        except Exception as e:
+            logger.error(f"初始化用户目录配置失败：{e}")
     
     # 3. 加载工作目录配置 (.lingxi/conf/config.yaml)
     workspace_config_path = Path.cwd() / ".lingxi" / "conf" / "config.yaml"
