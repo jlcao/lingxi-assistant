@@ -116,22 +116,24 @@ async function initializeApp() {
         historyList.forEach((task: any, taskIndex: number) => {
           // 添加用户消息
           if (task.user_input) {
+            const userTime = task.created_at ? new Date(task.created_at).getTime() : Date.now()
             turns.push({
               id: `${formattedSessions[0].id}_user_${taskIndex}`,
               role: 'user',
               content: task.user_input,
-              timestamp: task.created_at ? new Date(task.created_at).getTime() : Date.now(),
-              time: task.created_at ? new Date(task.created_at).getTime() : Date.now()
+              timestamp: userTime,
+              time: userTime
             })
           }
           
           // 添加助手消息
+          const assistantTime = task.updated_at ? new Date(task.updated_at).getTime() : Date.now()
           turns.push({
             id: `${formattedSessions[0].id}_assistant_${taskIndex}`,
             role: 'assistant',
             content: task.result || '',
-            timestamp: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
-            time: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
+            timestamp: assistantTime,
+            time: assistantTime,
             steps: task.steps || [],
             thought: task.thought || '',
             thought_chain: task.thought_chain || null,
@@ -143,7 +145,10 @@ async function initializeApp() {
           })
         })
         
-        appStore.setTurns(turns)
+        // 按照时间戳排序消息
+        turns.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+        
+        appStore.setTurns(formattedSessions[0].id, turns)
         
         // 建立 WebSocket 连接
         if (window.electronAPI?.ws) {
@@ -160,7 +165,7 @@ async function initializeApp() {
         }
         appStore.setSessions([session])
         appStore.setCurrentSession(session.id)
-        appStore.setTurns([])
+        appStore.setTurns(session.id, [])
         
         // 建立 WebSocket 连接
         if (window.electronAPI?.ws) {
@@ -179,8 +184,16 @@ function setupWebSocketListeners() {
   if (window.electronAPI?.ws) {
     window.electronAPI.ws.onTaskStart((data) => {
       console.log('Task started:', data)
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in task start message')
+        return
+      }
+      
       // 查找是否已存在临时助手消息
-      const updatedTurns = [...appStore.turns]
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const tempIndex = updatedTurns.findIndex(turn => 
         turn.role === 'assistant' && 
         turn.executionId && 
@@ -197,7 +210,7 @@ function setupWebSocketListeners() {
           isStreaming: true,
           taskLevel: data.task_level || 'simple'
         }
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       } else {
         // 创建一个新的助手消息，用于关联后续的任务执行
         const assistantMessage = {
@@ -213,15 +226,23 @@ function setupWebSocketListeners() {
           plan: null,
           taskLevel: data.task_level || 'simple'
         }
-        appStore.setTurns([...appStore.turns, assistantMessage])
+        appStore.setTurns(sessionId, [...currentTurns, assistantMessage])
       }
     })
 
     window.electronAPI.ws.onTaskEnd((data) => {
       console.log('Task ended:', data)
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in task end message')
+        return
+      }
+      
       // 更新助手消息的内容
       if (data.result) {
-        const updatedTurns = [...appStore.turns]
+        const currentTurns = appStore.getTurns(sessionId)
+        const updatedTurns = [...currentTurns]
         const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
         if (targetIndex !== -1) {
           const turn = updatedTurns[targetIndex]
@@ -241,7 +262,7 @@ function setupWebSocketListeners() {
             isStreaming: false,
             isThinking: false
           }
-          appStore.setTurns(updatedTurns)
+          appStore.setTurns(sessionId, updatedTurns)
         }
       }
       
@@ -251,8 +272,16 @@ function setupWebSocketListeners() {
 
     window.electronAPI.ws.onThinkStart((data) => {
       console.log('Think started:', data)
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in think start message')
+        return
+      }
+      
       // 找到对应的助手消息，添加思考开始标记
-      const updatedTurns = [...appStore.turns]
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1) {
         updatedTurns[targetIndex] = {
@@ -266,12 +295,20 @@ function setupWebSocketListeners() {
           updatedTurns[targetIndex].planThinking = false
         }
 
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       }
     })
 
     window.electronAPI.ws.onThinkStream((data) => {
-      const updatedTurns = [...appStore.turns]
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in think stream message')
+        return
+      }
+      
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1) {
         const turn = updatedTurns[targetIndex]
@@ -306,14 +343,22 @@ function setupWebSocketListeners() {
           turn.steps[actualStepIndex].thought += content
         }
 
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       }
     })
 
     window.electronAPI.ws.onThinkFinal((data) => {
       console.log('Think final:', data)
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in think final message')
+        return
+      }
+      
       // 找到对应的助手消息，完成思考标记并更新步骤的思考内容
-      const updatedTurns = [...appStore.turns]
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1) {
         const turn = updatedTurns[targetIndex]
@@ -330,13 +375,21 @@ function setupWebSocketListeners() {
           }
         }
         
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       }
     })
 
     window.electronAPI.ws.onPlanStart((data) => {
       console.log('Plan started:', data)
-      const updatedTurns = [...appStore.turns]
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in plan start message')
+        return
+      }
+      
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1) {
         updatedTurns[targetIndex] = {
@@ -344,13 +397,21 @@ function setupWebSocketListeners() {
           planThinking: true,
           planThinkingContent: ''
         }
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       }
     })
 
     window.electronAPI.ws.onPlanFinal((data) => {
       console.log('Plan final:', data)
-      const updatedTurns = [...appStore.turns]
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in plan final message')
+        return
+      }
+      
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1) {
         updatedTurns[targetIndex] = {
@@ -358,14 +419,22 @@ function setupWebSocketListeners() {
           planThinking: false,
           plan: data.plan || []
         }
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       }
     })
 
     window.electronAPI.ws.onStepStart((data) => {
       console.log('Step started:', data)
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in step start message')
+        return
+      }
+      
       // 找到对应的助手消息，添加步骤开始信息
-      const updatedTurns = [...appStore.turns]
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1) {
         if (!updatedTurns[targetIndex].steps) {
@@ -394,14 +463,22 @@ function setupWebSocketListeners() {
           updatedTurns[targetIndex].steps.sort((a, b) => (a.step_index ?? 0) - (b.step_index ?? 0))
         }
         
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       }
     })
 
     window.electronAPI.ws.onStepEnd((data) => {
       console.log('Step ended:', data)
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in step end message')
+        return
+      }
+      
       // 找到对应的助手消息，更新步骤状态
-      const updatedTurns = [...appStore.turns]
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1 && updatedTurns[targetIndex].steps) {
         const stepIndex = data.step_index ?? updatedTurns[targetIndex].steps.length - 1
@@ -418,14 +495,22 @@ function setupWebSocketListeners() {
             thought: thought  // 使用后端返回的纯文本 thought
           }
         }
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       }
     })
 
     window.electronAPI.ws.onTaskFailed((data) => {
       console.log('Task failed:', data)
+      // 从消息中获取会话ID
+      const sessionId = data.session_id || appStore.currentSessionId
+      if (!sessionId) {
+        console.error('No session ID in task failed message')
+        return
+      }
+      
       // 找到对应的助手消息，添加失败信息
-      const updatedTurns = [...appStore.turns]
+      const currentTurns = appStore.getTurns(sessionId)
+      const updatedTurns = [...currentTurns]
       const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
       if (targetIndex !== -1) {
         updatedTurns[targetIndex] = {
@@ -434,7 +519,7 @@ function setupWebSocketListeners() {
           error: data.error || '任务执行失败',
           isThinking: false
         }
-        appStore.setTurns(updatedTurns)
+        appStore.setTurns(sessionId, updatedTurns)
       }
     })
   }

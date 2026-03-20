@@ -176,7 +176,7 @@ class WebSocketManager:
         """
         message = data.get('content', '')
         # 兼容前端发送的 sessionId 和 session_id 字段
-        session_id = data.get('sessionId') or data.get('session_id', connection.session_id)
+        request_session_id = data.get('sessionId') or data.get('session_id', connection.session_id)
         # 获取前端发送的 thinkingMode 参数
         thinking_mode = data.get('thinkingMode', False)
 
@@ -184,14 +184,17 @@ class WebSocketManager:
             await self._send_error(connection, "消息内容不能为空")
             return
 
-        connection.session_id = session_id
-        self.session_connections.setdefault(session_id, set()).add(connection.connection_id)
-
+        # 保存原始会话ID，不立即更新连接的session_id
+        original_session_id = connection.session_id
         try:
-            await self._send_stream_response(connection, message, session_id, thinking_mode)
-        except Exception as e:
-            logger.error(f"处理流式聊天失败：{e}", exc_info=True)
-            await self._send_error(connection, f"处理流式聊天失败：{str(e)}")
+            # 临时更新连接的会话ID用于后续操作
+            connection.session_id = request_session_id
+            self.session_connections.setdefault(request_session_id, set()).add(connection.connection_id)
+            
+            await self._send_stream_response(connection, message, request_session_id, thinking_mode)
+        finally:
+            # 恢复原始会话ID
+            connection.session_id = original_session_id
 
     async def _handle_command_message(self, connection: WebSocketConnection, data: Dict[str, Any]):
         """处理命令消息
@@ -468,7 +471,15 @@ class WebSocketManager:
             
             # 遍历异步生成器并发送消息
             async for chunk in response_generator:
-                await connection.send_json(chunk)
+                # 确保所有消息都包含 session_id
+                if not chunk.get('session_id'):
+                    chunk['session_id'] = session_id
+                # 对于任务完成消息，使用会话ID发送到所有该会话的连接
+                if chunk.get('type') in ['task_finish', 'error']:
+                    await self.send_to_session(session_id, chunk)
+                else:
+                    # 对于其他消息，直接发送给当前连接
+                    await connection.send_json(chunk)
                 
         except Exception as e:
             logger.error(f"流式响应失败：{e}", exc_info=True)

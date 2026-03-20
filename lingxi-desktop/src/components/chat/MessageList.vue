@@ -97,7 +97,7 @@ import { ChatDotRound, Loading, User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import { storeToRefs } from 'pinia'
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, ref, watch, computed } from 'vue'
 import { useAppStore } from '../../stores/app'
 import StepInterventionCard from './StepInterventionCard.vue'
 
@@ -108,7 +108,17 @@ marked.setOptions({
 })
 
 const appStore = useAppStore()
-const { turns } = storeToRefs(appStore)
+const { currentSessionId } = storeToRefs(appStore)
+
+const turns = computed(() => {
+  const sessionTurns = appStore.getTurns(currentSessionId.value || '')
+  // 按照时间戳排序消息，确保顺序正确
+  return sessionTurns.sort((a, b) => {
+    const timeA = a.time || a.timestamp || 0
+    const timeB = b.time || b.timestamp || 0
+    return timeA - timeB
+  })
+})
 
 const scrollContainer = ref<HTMLElement>()
 
@@ -124,8 +134,16 @@ function scrollToBottom() {
   }
 }
 
-function formatTime(timestamp: number): string {
-  const date = new Date(timestamp)
+function formatTime(timestamp: any): string {
+  let timeValue: number
+  if (typeof timestamp === 'string') {
+    timeValue = new Date(timestamp).getTime()
+  } else if (typeof timestamp === 'number') {
+    timeValue = timestamp
+  } else {
+    timeValue = Date.now()
+  }
+  const date = new Date(timeValue)
   return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
