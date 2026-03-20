@@ -134,24 +134,35 @@ class SecuritySandbox:
         """
         import re
         
+        # 首先提取并过滤掉 URL（避免误判）
+        url_pattern = r'https?://[^\s"\']+'
+        urls = set(re.findall(url_pattern, command, re.IGNORECASE))
+        
+        # 从命令中移除 URL，避免后续正则匹配
+        command_without_urls = command
+        for url in urls:
+            command_without_urls = command_without_urls.replace(url, ' ')
+        
         path_patterns = [
-            r'["\']([^"\']*\.(py|sh|bat|cmd|exe|txt|json|yaml|yml|xml|csv|log))["\']',
+            r'["\']([^"\']*\.(py|sh|bat|cmd|exe|txt|json|yaml|yml|xml|csv|log|git))["\']',
             r'(?<![a-zA-Z0-9_\-\.])([a-zA-Z]:[\\/][a-zA-Z0-9_\-\.\\\/]+\.[a-zA-Z0-9]+)(?![a-zA-Z0-9_\-\.])',
             r'(?<![a-zA-Z0-9_\-\.])([\\/][a-zA-Z0-9_\-\.\\\/]+\.[a-zA-Z0-9]+)(?![a-zA-Z0-9_\-\.])',
         ]
         
         found_paths = set()
         
+        # 使用移除 URL 后的命令进行路径提取
         for pattern in path_patterns:
-            matches = re.findall(pattern, command, re.IGNORECASE)
+            matches = re.findall(pattern, command_without_urls, re.IGNORECASE)
             for match in matches:
                 if isinstance(match, tuple):
                     path = match[0] if match[0] else match[1]
                 else:
                     path = match
-                if path and not path.startswith(('http://', 'https://')):
+                if path:
                     found_paths.add(path)
         
+        # 验证提取的路径
         for path_str in found_paths:
             try:
                 if '/' in path_str or '\\' in path_str:

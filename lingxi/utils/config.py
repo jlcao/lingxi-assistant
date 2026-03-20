@@ -63,6 +63,13 @@ _config = None
 def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) -> Dict[str, Any]:
     """加载配置
     
+    配置加载优先级（从高到低）：
+    1. 环境变量
+    2. 工作目录配置 (.lingxi/conf/config.yaml)
+    3. 用户目录配置 (~/.lingxi/conf/config.yaml)
+    4. 项目配置文件 (config.yaml)
+    5. 默认配置 (DEFAULT_CONFIG)
+    
     Args:
         config_path: 配置文件路径
         initial_config: 初始配置字典（可选）
@@ -74,7 +81,10 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
     if _config:
         return _config
     
-    # 确定配置文件路径
+    # 使用默认配置作为基础
+    config = DEFAULT_CONFIG.copy()
+    
+    # 1. 加载项目配置文件
     if not config_path:
         # 尝试从默认位置加载
         default_paths = [
@@ -88,36 +98,56 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
                 config_path = path
                 break
     
-    # 加载配置文件
-    if initial_config:
-        # 使用默认配置作为基础，然后合并初始配置
-        config = DEFAULT_CONFIG.copy()
-        config = _merge_configs(config, initial_config)
-    else:
-        # 使用默认配置作为基础
-        config = DEFAULT_CONFIG.copy()
-    
     if config_path and os.path.exists(config_path):
-        logger.info(f"加载配置文件: {config_path}")
+        logger.info(f"加载项目配置文件：{config_path}")
         try:
             with open(config_path, "r", encoding="utf-8") as f:
+                project_config = yaml.safe_load(f)
+                if project_config:
+                    config = _merge_configs(config, project_config)
+        except Exception as e:
+            logger.error(f"加载项目配置文件失败：{e}")
+    else:
+        logger.warning("未找到项目配置文件")
+    
+    # 2. 加载用户目录配置 (~/.lingxi/conf/config.yaml)
+    user_config_path = GLOBAL_LINGXI_DIR / "conf" / "config.yaml"
+    if user_config_path.exists():
+        logger.info(f"加载用户目录配置：{user_config_path}")
+        try:
+            with open(user_config_path, "r", encoding="utf-8") as f:
                 user_config = yaml.safe_load(f)
                 if user_config:
-                    # 合并配置
                     config = _merge_configs(config, user_config)
         except Exception as e:
-            logger.error(f"加载配置文件失败: {e}")
-    else:
-        logger.warning("未找到配置文件，使用默认配置")
+            logger.error(f"加载用户目录配置失败：{e}")
     
-    # 加载环境变量覆盖
+    # 3. 加载工作目录配置 (.lingxi/conf/config.yaml)
+    workspace_config_path = Path.cwd() / ".lingxi" / "conf" / "config.yaml"
+    if workspace_config_path.exists():
+        logger.info(f"加载工作目录配置：{workspace_config_path}")
+        try:
+            with open(workspace_config_path, "r", encoding="utf-8") as f:
+                workspace_config = yaml.safe_load(f)
+                if workspace_config:
+                    config = _merge_configs(config, workspace_config)
+        except Exception as e:
+            logger.error(f"加载工作目录配置失败：{e}")
+    
+    # 4. 合并初始配置（如果提供）
+    if initial_config:
+        config = _merge_configs(config, initial_config)
+    
+    # 5. 加载环境变量覆盖
     config = _load_from_env(config)
     
-    # 验证配置
+    # 6. 验证配置
     config = _validate_config(config)
     
-    # 保存全局配置
+    # 7. 保存全局配置
     _config = config
+    
+    logger.debug(f"配置加载完成，LLM 提供商：{config.get('llm', {}).get('provider', 'unknown')}")
     
     return config
 
@@ -150,11 +180,11 @@ def _load_from_env(config: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         加载环境变量后的配置
     """
-    # LLM配置
+    # LLM 配置
     if os.environ.get("LLM_PROVIDER"):
         config["llm"]["provider"] = os.environ.get("LLM_PROVIDER")
     
-    # 支持多种API密钥环境变量名，优先级从高到低
+    # 支持多种 API 密钥环境变量名，优先级从高到低
     api_key = os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
     if api_key:
         config["llm"]["api_key"] = api_key
@@ -162,7 +192,7 @@ def _load_from_env(config: Dict[str, Any]) -> Dict[str, Any]:
     if os.environ.get("LLM_MODEL"):
         config["llm"]["model"] = os.environ.get("LLM_MODEL")
     
-    # Web配置
+    # Web 配置
     if os.environ.get("WEB_ENABLED"):
         config["web"]["enabled"] = os.environ.get("WEB_ENABLED").lower() == "true"
     
@@ -193,13 +223,13 @@ def _validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     # 确保必要的目录存在
     _ensure_directories(config)
     
-    # 验证LLM配置
+    # 验证 LLM 配置
     if not config["llm"]["api_key"] and config["llm"]["provider"] != "mock":
-        logger.warning("未设置LLM API密钥，将使用模拟响应")
+        logger.warning("未设置 LLM API 密钥，将使用模拟响应")
     
     # 验证引擎配置
     if config["engine"]["default"] not in ["react", "plan_react"]:
-        logger.warning(f"未知引擎: {config['engine']['default']}，使用默认引擎: react")
+        logger.warning(f"未知引擎：{config['engine']['default']}，使用默认引擎：react")
         config["engine"]["default"] = "react"
     
     return config
@@ -210,11 +240,54 @@ def _ensure_directories(config: Dict[str, Any]):
     Args:
         config: 配置
     """
+    from pathlib import Path
+    import sys
+    
     # 确保全局 .lingxi 目录及其子目录存在
     (GLOBAL_LINGXI_DIR / "conf").mkdir(parents=True, exist_ok=True)
     (GLOBAL_LINGXI_DIR / "data").mkdir(parents=True, exist_ok=True)
     (GLOBAL_LINGXI_DIR / "logs").mkdir(parents=True, exist_ok=True)
     (GLOBAL_LINGXI_DIR / "skills").mkdir(parents=True, exist_ok=True)
+    
+    # 确保数据库目录存在
+    db_path = config.get("session", {}).get("db_path", "data/assistant.db")
+    if not Path(db_path).is_absolute():
+        db_path = str(GLOBAL_LINGXI_DIR / db_path)
+    db_dir = Path(db_path).parent
+    db_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 确保长期记忆数据库目录存在
+    ltm_db_path = config.get("context_management", {}).get("long_term_memory", {}).get("db_path", "data/long_term_memory.db")
+    if not Path(ltm_db_path).is_absolute():
+        ltm_db_path = str(GLOBAL_LINGXI_DIR / ltm_db_path)
+    ltm_db_dir = Path(ltm_db_path).parent
+    ltm_db_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 确保技能目录存在（用户目录）
+    user_skills_dir = GLOBAL_LINGXI_DIR / "skills"
+    user_skills_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 设置内置技能目录路径（打包后指向资源目录）
+    if getattr(sys, 'frozen', False):
+        # 打包后的应用，技能目录在 resources/app.asar.unpacked/lingxi/skills/builtin
+        try:
+            bundled_skills_dir = Path(sys.executable).parent / "resources" / "app.asar.unpacked" / "lingxi" / "skills" / "builtin"
+            if not bundled_skills_dir.exists():
+                # 尝试另一个可能的路径
+                bundled_skills_dir = Path(sys.executable).parent / "resources" / "app.asar" / "lingxi" / "skills" / "builtin"
+            if bundled_skills_dir.exists():
+                config.setdefault("skills", {})["builtin_skills_dir"] = str(bundled_skills_dir)
+                logger.info(f"检测到打包环境，内置技能目录：{bundled_skills_dir}")
+            else:
+                logger.warning(f"打包环境中未找到内置技能目录：{bundled_skills_dir}")
+        except Exception as e:
+            logger.error(f"获取打包资源目录失败：{e}")
+    else:
+        # 开发环境，使用相对路径
+        config.setdefault("skills", {})["builtin_skills_dir"] = "lingxi/skills/builtin"
+    
+    # 设置用户技能目录（始终使用用户目录）
+    config.setdefault("skills", {})["user_skills_dir"] = str(user_skills_dir)
 
 def get_config() -> Dict[str, Any]:
     """获取配置
@@ -274,7 +347,7 @@ if __name__ == "__main__":
     # 测试配置加载
     config = load_config()
     print("配置加载成功:")
-    print(f"系统名称: {config['system']['name']}")
-    print(f"LLM提供商: {config['llm']['provider']}")
-    print(f"默认引擎: {config['engine']['default']}")
-    print(f"Web启用: {config['web']['enabled']}")
+    print(f"系统名称：{config['system']['name']}")
+    print(f"LLM 提供商：{config['llm']['provider']}")
+    print(f"默认引擎：{config['engine']['default']}")
+    print(f"Web 启用：{config['web']['enabled']}")

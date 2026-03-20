@@ -73,8 +73,17 @@ class ContextManager:
 
         if self.enable_long_term_memory:
             from lingxi.context.long_term_memory import LongTermMemory
+            from pathlib import Path
+            
+            # 处理数据库路径：如果是相对路径，转换为相对于用户目录的绝对路径
+            db_path = long_term_config.get("db_path", "data/long_term_memory.db")
+            if not Path(db_path).is_absolute():
+                # 相对路径，转换为用户目录下的绝对路径
+                user_lingxi_dir = Path.home() / ".lingxi"
+                db_path = str(user_lingxi_dir / db_path)
+            
             self.long_term_memory = LongTermMemory(
-                db_path="data/long_term_memory.db",
+                db_path=db_path,
                 vector_dim=long_term_config.get("vector_dim", 384)
             )
 

@@ -58,10 +58,20 @@ class SessionManager:
 
         Args:
             config: 系统配置
-            session_id: 会话ID
+            session_id: 会话 ID
         """
+        from pathlib import Path
+        
         self.config = config
-        self.db_path = config.get("session", {}).get("db_path", "data/assistant.db")
+        
+        # 处理数据库路径：如果是相对路径，转换为相对于用户目录的绝对路径
+        db_path = config.get("session", {}).get("db_path", "data/assistant.db")
+        if not Path(db_path).is_absolute():
+            # 相对路径，转换为用户目录下的绝对路径
+            user_lingxi_dir = Path.home() / ".lingxi"
+            db_path = str(user_lingxi_dir / db_path)
+        self.db_path = db_path
+        
         self.max_history_turns = config.get("session", {}).get("max_history_turns", 50)
         self.memory_cache = {}
 
