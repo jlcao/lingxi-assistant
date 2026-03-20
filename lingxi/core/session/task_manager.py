@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from lingxi.core.session.session_models import Task
+from lingxi.core.session.step_manager import StepManager
+from lingxi.core.session.database_manager import DatabaseManager
 
 
 def task_to_dict(task: Task) -> dict:
@@ -53,13 +55,13 @@ class TaskManager:
     """任务管理器，负责任务的增删改查和状态管理"""
     _instance = None  # 单例实例
 
-    def __new__(cls, db_manager, step_manager, logger: logging.Logger):
+    def __new__(cls):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, db_manager, step_manager: StepManager, logger: logging.Logger):
+    def __init__(self):
         """初始化任务管理器
 
         Args:
@@ -67,9 +69,9 @@ class TaskManager:
             step_manager: 步骤管理器实例
             logger: 日志记录器
         """
-        self.db_manager = db_manager
-        self.step_manager = step_manager
-        self.logger = logger
+        self.db_manager = DatabaseManager()
+        self.step_manager = StepManager()
+        self.logger = logging.getLogger(__name__)
         self._initialized = True
 
     def create_task(self, session_id: str, task_id: str, task_type: str, user_input: str = "", task_level: str = "none") -> str:

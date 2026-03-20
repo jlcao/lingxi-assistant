@@ -53,7 +53,7 @@ class SkillCaller:
         
         # 初始化 SOUL 注入器
         workspace_path = config.get("workspace", {}).get("default_path", "./workspace")
-        self.soul_injector = SoulInjector(workspace_path)
+        self.soul_injector = SoulInjector()
         self.soul_injector.load()
         self.logger.debug("SOUL 注入器已初始化")
         

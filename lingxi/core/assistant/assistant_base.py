@@ -14,7 +14,8 @@ from lingxi.utils.logging import setup_logging
 # from lingxi.core.classification import TaskClassifier
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.event.console_subscriber import ConsoleSubscriber
-from lingxi.core.context import TaskContext
+from lingxi.core.context.task_context import TaskContext
+from lingxi.core.context.context_manager import ContextManager
 
 if TYPE_CHECKING:
     from lingxi.core.session import SessionManager
@@ -49,7 +50,9 @@ class BaseAssistant(ABC):
         self.logger.info(f"版本：{self.config.get('system', {}).get('version', '0.2.0')}")
 
         from lingxi.core.session import SessionManager
-        self.session_manager = SessionManager(self.config)
+        self.session_manager = SessionManager()
+        self.context_manager = ContextManager()
+        
         # 任务分类功能已移除 - 2026-03-15
         # self.classifier = TaskClassifier(self.config)
         self.classifier = None  # 保留字段避免引用错误

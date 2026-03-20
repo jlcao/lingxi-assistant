@@ -9,7 +9,7 @@ from typing import Optional, Union, Any, Dict
 from collections.abc import AsyncGenerator
 from lingxi.core.assistant.assistant_base import BaseAssistant
 from lingxi.core.engine.async_plan_react import AsyncPlanReActEngine
-from lingxi.core.context import TaskContext
+from lingxi.core.context.task_context import TaskContext
 
 
 class AsyncLingxiAssistant(BaseAssistant):
@@ -46,7 +46,7 @@ class AsyncLingxiAssistant(BaseAssistant):
 
             engine = AsyncPlanReActEngine(self.config, self.skill_caller, self.session_manager)
 
-            session_context = self.session_manager.get_session_context(session_id)
+            session_context = self.context_manager.get_session_context(session_id)
 
             workspace_path = str(self.workspace_manager.current_workspace) if self.workspace_manager.current_workspace else None
 

@@ -5,27 +5,28 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from typing import Optional, List, Any, Dict
+from lingxi.utils.config import get_config
 
 
 class DatabaseManager:
     """数据库管理器，负责数据库连接、事务管理和初始化"""
     _instance = None  # 单例实例
-
-    def __new__(cls, db_path: str, logger: logging.Logger):
+    def __new__(cls):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, db_path: str, logger: logging.Logger):
+    def __init__(self):
         """初始化数据库管理器
 
         Args:
             db_path: 数据库文件路径
             logger: 日志记录器
         """
-        self.db_path = db_path
-        self.logger = logger
+        self.config = get_config()
+        self.db_path = self.config.get("session", {}).get("db_path", "data/assistant.db")
+        self.logger = logging.getLogger(__name__)
         self._init_db()
         self._initialized = True
 

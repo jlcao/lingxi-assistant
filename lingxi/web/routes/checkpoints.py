@@ -35,6 +35,7 @@ async def get_checkpoints() -> Dict[str, Any]:
             "count": len(checkpoints)
         }
     except Exception as e:
+        logger.error(f"获取断点列表失败: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取断点列表失败: {str(e)}")
 
 

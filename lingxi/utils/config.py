@@ -46,7 +46,7 @@ DEFAULT_CONFIG = {
         "skills_db": str(GLOBAL_LINGXI_DIR / "data" / "skills.db")
     },
     "logging": {
-        "level": "INFO",
+        "level": "DEBUG",
         "file": str(GLOBAL_LINGXI_DIR / "logs" / "lingxi.log"),
         "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     },
@@ -75,6 +75,22 @@ DEFAULT_CONFIG = {
 
 # 全局配置实例
 _config = None
+
+_workspace_path = None
+
+def get_workspace_path() -> Optional[str]:
+    """获取当前工作目录路径"""
+    global _workspace_path
+    if not _workspace_path:
+        _workspace_path = get_config()["workspace"]["last_workspace"]
+    if not _workspace_path:
+        _workspace_path = './'
+    return _workspace_path
+    
+def set_workspace_path(workspace_path: str) -> None:
+    """设置当前工作目录路径"""
+    global _workspace_path
+    _workspace_path = workspace_path
 
 def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) -> Dict[str, Any]:
     """加载配置

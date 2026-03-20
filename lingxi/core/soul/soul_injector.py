@@ -9,21 +9,21 @@ try:
 except ImportError:
     from soul_parser import SoulParser
     from soul_cache import SoulCache
+from lingxi.utils.config import get_workspace_path
 
 
 class SoulInjector:
     """SOUL 提示词注入器"""
     _instance = None
 
-    def __new__(cls, workspace_path: str):
+    def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-        cls._instance.workspace_path = workspace_path
         return cls._instance
     
-    def __init__(self, workspace_path: str):
-        self.workspace_path = workspace_path
-        self.soul_path = os.path.join(workspace_path, "SOUL.md")
+    def __init__(self):
+        self.workspace_path = get_workspace_path()
+        self.soul_path = os.path.join(self.workspace_path, "SOUL.md")
         self.parser = SoulParser()
         self.cache = SoulCache()
         self.soul_content: Optional[str] = None

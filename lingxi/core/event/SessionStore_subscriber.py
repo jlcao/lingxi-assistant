@@ -8,6 +8,7 @@ from lingxi.core.event import global_event_publisher
 
 if TYPE_CHECKING:
     from lingxi.core.session.session_manager import SessionManager
+from lingxi.core.session.task_manager import TaskManager
 
 
 class SessionStoreSubscriber:
@@ -28,6 +29,7 @@ class SessionStoreSubscriber:
         # 如果首次初始化时传入了 sessionManage，则保存
         if sessionManage:
             self.sessionManage = sessionManage
+        self.taskManage = TaskManager()
         self.logger = logging.getLogger(__name__)
         self._subscribe_to_events()
         self._initialized = True
@@ -77,12 +79,12 @@ class SessionStoreSubscriber:
                 self.logger.debug(f"会话不存在，创建新会话：session={session_id}")
                 self.sessionManage.create_session_by_id(session_id=session_id)
             
-            existing_task = self.sessionManage.get_task(session_id, task_id)
+            existing_task = self.taskManage.get_task(session_id, task_id)
             if existing_task:
                 self.logger.debug(f"任务已存在，跳过创建：session={session_id}, task={task_id}")
                 return
             
-            self.sessionManage.create_task(
+            self.taskManage.create_task(
                 session_id=session_id,
                 task_id=task_id,
                 task_type='task',
@@ -128,13 +130,13 @@ class SessionStoreSubscriber:
                     self.logger.debug(f"会话 title 为默认值，已更新摘要：session={session_id}, summary={summary[:50]}...")
             
             # 检查任务是否已存在，避免重复创建
-            existing_task = self.sessionManage.get_task(session_id, task_id)
+            existing_task = self.taskManage.get_task(session_id, task_id)
             if existing_task:
                 self.logger.debug(f"任务已存在，跳过创建：session={session_id}, task={task_id}")
                 return
             
             # 创建任务
-            self.sessionManage.create_task(
+            self.taskManage.create_task(
                 session_id=session_id,
                 task_id=task_id,
                 task_type='plan',
@@ -151,7 +153,7 @@ class SessionStoreSubscriber:
             return
             
         if self.sessionManage:
-            self.sessionManage.set_task_result(
+            self.taskManage.set_task_result(
                 session_id=session_id,
                 task_id=task_id,
                 result=kwargs.get('error', ''),
@@ -177,7 +179,7 @@ class SessionStoreSubscriber:
             return
             
         if self.sessionManage:
-            self.sessionManage.save_plan(
+            self.taskManage.save_plan(
                 session_id=session_id,
                 task_id=task_id,
                 plan=json.dumps(plan)
@@ -205,7 +207,7 @@ class SessionStoreSubscriber:
             result = json.dumps(result, ensure_ascii=False)
             
         if self.sessionManage:
-            self.sessionManage.add_step(
+            self.sessionManage.step_manager.add_step(
                 session_id=session_id,
                 task_id=task_id,
                 step_index=step_index,
@@ -239,7 +241,7 @@ class SessionStoreSubscriber:
             result = json.dumps(result, ensure_ascii=False)
             
         if self.sessionManage:
-            self.sessionManage.set_task_result(
+            self.taskManage.set_task_result(
                 session_id=session_id,
                 task_id=task_id,
                 result=result,
@@ -250,7 +252,7 @@ class SessionStoreSubscriber:
             input_tokens = kwargs.get('input_tokens', 0)
             output_tokens = kwargs.get('output_tokens', 0)
             if input_tokens or output_tokens:
-                self.sessionManage.update_task_tokens(task_id, input_tokens, output_tokens)
+                self.taskManage.update_task_tokens(task_id, input_tokens, output_tokens)
                 self.sessionManage.update_session_tokens(session_id, input_tokens, output_tokens)
                 self.logger.debug(f"任务 Token 总计：input={input_tokens}, output={output_tokens}")
             

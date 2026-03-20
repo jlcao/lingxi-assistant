@@ -8,16 +8,12 @@ import uuid
 import logging
 from typing import Dict, List, Any, Union, Optional
 from collections.abc import AsyncGenerator
-from lingxi.core.context import TaskContext
+from lingxi.core.context.task_context import TaskContext
 from lingxi.core.engine.async_react_core import AsyncReActCore
 from lingxi.core.prompts.prompts import PromptTemplates
 
-# PlanReActCore 已废弃 - 2026-03-15
-# from lingxi.core.engine.plan_react_core import PlanReActCore
-
-
 class AsyncPlanReActEngine(AsyncReActCore):
-    """异步 Plan+ReAct 引擎 - 支持断点重试
+    """异步 Plan+ReAct 引擎
     
     继承自 AsyncReActCore，实现完全异步的执行流程
     """
@@ -46,36 +42,6 @@ class AsyncPlanReActEngine(AsyncReActCore):
         """格式化计划用于提示词"""
         return "\n".join([f"{i+1}. {step}" for i, step in enumerate(plan)])
 
-    def _create_initial_checkpoint(self, task: str, plan: List[str], task_id: str) -> Dict[str, Any]:
-        """创建初始检查点"""
-        return {
-            "task": task,
-            "task_id": task_id,
-            "plan": plan,
-            "current_step_idx": 0,
-            "total_steps": len(plan),
-            "execution_status": "running",
-            "steps": [],
-            "timestamp": time.time(),
-            "replan_count": 0
-        }
-
-    def _save_plan_checkpoint(self, session_id: str, checkpoint: Dict[str, Any]):
-        """保存计划检查点"""
-        if self.session_manager:
-            self.session_manager.save_checkpoint(session_id, checkpoint)
-    
-    def _need_resume(self, checkpoint: Dict[str, Any], task: str, task_id: str, plan: List[str]) -> bool:
-        """判断是否需要从检查点恢复执行"""
-        if checkpoint and checkpoint.get("execution_status") in ["running", "failed"]:
-            checkpoint_task = checkpoint.get("task", "")
-            if checkpoint_task == task and checkpoint.get("task_id") == task_id:
-                self.logger.debug(f"从检查点恢复执行，当前步骤：{checkpoint.get('current_step_idx', 0)}/{len(plan)}")
-                return True
-            else:
-                self.logger.debug(f"检查点任务不匹配，创建新任务")
-        return False
-
     async def _execute_plan_steps(
         self,
         plan: List[str],
@@ -99,106 +65,6 @@ class AsyncPlanReActEngine(AsyncReActCore):
         thinking_mode = context.thinking_mode
         task_id = context.task_id
         
-        checkpoint = self.session_manager.restore_checkpoint(session_id) if self.session_manager else None
-        
-        should_resume = self._need_resume(checkpoint, task, task_id, plan)
-        
-        
-        if should_resume:
-            async for chunk in self._resume_from_checkpoint(checkpoint, context):
-                yield chunk
-        else:
-            checkpoint = self._create_initial_checkpoint(task, plan, task_id)
-            self._save_plan_checkpoint(session_id, checkpoint)
-
-            try:
-                session_history = self.session_manager.get_history(session_id) if self.session_manager else history
-
-                enhanced_task_info = {
-                    **task_info,
-                    "level": "complex",
-                    "description": task,
-                    "plan": plan,
-                    "plan_formatted": self._format_plan_for_prompt(plan),
-                    "reason": task_info.get("reason", "复杂任务，需要多步骤执行")
-                }
-
-                parent_context = TaskContext(
-                    user_input=task,
-                    task_info=enhanced_task_info,
-                    session_id=session_id,
-                    session_history=session_history,
-                    stream=stream,
-                    task_id=task_id,
-                    execution_id=execution_id,
-                    workspace_path=context.workspace_path,
-                    thinking_mode=context.thinking_mode,
-                    session_context=context.session_context
-                )
-
-                final_result = None
-                async for chunk in super()._execute_task_stream(parent_context):
-                    if stream:
-                        yield chunk
-                    
-                    if chunk.get("type") == "task_finish":
-                        final_result = chunk.get("result", "任务执行完成")
-
-                checkpoint["current_step_idx"] = len(plan)
-                checkpoint["execution_status"] = "completed"
-                checkpoint["timestamp"] = time.time()
-                self._save_plan_checkpoint(session_id, checkpoint)
-
-            except Exception as e:
-                import traceback
-                self.logger.error(f"计划执行失败：{e}\n{traceback.format_exc()}")
-                checkpoint["execution_status"] = "failed"
-                checkpoint["error_info"] = str(e)
-                checkpoint["timestamp"] = time.time()
-                self._save_plan_checkpoint(session_id, checkpoint)
-
-                if stream:
-                    yield {"type": "error", "message": str(e)}
-
-    async def _resume_from_checkpoint(
-        self,
-        checkpoint: Dict[str, Any],
-        context: TaskContext
-    ) -> AsyncGenerator[Dict[str, Any], None]:
-        """从检查点恢复执行（异步）
-
-        Args:
-            checkpoint: 检查点数据
-            context: 任务上下文
-
-        Yields:
-            流式响应块
-        """
-        task = context.user_input
-        task_info = context.task_info
-        history = context.session_history
-        session_id = context.session_id
-        execution_id = context.execution_id
-        stream = context.stream
-        task_id = context.task_id
-        
-        plan = checkpoint.get("plan", [])
-        current_step_idx = checkpoint.get("current_step_idx", 0)
-        
-        if not task_id:
-            task_id = checkpoint.get("task_id") or f"task_{session_id}_{execution_id[:8]}"
-        
-        if current_step_idx >= len(plan):
-            self.logger.warning("检查点显示任务已完成，无需恢复")
-            result = checkpoint.get("result", "任务已完成")
-            self._publish_task_end(result, context)
-            yield {"type": "task_finish", "result": result}
-            return
-        
-        checkpoint["execution_status"] = "running"
-        checkpoint["timestamp"] = time.time()
-        self._save_plan_checkpoint(session_id, checkpoint)
-        
         try:
             session_history = self.session_manager.get_history(session_id) if self.session_manager else history
 
@@ -208,8 +74,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
                 "description": task,
                 "plan": plan,
                 "plan_formatted": self._format_plan_for_prompt(plan),
-                "reason": task_info.get("reason", "复杂任务，需要多步骤执行"),
-                "resume_from_step": current_step_idx
+                "reason": task_info.get("reason", "复杂任务，需要多步骤执行")
             }
 
             parent_context = TaskContext(
@@ -220,30 +85,18 @@ class AsyncPlanReActEngine(AsyncReActCore):
                 stream=stream,
                 task_id=task_id,
                 execution_id=execution_id,
-                workspace_path=context.workspace_path
+                workspace_path=context.workspace_path,
+                thinking_mode=context.thinking_mode,
+                session_context=context.session_context
             )
 
-            final_result = None
             async for chunk in super()._execute_task_stream(parent_context):
                 if stream:
                     yield chunk
-                
-                if chunk.get("type") == "task_finish":
-                    final_result = chunk.get("result", "任务执行完成")
-
-            checkpoint["current_step_idx"] = len(plan)
-            checkpoint["execution_status"] = "completed"
-            checkpoint["result"] = final_result
-            checkpoint["timestamp"] = time.time()
-            self._save_plan_checkpoint(session_id, checkpoint)
 
         except Exception as e:
             import traceback
-            self.logger.error(f"恢复执行失败：{e}\n{traceback.format_exc()}")
-            checkpoint["execution_status"] = "failed"
-            checkpoint["error_info"] = str(e)
-            checkpoint["timestamp"] = time.time()
-            self._save_plan_checkpoint(session_id, checkpoint)
+            self.logger.error(f"计划执行失败：{e}\n{traceback.format_exc()}")
 
             if stream:
                 yield {"type": "error", "message": str(e)}
@@ -277,7 +130,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
     
         self._publish_task_start(session_id, execution_id, task, task_info, task_id)
         
-        analysis = await self._analyze_task_and_plan(context , history_context)
+        analysis = await self._analyze_task_and_plan(context, history_context)
         
         if not analysis:
             self.logger.warning("任务分析失败，降级为父类执行")
@@ -401,34 +254,9 @@ class AsyncPlanReActEngine(AsyncReActCore):
 
             self.logger.debug(f"原始 LLM 响应：{full_response}")
             self._publish_think_end(session_id, execution_id, 0, last_thought)
-            import json
-            import re
             
-            # 尝试提取 JSON，使用多种方法提高容错性
-            json_match = re.search(r'\{.*\}', full_response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                try:
-                    return json.loads(json_str)
-                except json.JSONDecodeError as json_error:
-                    # 尝试清理无效的转义序列
-                    self.logger.warning(f"JSON 解析失败，尝试清理转义字符：{json_error}")
-                    try:
-                        # 清理路径中的无效转义序列（如 \\w, \\工 等）
-                        # 只保留有效的 JSON 转义序列
-                        cleaned_json = re.sub(r'\\([^\\nrtbf"\'\\])', r'\\\\\1', json_str)
-                        # 再次尝试解析
-                        return json.loads(cleaned_json)
-                    except Exception as cleanup_error:
-                        self.logger.error(f"JSON 清理后仍然失败：{cleanup_error}")
-                        # 如果清理后仍然失败，尝试更激进的清理
-                        try:
-                            # 移除所有无效的转义序列
-                            aggressive_cleaned = re.sub(r'\\[^\\nrtbf"\'\\]', r'\\\\', json_str)
-                            return json.loads(aggressive_cleaned)
-                        except Exception as aggressive_error:
-                            self.logger.error(f"激进清理后仍然失败：{aggressive_error}")
-                            raise json_error
+            from lingxi.core.engine.utils import parse_json_with_escape_cleaning
+            return parse_json_with_escape_cleaning(full_response, self.logger)
         except Exception as e:
             self.logger.error(f"任务分析失败：{e}", exc_info=True)
             raise e
@@ -443,17 +271,9 @@ class AsyncPlanReActEngine(AsyncReActCore):
 
         Args:
             context: 任务上下文
-
         Returns:
             系统响应或异步生成器
         """
         self.logger.debug(f"异步 Plan+ReAct 处理任务：{context.get_task_level()} (stream={context.stream})")
-
-        if self.session_manager:
-            existing_checkpoint = self.session_manager.restore_checkpoint(context.session_id)
-
-            if existing_checkpoint and existing_checkpoint.get("task") == context.user_input:
-                self.logger.debug("从检查点恢复执行")
-                return self._resume_from_checkpoint(existing_checkpoint, context)
 
         return self._execute_task_stream(context)

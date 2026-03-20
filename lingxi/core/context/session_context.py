@@ -6,16 +6,17 @@ import re
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
+from lingxi.utils.config import get_config
 
 
 class ContentType(Enum):
     """内容类型枚举"""
-    USER_INPUT = "user_input"
-    ASSISTANT_RESPONSE = "assistant_response"
-    TOOL_CALL = "tool_call"
-    TOOL_RESULT = "tool_result"
-    SYSTEM_MESSAGE = "system_message"
-    THINKING = "thinking"
+    USER_INPUT = "user_input" # 用户输入
+    ASSISTANT_RESPONSE = "assistant_response"  # 助手回复
+    TOOL_CALL = "tool_call"   # 工具调用
+    TOOL_RESULT = "tool_result"  # 工具调用结果
+    SYSTEM_MESSAGE = "system_message"  # 系统消息
+    THINKING = "thinking"  # 思考状态
 
 
 @dataclass
@@ -33,25 +34,25 @@ class ContextMessage:
     metadata: Dict = field(default_factory=dict)
 
 
-class ContextManager:
-    """上下文管理器 - 支持动态压缩"""
+class SessionContext:
+    """会话上下文对象，封装会话的所有上下文信息"""
+    
 
-
-    def __init__(self, config: Dict[str, Any], session_id: str):
-        """初始化上下文管理器
+    def __init__(self, session_id: str):
+        """初始化会话上下文
 
         Args:
-            config: 系统配置
             session_id: 会话ID
         """
-        self.config = config
         self.session_id = session_id
         self.messages: List[ContextMessage] = []
         self.current_task_id: Optional[str] = None
         self.token_usage = 0
         self.soul_prompt: Optional[str] = None
 
-        context_config = config.get("context_management", {})
+        self.config = get_config()
+
+        context_config = self.config.get("context_management", {})
         token_budget = context_config.get("token_budget", {})
         self.max_tokens = token_budget.get("max_tokens", 8000)
         self.compression_trigger = token_budget.get("compression_trigger", 0.7)
@@ -72,7 +73,7 @@ class ContextManager:
         self.enable_long_term_memory = long_term_config.get("enabled", True)
 
         if self.enable_long_term_memory:
-            from lingxi.context.long_term_memory import LongTermMemory
+            from lingxi.core.context.long_term_memory import LongTermMemory
             from pathlib import Path
             
             # 处理数据库路径：如果是相对路径，转换为相对于用户目录的绝对路径
@@ -89,6 +90,10 @@ class ContextManager:
 
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"初始化上下文管理器，会话ID: {session_id}")
+
+   
+     
+
     def add_context_item(self,role:str,content:str):
         """添加上下文项
 

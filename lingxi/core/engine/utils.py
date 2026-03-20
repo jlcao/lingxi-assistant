@@ -302,3 +302,49 @@ def parse_plan(plan: str, max_steps: int = 8) -> List[str]:
         raise ValueError("任务规划为空")
 
     return steps[:max_steps]
+
+
+def parse_json_with_escape_cleaning(response: str, logger=None) -> Optional[Dict[str, Any]]:
+    """解析 JSON 响应，支持清理无效的转义序列
+    
+    Args:
+        response: 包含 JSON 的响应文本
+        logger: 可选的日志记录器
+        
+    Returns:
+        解析后的字典，如果解析失败则返回 None
+    """
+    if logger is None:
+        import logging
+        logger = logging.getLogger(__name__)
+    
+    import json
+    import re
+    
+    # 尝试提取 JSON，使用多种方法提高容错性
+    json_match = re.search(r'\{.*\}', response, re.DOTALL)
+    if json_match:
+        json_str = json_match.group()
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as json_error:
+            # 尝试清理无效的转义序列
+            logger.warning(f"JSON 解析失败，尝试清理转义字符：{json_error}")
+            try:
+                # 清理路径中的无效转义序列（如 \\w, \\工 等）
+                # 只保留有效的 JSON 转义序列
+                cleaned_json = re.sub(r'\\([^\\nrtbf"\'\\])', r'\\\\\1', json_str)
+                # 再次尝试解析
+                return json.loads(cleaned_json)
+            except Exception as cleanup_error:
+                logger.error(f"JSON 清理后仍然失败：{cleanup_error}")
+                # 如果清理后仍然失败，尝试更激进的清理
+                try:
+                    # 移除所有无效的转义序列
+                    aggressive_cleaned = re.sub(r'\\[^\\nrtbf"\'\\]', r'\\\\', json_str)
+                    return json.loads(aggressive_cleaned)
+                except Exception as aggressive_error:
+                    logger.error(f"激进清理后仍然失败：{aggressive_error}")
+                    raise json_error
+    
+    return None

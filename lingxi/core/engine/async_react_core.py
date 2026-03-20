@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any, Union
 from collections.abc import AsyncGenerator
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
-from lingxi.core.context import TaskContext
+from lingxi.core.context.task_context import TaskContext
 from lingxi.core.llm.async_llm_client import AsyncLLMClient
 from .base import BaseEngine
 
@@ -43,42 +43,9 @@ class AsyncReActCore(BaseEngine):
 
     def _build_history_context(self, history: List[Dict[str, Any]]) -> str:
         """构建历史上下文
-        
-'task_id' =
-'task_session_e71ac9b2_ebfa92ce'
-'session_id' =
-'session_e71ac9b2'
-'task_type' =
-'task'
-'task_level' =
-'simple'
-'plan' =
-'[{"step": 1, "description": "\\u8bbe\\u8ba1\\u8868\\u683c\\u7ed3\\u6784\\uff1a\\u786e\\u5b9a\\u5916\\u8bbe\\u767b\\u8bb0\\u6240\\u9700\\u5b57\\u6bb5\\uff08\\u5e8f\\u53f7\\u3001\\u5916\\u8bbe\\u540d\\u79f0\\u3001\\u5916\\u8bbe\\u7c7b\\u578b\\u3001\\u5382\\u5bb6/\\u54c1\\u724c\\u3001\\u578b\\u53f7\\u3001\\u914d\\u7f6e\\u53c2\\u6570\\u3001\\u5e8f\\u5217\\u53f7\\u3001\\u8d2d\\u7f6e\\u65e5\\u671f\\u3001\\u4f7f\\u7528\\u90e8\\u95e8\\u3001\\u72b6\\u6001\\u3001\\u5907\\u6ce8\\u7b49\\uff09"}, {"step": 2, "description": "\\u4f7f\\u7528xlsx\\u6280\\u80fd\\u521b\\u5efaExcel\\u6587\\u4ef6\\uff0c\\u8bbe\\u7f6e\\u8868\\u5934\\u548c\\u57fa\\u7840\\u683c\\u5f0f"}, {"step": 3, "description": "\\u6dfb\\u52a0\\u793a\\u4f8b\\u6570\\u636e\\u884c\\uff0c\\u65b9\\u4fbf\\u7528\\u6237\\u7406\\u89e3\\u586b\\u5199\\u89c4\\u8303"}]'
-'user_input' =
-'帮我创建一个excel文件，用于登记工行的终端外设列表记录了外设的厂家和配置'
-'result' =
-'已成功创建工行终端外设登记表Excel文件！\n\n📁 文件路径：D:\\workspace\\work2\\工行终端外设登记表.xlsx\n\n📋 包含字段（共13项）：\n1. 序号\n2. 设备名称\n3. 设备类型\n4. 厂家/品牌\n5. 型号\n6. 配置信息\n7. 序列号\n8. 数量\n9. 使用部门\n10. 位置/网点\n11. 登记日期\n12. 状态\n13. 备注\n\n✨ 文件特点：\n- 蓝色表头，白色加粗字体\n- 已添加5条示例数据供参考\n- 列宽已优化设置\n- 首行冻结，方便滚动查看\n- 包含边框和居中对齐样式\n- 配置信息和备注列左对齐，便于阅读长文本\n\n您可以直接打开文件进行编辑和登记使用！'
-'status' =
-'completed'
-'current_step_idx' =
-0
-'replan_count' =
-0
-'error_info' =
-None
-'input_tokens' =
-0
-'output_tokens' =
-0
-'created_at' =
-'2026-03-18 10:37:28'
-'updated_at' =
-'2026-03-18 10:41:32'
         """
         if not history:
             return ""
-
-        
         
         context_lines = []
         for msg in history[-10:]:
@@ -234,11 +201,28 @@ None
 
         # 尝试 1: 解析 JSON 格式
         try:
+            # 查找 JSON 对象的开始和结束
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
                 json_str = json_match.group()
-                parsed = json.loads(json_str)
-                return parsed
+                # 尝试直接解析
+                try:
+                    parsed = json.loads(json_str)
+                    return parsed
+                except json.JSONDecodeError as e:
+                    # 如果直接解析失败，尝试清理换行符
+                    self.logger.debug(f"JSON 直接解析失败，尝试清理换行符：{e}")
+                    # 方法1：清理字符串中的转义换行符
+                    cleaned_json = json_str.replace('\\n', '\n').replace('\\t', '\t')
+                    try:
+                        parsed = json.loads(cleaned_json)
+                        return parsed
+                    except json.JSONDecodeError as e2:
+                        # 方法2：将实际的换行符转义
+                        self.logger.debug(f"方法1失败，尝试转义实际换行符：{e2}")
+                        escaped_json = cleaned_json.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+                        parsed = json.loads(escaped_json)
+                        return parsed
         except Exception as e:
             self.logger.error(f"JSON 格式解析失败：{e}，尝试文本格式")
             raise e

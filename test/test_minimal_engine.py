@@ -16,7 +16,7 @@ from lingxi.utils.config import load_config
 from lingxi.core.engine.async_react_core import AsyncReActCore
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.session import SessionManager
-from lingxi.core.context import TaskContext
+from lingxi.core.task_context import TaskContext
 
 
 async def test_minimal_engine():

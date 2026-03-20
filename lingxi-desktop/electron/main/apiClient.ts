@@ -13,8 +13,8 @@ import type {
   Skill,
   SkillManifest,
   WorkspaceInfo,
-  WorkspaceSwitchResult,
   WorkspaceInitResult,
+  WorkspaceSwitchResult,
   WorkspaceValidationResult
 } from '../../src/types'
 
@@ -169,15 +169,18 @@ export class ApiClient {
     page?: number
     page_size?: number
   }): Promise<ApiResponse<{ total: number; checkpoints: Checkpoint[] }>> {
-    return this.client.get('/api/checkpoints', { params })
+    //return this.client.get('/api/checkpoints', { params })
+    return Promise.resolve({ code: 0, message: 'success', data: { total: 0, checkpoints: [] } })
   }
 
   async resumeCheckpoint(taskId: string): Promise<ApiResponse<{ execution_id: string; task: string; status: string; message: string; resumed_from_step: number }>> {
-    return this.client.post(`/api/checkpoints/${taskId}/resume`)
+    //return this.client.post(`/api/checkpoints/${taskId}/resume`)
+    return Promise.resolve({ code: 0, message: 'success', data: { execution_id: '', task: '', status: '', message: '', resumed_from_step: 0 } })
   }
 
   async deleteCheckpoint(taskId: string): Promise<ApiResponse<{ success: boolean; deleted_steps_count: number }>> {
-    return this.client.delete(`/api/checkpoints/${taskId}`)
+    //return this.client.delete(`/api/checkpoints/${taskId}`)
+    return Promise.resolve({ code: 0, message: 'success', data: { success: true, deleted_steps_count: 0 } })
   }
 
   async getSkills(params?: {

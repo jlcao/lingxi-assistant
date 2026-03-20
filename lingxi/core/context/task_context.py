@@ -1,7 +1,7 @@
 # lingxi/core/context.py
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
-from lingxi.context.manager import ContextManager
+from lingxi.core.context.session_context import SessionContext
 
 @dataclass
 class TaskContext:
@@ -18,7 +18,7 @@ class TaskContext:
     output_tokens: int = 0
     workspace_path: Optional[str] = None
     thinking_mode: bool = False
-    session_context: Optional[ContextManager] = None
+    session_context: Optional[SessionContext] = None
     
     def __post_init__(self):
         if self.session_history is None:

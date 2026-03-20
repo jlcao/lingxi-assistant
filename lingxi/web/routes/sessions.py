@@ -110,7 +110,7 @@ async def create_session(request: CreateSessionRequest) -> Dict[str, Any]:
             "first_message": user_name
         }
     except Exception as e:
-        logger.error(f"创建会话失败：{e}")
+        logger.error(f"创建会话失败：{e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"创建会话失败：{str(e)}")
 
 

@@ -4,6 +4,7 @@ import logging
 import sqlite3
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from lingxi.core.session.database_manager import DatabaseManager
 
 from lingxi.core.session.session_models import Step
 
@@ -47,21 +48,21 @@ class StepManager:
     """步骤管理器，负责任务步骤的增删改查"""
     _instance = None  # 单例实例
 
-    def __new__(cls, db_manager, logger: logging.Logger):
+    def __new__(cls):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, db_manager, logger: logging.Logger):
+    def __init__(self):
         """初始化步骤管理器
 
         Args:
             db_manager: 数据库管理器实例
             logger: 日志记录器
         """
-        self.db_manager = db_manager
-        self.logger = logger
+        self.db_manager = DatabaseManager()
+        self.logger = logging.getLogger(__name__)
         self._initialized = True
 
     def add_step(self, session_id: str, task_id: str, step_index: int, result: str, status: str = None, thought: str = None, action: str = None, action_input: str = None, description: str = None, result_description: str = None):
