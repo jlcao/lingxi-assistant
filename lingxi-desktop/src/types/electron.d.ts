@@ -27,6 +27,7 @@ declare global {
       }
       api: {
         getSessions: () => Promise<any[]>
+        getWorkspaceSessions: (workspacePath: string) => Promise<{ sessions: any[] }>
         getSessionHistory: (sessionId: string, maxTurns?: number) => Promise<any>
         createSession: (userName?: string) => Promise<any>
         deleteSession: (sessionId: string) => Promise<void>
@@ -45,6 +46,7 @@ declare global {
         getConfig: () => Promise<any>
         updateConfig: (config: any) => Promise<void>
         getSessionInfo: (sessionId: string) => Promise<any>
+        updateSessionTitle: (sessionId: string, title: string) => Promise<void>
       }
       workspace: {
         getCurrent: () => Promise<any>

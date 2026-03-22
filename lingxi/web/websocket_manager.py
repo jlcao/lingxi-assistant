@@ -576,19 +576,30 @@ class WebSocketManager:
                 }
             await self.send_to_session(session_id, event)
 
-    async def send_event(self, session_id: str, event_type: str, execution_id: str, data: dict):
+    async def send_event(self, session_id: str, event_type: str, execution_id: str, task_id: str = None, step_index: int = None, data: dict = None):
         """发送事件
 
         Args:
             session_id: 会话 ID
             event_type: 事件类型
             execution_id: 执行 ID
+            task_id: 任务 ID
+            step_index: 步骤索引
             data: 事件数据
         """
+        if data is None:
+            data = {}
+        if task_id:
+            data['task_id'] = task_id
+        if step_index is not None:
+            data['step_index'] = step_index
         event = {
             "type": event_type,
             "payload": {
                 "executionId": execution_id,
+                "sessionId": session_id,
+                "taskId": task_id,
+                "stepIndex": step_index,
                 **data
             }
         }

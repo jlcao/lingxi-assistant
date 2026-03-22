@@ -10,7 +10,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import EdgeWidget from './components/EdgeWidget.vue'
 import LayoutContainer from './components/LayoutContainer.vue'
 import ResumeBanner from './components/ResumeBanner.vue'
@@ -23,15 +23,20 @@ import { useWorkspaceStore } from './stores/workspace'
 const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
 
-const isEdgeHidden = computed(() => {
-  return window.electronAPI?.window?.edgeCheck?.() || false
-})
+const isEdgeHidden = ref(false)
 
 const activeCheckpoints = computed(() => {
   return appStore.activeCheckpoints
 })
 
 onMounted(async () => {
+  if (window.electronAPI?.window?.edgeCheck) {
+    try {
+      isEdgeHidden.value = await window.electronAPI.window.edgeCheck()
+    } catch (error) {
+      console.error('Failed to check edge:', error)
+    }
+  }
   await initializeApp()
   setupWebSocketListeners()
 })
@@ -65,109 +70,62 @@ async function initializeApp() {
     }
 
     if (window.electronAPI?.api) {
-      console.log('[App] Loading checkpoints and resource usage...')
-      const [checkpoints, resourceUsage] = await Promise.all([
-        window.electronAPI.api.getCheckpoints(),
-        window.electronAPI.api.getResourceUsage()
-      ])
+        console.log('[App] Loading checkpoints and resource usage...')
+        const [checkpoints, resourceUsage] = await Promise.all([
+          window.electronAPI.api.getCheckpoints(),
+          window.electronAPI.api.getResourceUsage()
+        ])
 
-      // 根据工作目录加载会话列表
-      let sessions
-      const currentWorkspace = workspaceStore.currentWorkspace
-      if (currentWorkspace?.workspace) {
-        console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
-        sessions = await window.electronAPI.api.getWorkspaceSessions(currentWorkspace.workspace)
-        sessions = sessions.sessions || []
-      } else {
-        console.log('[App] No workspace initialized, loading all sessions')
-        sessions = await window.electronAPI.api.getSessions()
-      }
+        // 根据工作目录加载会话列表
+        let sessions
+        const currentWorkspace = workspaceStore.currentWorkspace
+        if (currentWorkspace?.workspace) {
+          console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
+          sessions = await window.electronAPI.api.getWorkspaceSessions(currentWorkspace.workspace)
+          console.log('[App] Loaded sessions:', sessions)
+          sessions = sessions.sessions || []
+        } else {
+          console.log('[App] No workspace initialized, loading all sessions')
+          sessions = await window.electronAPI.api.getSessions()
+          console.log('[App] Loaded sessions:', sessions)
+          sessions = sessions || []
+        }
 
-      // 转换后端返回的会话数据格式为前端期望的格式
-      const formattedSessions = (sessions || []).map((session: any) => ({
-        id: session.session_id || session.id,
-        name: session.title || session.name || '新会话',
-        createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
-        updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
-      }))
-
-      appStore.setSessions(formattedSessions)
-      
-      // 转换后端返回的 checkpoint 数据格式为前端期望的格式
-      const formattedCheckpoints = (checkpoints || []).map((checkpoint: any) => ({
-        id: checkpoint.session_id,
-        sessionId: checkpoint.session_id,
-        name: checkpoint.state?.task || '未命名任务',
-        timestamp: checkpoint.updated_at || Date.now()
-      }))
-      appStore.setCheckpoints(formattedCheckpoints)
-      
-      appStore.setResourceUsage(resourceUsage)
-
-      if (formattedSessions && formattedSessions.length > 0) {
-        appStore.setCurrentSession(formattedSessions[0].id)
-        const history = await window.electronAPI.api.getSessionHistory(formattedSessions[0].id)
-        
-        // 转换后端返回的历史记录格式为前端期望的格式
-        // 后端返回的是任务列表（按created_at DESC排序），每个任务需要转换成用户消息和助手消息两条记录
-        const turns: any[] = []
-        const historyList = (history || []).reverse() // 反转顺序，使最早的消息在前
-        
-        historyList.forEach((task: any, taskIndex: number) => {
-          // 添加用户消息
-          if (task.user_input) {
-            turns.push({
-              id: `${formattedSessions[0].id}_user_${taskIndex}`,
-              role: 'user',
-              content: task.user_input,
-              timestamp: task.created_at ? new Date(task.created_at).getTime() : Date.now(),
-              time: task.created_at ? new Date(task.created_at).getTime() : Date.now()
-            })
-          }
+        if (sessions && sessions.length > 0) {
+          appStore.setSessions(sessions)
+          appStore.setCurrentSession(sessions[0].sessionId)
           
-          // 添加助手消息
-          turns.push({
-            id: `${formattedSessions[0].id}_assistant_${taskIndex}`,
-            role: 'assistant',
-            content: task.result || '',
-            timestamp: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
-            time: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
-            steps: task.steps || [],
-            thought: task.thought || '',
-            thought_chain: task.thought_chain || null,
-            plan: task.plan || null,
-            executionId: task.task_id || null,
-            status: task.status || null,
-            isThinking: false,
-            taskLevel: task.task_level || 'simple'
-          })
-        })
-        
-        appStore.setTurns(turns)
-        
-        // 建立 WebSocket 连接
-        if (window.electronAPI?.ws) {
-          await window.electronAPI.ws.connect(formattedSessions[0].id)
-        }
-      } else {
-        // 没有会话时，创建一个新会话
-        const sessionData = await window.electronAPI.api.createSession()
-        const session = {
-          id: sessionData.session_id,
-          name: sessionData.first_message || '新会话',
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        }
-        appStore.setSessions([session])
-        appStore.setCurrentSession(session.id)
-        appStore.setTurns([])
-        
-        // 建立 WebSocket 连接
-        if (window.electronAPI?.ws) {
-          await window.electronAPI.ws.connect(session.id)
+          // 建立 WebSocket 连接
+          if (window.electronAPI?.ws) {
+            await window.electronAPI.ws.connect(sessions[0].sessionId)
+          }
+        } else {
+          // 没有会话时，创建一个新会话
+          try {
+            const sessionData = await window.electronAPI.api.createSession()
+            if (sessionData && (sessionData.session_id || sessionData.sessionId)) {
+              const session = {
+                sessionId: sessionData.session_id || sessionData.sessionId,
+                title: sessionData.first_message || sessionData.firstMessage || '新会话',
+                tasks: [],
+                totalTokens: 0,
+                userName: sessionData.user_name || sessionData.userName || '新用户',
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+              }
+              appStore.setSessions([session])
+              appStore.setCurrentSession(session.sessionId)
+              
+              // 建立 WebSocket 连接
+              if (window.electronAPI?.ws) {
+                await window.electronAPI.ws.connect(session.sessionId)
+              }
+            }
+          } catch (error) {
+            console.error('Failed to create session:', error)
+          }
         }
       }
-    }
   } catch (error) {
     console.error('Failed to initialize app:', error)
   } finally {
@@ -180,74 +138,29 @@ function setupWebSocketListeners() {
     window.electronAPI.ws.onTaskStart((data) => {
       console.log('Task started:', data)
       // 查找是否已存在临时助手消息
-      const updatedTurns = [...appStore.turns]
-      const tempIndex = updatedTurns.findIndex(turn => 
-        turn.role === 'assistant' && 
-        turn.executionId && 
-        turn.executionId.startsWith('temp_') &&
-        turn.isStreaming
-      )
-      
-      if (tempIndex !== -1) {
-        // 更新临时助手消息的执行 ID 和状态
-        updatedTurns[tempIndex] = {
-          ...updatedTurns[tempIndex],
-          executionId: data.executionId,
-          status: 'running',
-          isStreaming: true,
-          taskLevel: data.task_level || 'simple'
+      if(data.taskInfo){
+        // 确保task对象包含planThinking和planThinkingContent属性
+        const taskData = {
+          ...data.taskInfo,
+          planThinking: false,
+          planThinkingContent: '',
+          steps: data.taskInfo.steps || []
         }
-        appStore.setTurns(updatedTurns)
-      } else {
-        // 创建一个新的助手消息，用于关联后续的任务执行
-        const assistantMessage = {
-          id: `assistant-${data.executionId || Date.now()}`,
-          role: 'assistant',
-          content: '',
-          time: Date.now(),
-          executionId: data.executionId,
-          status: 'running',
-          isThinking: false,
-          thought: '',
-          steps: [],
-          plan: null,
-          taskLevel: data.task_level || 'simple'
-        }
-        appStore.setTurns([...appStore.turns, assistantMessage])
+        appStore.addTask(data.sessionId,data.taskId,taskData)
       }
+      
     })
 
     window.electronAPI.ws.onTaskEnd((data) => {
       console.log('Task ended:', data)
       // 更新助手消息的内容
-      if (data.result) {
-        const updatedTurns = [...appStore.turns]
-        const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-        if (targetIndex !== -1) {
-          const turn = updatedTurns[targetIndex]
-          
-          // 确保所有步骤都被标记为已完成
-          if (turn.steps) {
-            turn.steps = turn.steps.map(step => ({
-              ...step,
-              status: 'completed'
-            }))
-          }
-          
-          updatedTurns[targetIndex] = {
-            ...turn,
-            content: data.result,
-            status: 'completed',
-            isStreaming: false,
-            isThinking: false
-          }
-          appStore.setTurns(updatedTurns)
-        }
+      if (data.result && data.taskInfo) {
+        appStore.addTask(data.sessionId,data.taskId,data.taskInfo)
       }
-      
+
       // 任务结束后刷新工作区目录
       workspaceStore.refreshDirectoryTree()
-      
+
       // 任务结束后刷新历史会话列表，重新加载会话名称
       refreshSessionsList()
     })
@@ -255,190 +168,82 @@ function setupWebSocketListeners() {
     window.electronAPI.ws.onThinkStart((data) => {
       console.log('Think started:', data)
       // 找到对应的助手消息，添加思考开始标记
-      const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-      if (targetIndex !== -1) {
-        updatedTurns[targetIndex] = {
-          ...updatedTurns[targetIndex],
-          isThinking: true
-          
-        }
-        if (data.step_index === -1) {
-          updatedTurns[targetIndex].planThinking = true
-        } else {
-          updatedTurns[targetIndex].planThinking = false
-        }
-
-        appStore.setTurns(updatedTurns)
+      if(data.taskInfo){
+        appStore.addTask(data.sessionId,data.taskId,{...data.taskInfo,planThinking:true,planThinkingContent:''})
+      }
+      if(data.stepIndex && data.stepInfo){
+        appStore.addStep(data.sessionId,data.taskId,data.stepIndex,{...data.stepInfo,isThinking:true,thought:''})
       }
     })
 
     window.electronAPI.ws.onThinkStream((data) => {
-      const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-      if (targetIndex !== -1) {
-        const turn = updatedTurns[targetIndex]
-        const content = data.body?.reasoning_content || data.content || ''
-        const stepIndex = data.step_index ?? data.stepId
-        
-        if (stepIndex === -1) {
-          if (!turn.planThinkingContent) {
-            turn.planThinkingContent = ''
-          }
-          turn.planThinkingContent += content
-          turn.planThinking = true
-        } else {
-          if (!turn.steps) {
-            turn.steps = []
-          }
-
-          const actualStepIndex = stepIndex ?? turn.steps.length - 1
-
-          if (!turn.steps[actualStepIndex]) {
-            turn.steps[actualStepIndex] = {
-              step_index: actualStepIndex,
-              description: `步骤 ${actualStepIndex + 1}`,
-              status: 'running',
-              thought: ''
-            }
-          }
-
-          if (!turn.steps[actualStepIndex].thought) {
-            turn.steps[actualStepIndex].thought = ''
-          }
-          turn.steps[actualStepIndex].thought += content
-        }
-
-        appStore.setTurns(updatedTurns)
+      //console.log('Think stream:', data)
+      if(data.content && data.stepIndex>0){
+        appStore.addThought(data.sessionId,data.taskId,data.stepIndex,data.content)
+      }else{
+        appStore.addThinkThought(data.sessionId,data.taskId,data.content)
       }
     })
 
     window.electronAPI.ws.onThinkFinal((data) => {
       console.log('Think final:', data)
       // 找到对应的助手消息，完成思考标记并更新步骤的思考内容
-      const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-      if (targetIndex !== -1) {
-        const turn = updatedTurns[targetIndex]
-        turn.isThinking = false
-        
-        // 将最终思考内容添加到具体的 step 对象上
-        if (turn.steps) {
-          // 获取当前步骤索引，默认为最后一个步骤
-          const stepIndex = data.step_index || turn.steps.length - 1
-          
-          // 确保步骤对象存在
-          if (turn.steps[stepIndex]) {
-            turn.steps[stepIndex].thought = data.content || turn.steps[stepIndex].thought
-          }
-        }
-        
-        appStore.setTurns(updatedTurns)
+      if(data.stepIndex>0){
+        appStore.stepThinkFinal(data.sessionId,data.taskId,data.stepIndex,false)
+        // 更新步骤的思考内容
+        /*if(data.content){
+          appStore.addThought(data.sessionId,data.taskId,data.stepIndex,data.content)
+        }*/
+      }else{
+        appStore.planThinkFinal(data.sessionId,data.taskId,false)
+        // 更新计划思考内容
+        /*if(data.content){
+          appStore.addThinkThought(data.sessionId,data.taskId,data.content)
+        }*/
       }
+      // 确保session有tasks属性
+      
     })
 
     window.electronAPI.ws.onPlanStart((data) => {
       console.log('Plan started:', data)
-      const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-      if (targetIndex !== -1) {
-        updatedTurns[targetIndex] = {
-          ...updatedTurns[targetIndex],
-          planThinking: true,
-          planThinkingContent: ''
-        }
-        appStore.setTurns(updatedTurns)
+      if(data.stepIndex>0){
+        appStore.stepThinkFinal(data.sessionId,data.taskId,data.stepIndex,false)
+      }else{
+        appStore.planThinkFinal(data.sessionId,data.taskId,false)
       }
+      appStore.updateSessionTitle(data.sessionId,data.title)
+      // 确保session有tasks属性
+      
     })
 
     window.electronAPI.ws.onPlanFinal((data) => {
       console.log('Plan final:', data)
-      const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-      if (targetIndex !== -1) {
-        updatedTurns[targetIndex] = {
-          ...updatedTurns[targetIndex],
-          planThinking: false,
-          plan: data.plan || []
-        }
-        appStore.setTurns(updatedTurns)
-      }
+      appStore.addTask(data.sessionId,data.taskId,{plan:data.plan,planThinking:false})
+      // 确保session有tasks属性
     })
 
     window.electronAPI.ws.onStepStart((data) => {
       console.log('Step started:', data)
-      // 找到对应的助手消息，添加步骤开始信息
-      const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-      if (targetIndex !== -1) {
-        if (!updatedTurns[targetIndex].steps) {
-          updatedTurns[targetIndex].steps = []
-        }
-        
-        const stepIndex = data.step_index ?? 0
-        const existingStepIndex = updatedTurns[targetIndex].steps.findIndex(step => step.step_index === stepIndex)
-        
-        if (existingStepIndex !== -1) {
-          // 更新已存在的步骤
-          updatedTurns[targetIndex].steps[existingStepIndex] = {
-            ...updatedTurns[targetIndex].steps[existingStepIndex],
-            status: 'running'
-          }
-        } else {
-          // 添加新步骤
-          updatedTurns[targetIndex].steps.push({
-            step_index: stepIndex,  // 使用 step_index 字段
-            description: `步骤 ${stepIndex + 1}`,
-            status: 'running',
-            thought: ''  // 初始化 thought 字段
-          })
-          
-          // 按照 step_index 排序步骤
-          updatedTurns[targetIndex].steps.sort((a, b) => (a.step_index ?? 0) - (b.step_index ?? 0))
-        }
-        
-        appStore.setTurns(updatedTurns)
+      if(data.stepInfo){
+        appStore.addStep(data.sessionId,data.taskId,data.stepIndex,data.stepInfo)
       }
+      // 确保session有tasks属性
     })
 
     window.electronAPI.ws.onStepEnd((data) => {
       console.log('Step ended:', data)
       // 找到对应的助手消息，更新步骤状态
-      const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-      if (targetIndex !== -1 && updatedTurns[targetIndex].steps) {
-        const stepIndex = data.step_index ?? updatedTurns[targetIndex].steps.length - 1
-        if (updatedTurns[targetIndex].steps[stepIndex] !== undefined) {
-          // 如果后端返回了纯文本 thought，使用它替换流式累积的 JSON
-          const thought = data.thought || ''
-          
-          updatedTurns[targetIndex].steps[stepIndex] = {
-            ...updatedTurns[targetIndex].steps[stepIndex],
-            step_index: stepIndex,  // 确保 step_index 字段存在
-            description: data.description || updatedTurns[targetIndex].steps[stepIndex].description,
-            result_description: data.result_description || '',  // 新增 result_description 字段
-            status: data.status || 'completed',
-            result: data.result,
-            thought: thought  // 使用后端返回的纯文本 thought
-          }
-        }
-        appStore.setTurns(updatedTurns)
+      if(data.stepInfo){
+        appStore.addStep(data.sessionId,data.taskId,data.stepIndex,data.stepInfo)
       }
     })
 
     window.electronAPI.ws.onTaskFailed((data) => {
       console.log('Task failed:', data)
       // 找到对应的助手消息，添加失败信息
-      const updatedTurns = [...appStore.turns]
-      const targetIndex = updatedTurns.findIndex(turn => turn.executionId === data.executionId)
-      if (targetIndex !== -1) {
-        updatedTurns[targetIndex] = {
-          ...updatedTurns[targetIndex],
-          status: 'failed',
-          error: data.error || '任务执行失败',
-          isThinking: false
-        }
-        appStore.setTurns(updatedTurns)
+      if(data.taskInfo){
+        appStore.addTask(data.sessionId,data.taskId,data.taskInfo)
       }
     })
   }
@@ -447,27 +252,54 @@ function setupWebSocketListeners() {
 async function refreshSessionsList() {
   console.log('[App] Refreshing sessions list...')
   try {
-    let sessions
     const currentWorkspace = workspaceStore.currentWorkspace
+    let newSessions = []
+    
     if (currentWorkspace?.workspace) {
       console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
       const result = await window.electronAPI.api.getWorkspaceSessions(currentWorkspace.workspace)
-      sessions = result.sessions || []
+      newSessions = result.sessions || []
     } else {
       console.log('[App] No workspace initialized, loading all sessions')
-      sessions = await window.electronAPI.api.getSessions()
+      newSessions = await window.electronAPI.api.getSessions()
     }
-
-    // 转换后端返回的会话数据格式为前端期望的格式
-    const formattedSessions = (sessions || []).map((session: any) => ({
-      id: session.session_id || session.id,
-      name: session.title || session.name || '新会话',
-      createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
-      updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
+    
+    // 保存所有会话的任务数据
+    const existingSessions = appStore.sessions
+    const sessionTasksMap = new Map()
+    existingSessions.forEach(session => {
+      sessionTasksMap.set(session.sessionId, session.tasks || [])
+    })
+    
+    // 直接使用后端返回的会话数据格式（已经是驼峰命名）
+    const formattedNewSessions = (newSessions || []).map((session: any) => ({
+      sessionId: session.sessionId,
+      title: session.title,
+      taskCount: session.taskCount,
+      firstMessage: session.firstMessage,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      hasCheckpoint: session.hasCheckpoint
     }))
-
-    appStore.setSessions(formattedSessions)
-    console.log('[App] Sessions list refreshed:', formattedSessions.length, 'sessions')
+    
+    // 追加到原本的会话列表中，去重
+    const existingSessionIds = new Set(existingSessions.map(s => s.sessionId))
+    const uniqueNewSessions = formattedNewSessions.filter(session => !existingSessionIds.has(session.sessionId))
+    const updatedSessions = [...existingSessions, ...uniqueNewSessions]
+    
+    // 保留原有会话的任务数据
+    const finalSessions = updatedSessions.map(session => {
+      if (sessionTasksMap.has(session.sessionId)) {
+        return {
+          ...session,
+          tasks: sessionTasksMap.get(session.sessionId)
+        }
+      }
+      return session
+    })
+    
+    appStore.setSessions(finalSessions)
+    console.log('[App] Sessions list refreshed:', finalSessions.length, 'sessions')
   } catch (error) {
     console.error('[App] Failed to refresh sessions list:', error)
   }

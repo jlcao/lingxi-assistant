@@ -114,8 +114,8 @@ const isDragging = ref(false)
 const thinkingMode = ref(false)
 
 const currentSessionName = computed(() => {
-  const session = appStore.sessions.find(s => s.id === appStore.currentSessionId)
-  return session ? session.name : '新会话'
+  const session = appStore.sessions.find(s => s.sessionId === appStore.currentSessionId)
+  return session ? session.title : '新会话'
 })
 
 function handleMoreCommand(command: string) {
@@ -164,12 +164,12 @@ async function handleRenameSession() {
 
     if (value) {
       // 调用后端 API 更新会话名称
-      if (window.electronAPI.api.updateSessionName) {
-        await window.electronAPI.api.updateSessionName(appStore.currentSessionId, value)
+      if (window.electronAPI.api.updateSessionTitle) {
+        await window.electronAPI.api.updateSessionTitle(appStore.currentSessionId, value)
       }
       // 更新前端会话列表
       const updatedSessions = appStore.sessions.map(s =>
-        s.id === appStore.currentSessionId ? { ...s, name: value } : s
+        s.sessionId === appStore.currentSessionId ? { ...s, title: value } : s
       )
       appStore.setSessions(updatedSessions)
     }
@@ -193,7 +193,10 @@ async function handleClearHistory() {
       await window.electronAPI.api.clearSessionHistory(appStore.currentSessionId)
     }
     // 清空前端历史记录
-    appStore.setTurns([])
+    const updatedSessions = appStore.sessions.map(s =>
+      s.sessionId === appStore.currentSessionId ? { ...s, tasks: [] } : s
+    )
+    appStore.setSessions(updatedSessions)
   } catch {
     console.log('Clear cancelled')
   }
@@ -215,12 +218,12 @@ async function handleDeleteSession() {
     }
     // 更新前端会话列表
     const updatedSessions = appStore.sessions.filter(
-      s => s.id !== appStore.currentSessionId
+      s => s.sessionId !== appStore.currentSessionId
     )
     appStore.setSessions(updatedSessions)
     // 切换到第一个会话
     if (updatedSessions.length > 0) {
-      appStore.setCurrentSession(updatedSessions[0].id)
+      appStore.setCurrentSession(updatedSessions[0].sessionId)
     }
   } catch {
     console.log('Delete cancelled')
@@ -254,7 +257,6 @@ function handleUpload() {
 async function handleSend() {
   if (inputText.value.trim()) {
     const userMessage = inputText.value.trim()
-    const timestamp = Date.now()
 
     // 如果没有当前会话，创建一个新会话
     if (!appStore.currentSessionId) {
@@ -263,8 +265,13 @@ async function handleSend() {
         if (result && result.session_id) {
           appStore.setCurrentSession(result.session_id)
           appStore.setSessions([...appStore.sessions, {
-            id: result.session_id,
-            name: '新会话'
+            sessionId: result.session_id,
+            title: '新会话',
+            userName: '',
+            tasks: [],
+            totalTokens: 0,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
           }])
         } else {
           throw new Error('创建会话失败')
@@ -274,30 +281,6 @@ async function handleSend() {
         return
       }
     }
-
-    // 添加用户消息到聊天区
-    appStore.setTurns([...appStore.turns, {
-      id: `user-${timestamp}`,
-      role: 'user',
-      content: userMessage,
-      time: timestamp
-    }])
-
-    // 创建一个临时的助手消息，用于接收流式响应
-    const tempAssistantMessage = {
-      id: `assistant-${timestamp}`,
-      role: 'assistant',
-      content: '',
-      time: timestamp + 100,
-      executionId: `temp_${timestamp}`,
-      status: 'running',
-      isStreaming: true,
-      isThinking: false,
-      thought: '',
-      steps: [],
-      plan: null
-    }
-    appStore.setTurns([...appStore.turns, tempAssistantMessage])
 
     inputText.value = ''
 
@@ -311,18 +294,6 @@ async function handleSend() {
         )
       } catch (error) {
         console.error('Failed to send message:', error)
-        // 更新助手消息为失败状态
-        const updatedTurns = [...appStore.turns]
-        const targetIndex = updatedTurns.findIndex(turn => turn.executionId === `temp_${timestamp}`)
-        if (targetIndex !== -1) {
-          updatedTurns[targetIndex] = {
-            ...updatedTurns[targetIndex],
-            status: 'failed',
-            error: '发送消息失败',
-            isStreaming: false
-          }
-          appStore.setTurns(updatedTurns)
-        }
       }
     }
   }

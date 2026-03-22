@@ -8,6 +8,8 @@ import subprocess
 import logging
 from pathlib import Path
 from typing import Optional, List, Set
+from lingxi.utils.config import get_config
+
 
 
 class SecurityError(Exception):
@@ -39,7 +41,8 @@ class SecuritySandbox:
         workspace_root: str = "./workspace",
         max_file_size: int = 10 * 1024 * 1024,
         allowed_commands: Optional[List[str]] = None,
-        safety_mode: bool = True
+        safety_mode: bool = True,
+        white_list_paths: Optional[List[str]] = None
     ):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
@@ -48,35 +51,57 @@ class SecuritySandbox:
     
     def __init__(
         self,
-        workspace_root: str = "./workspace",
-        max_file_size: int = 10 * 1024 * 1024,
+        workspace_root: str = None,
+        max_file_size: int = None,
         allowed_commands: Optional[List[str]] = None,
-        safety_mode: bool = True
+        safety_mode: bool = None,
+        white_list_paths: Optional[List[str]] = None
     ):
+        self.config = get_config()
+        # 从配置中获取安全沙箱配置
+        sandbox_config = self.config.get('security', {}).get('sandbox', {})
+        
         # 防止重复初始化
         if hasattr(self, '_initialized'):
             # 如果已初始化，检查是否需要更新工作目录
-            if workspace_root != "./workspace":
+            if workspace_root:
                 self.update_workspace(Path(workspace_root))
+            # 更新白名单
+            if white_list_paths:
+                self.set_white_list_paths(white_list_paths)
             return
         
-        self.workspace_root = Path(workspace_root).resolve()
-        self.max_file_size = max_file_size
-        self.safety_mode = safety_mode
+        # 优先使用传入的参数，否则使用配置中的值，最后使用默认值
+        self.workspace_root = Path(workspace_root or sandbox_config.get('workspace_root', './workspace')).resolve()
+        self.max_file_size = max_file_size or sandbox_config.get('max_file_size', 10 * 1024 * 1024)
+        self.safety_mode = safety_mode if safety_mode is not None else sandbox_config.get('safety_mode', True)
         
         if allowed_commands is None:
-            self.allowed_commands: Set[str] = {
-                'ls', 'pwd', 'git', 'cat', 'grep', 'find',
-                'dir', 'cd', 'echo', 'type', 'where'
-            }
+            config_commands = sandbox_config.get('allowed_commands')
+            if config_commands:
+                self.allowed_commands: Set[str] = set(config_commands)
+            else:
+                self.allowed_commands: Set[str] = {
+                    'ls', 'pwd', 'git', 'cat', 'grep', 'find',
+                    'dir', 'cd', 'echo', 'type', 'where'
+                }
         else:
             self.allowed_commands = set(allowed_commands)
+        
+        # 初始化白名单路径
+        self.white_list_paths: List[Path] = []
         
         self.workspace_root.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger(__name__)
         
+        # 添加白名单路径（优先使用传入的参数，否则使用配置中的值）
+        paths_to_add = white_list_paths or sandbox_config.get('white_list_paths', [])
+        for path_str in paths_to_add:
+            self.add_white_list_path(path_str)
+        
         self.logger.info(f"安全沙箱初始化：workspace={self.workspace_root}, "
-                       f"max_file_size={max_file_size}, safety_mode={safety_mode}")
+                       f"max_file_size={self.max_file_size}, safety_mode={self.safety_mode}, "
+                       f"white_list_paths={[str(p) for p in self.white_list_paths]}")
         self._initialized = True
 
     def check_security_parameters(self, skill_name: str, action_type: str, params: dict):
@@ -180,21 +205,39 @@ class SecuritySandbox:
             验证后的Path对象
 
         Raises:
-            SecurityError: 路径超出工作空间
+            SecurityError: 路径超出工作空间和白名单范围
         """
-        path = Path(file_path).resolve()
+        # 处理缺少驱动器号的路径（如 \work\workspace1\.lingxi）
+        if file_path.startswith('\\') and len(file_path) > 1 and not file_path[1].isalpha():
+            # 对于以 \ 开头但不是网络路径的情况，使用工作目录的驱动器号
+            drive_letter = self.workspace_root.drive
+            file_path = drive_letter + file_path
         
+        path = Path(file_path).expanduser().resolve()
+        
+        # 检查是否在工作目录内
         try:
             relative_path = path.relative_to(self.workspace_root)
             self.logger.debug(f"路径验证通过: {file_path} -> {relative_path}")
             return path
         except ValueError:
+            # 检查是否在白名单路径内
+            for white_path in self.white_list_paths:
+                try:
+                    relative_path = path.relative_to(white_path)
+                    self.logger.debug(f"路径验证通过（白名单）: {file_path} -> {relative_path}")
+                    return path
+                except ValueError:
+                    continue
+            
+            # 路径既不在工作目录也不在白名单内
             error_msg = (
                 f"拒绝访问路径：{file_path}\n"
-                f"路径必须在 {self.workspace_root} 目录内"
+                f"路径必须在 {self.workspace_root} 目录内或白名单路径内\n"
+                f"白名单路径：{[str(p) for p in self.white_list_paths]}"
             )
             self.logger.warning(error_msg)
-            raise SecurityError(error_msg, "PATH_OUTSIDE_WORKSPACE")
+            raise SecurityError(error_msg, "PATH_OUTSIDE_ALLOWED_RANGE")
     
     def safe_read(self, file_path: str) -> str:
         """安全读取文件
@@ -385,6 +428,52 @@ class SecuritySandbox:
         self.workspace_root.mkdir(parents=True, exist_ok=True)
         
         self.logger.info(f"工作目录已更新：{old_workspace} -> {self.workspace_root}")
+    
+    def add_white_list_path(self, path_str: str) -> None:
+        """添加白名单路径
+        
+        Args:
+            path_str: 白名单路径
+        """
+        path = Path(path_str).expanduser().resolve()
+        if path not in self.white_list_paths:
+            self.white_list_paths.append(path)
+            self.logger.info(f"已添加白名单路径：{path}")
+    
+    def remove_white_list_path(self, path_str: str) -> bool:
+        """移除白名单路径
+        
+        Args:
+            path_str: 白名单路径
+        
+        Returns:
+            是否移除成功
+        """
+        path = Path(path_str).expanduser().resolve()
+        if path in self.white_list_paths:
+            self.white_list_paths.remove(path)
+            self.logger.info(f"已移除白名单路径：{path}")
+            return True
+        return False
+    
+    def set_white_list_paths(self, paths: List[str]) -> None:
+        """设置白名单路径
+        
+        Args:
+            paths: 白名单路径列表
+        """
+        self.white_list_paths = []
+        for path_str in paths:
+            self.add_white_list_path(path_str)
+        self.logger.info(f"白名单路径已设置：{[str(p) for p in self.white_list_paths]}")
+    
+    def get_white_list_paths(self) -> List[Path]:
+        """获取白名单路径
+        
+        Returns:
+            白名单路径列表
+        """
+        return self.white_list_paths
     
     def is_path_allowed(self, file_path: str) -> bool:
         """检查路径是否在允许范围内

@@ -62,37 +62,7 @@ async function handleSend() {
   }
 
   const userMessage = inputText.value.trim()
-  const timestamp = Date.now()
-  const executionId = `temp_${timestamp}`
-
-  // 一次性添加用户消息和临时助手消息
-  const newTurns = [...appStore.turns]
   
-  // 添加用户消息
-  newTurns.push({
-    id: `user-${timestamp}`,
-    role: 'user',
-    content: userMessage,
-    time: timestamp
-  })
-
-  // 立即创建一个助手消息并标记为流式处理中，以显示loading效果
-  newTurns.push({
-    id: `assistant-${executionId}`,
-    role: 'assistant',
-    content: '',
-    time: timestamp,
-    executionId: executionId,
-    status: 'running',
-    isStreaming: true,
-    isThinking: false,
-    thought: '',
-    steps: [],
-    plan: null
-  })
-
-  // 一次性更新状态
-  appStore.setTurns(newTurns)
   // 设置loading状态为true，禁用发送按钮
   appStore.setLoading(true)
 

@@ -5,12 +5,10 @@ import uuid
 import threading
 import asyncio
 from typing import Dict, List, Optional, Any, Union, Generator, TYPE_CHECKING
-# LLMClient 已废弃 - 使用 AsyncLLMClient
-# from lingxi.core.llm.llm_client import LLMClient
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
-from lingxi.core.context import TaskContext
+from lingxi.core.context.task_context import TaskContext
 from lingxi.core.utils.security import SecurityError
 from lingxi.core.confirmation.confirmation import ConfirmationManager, DangerousSkillChecker, RiskLevel
 from .utils import parse_llm_response, parse_action_parameters, process_parameters, calculate_expression
@@ -172,43 +170,9 @@ class BaseEngine:
         """
         return process_parameters(parameters)
 
-    def _calculate(self, expression: str) -> str:
-        """计算表达式
 
-        Args:
-            expression: 数学表达式
 
-        Returns:
-            计算结果
-        """
-        return calculate_expression(expression)
 
-    def _generate_final_response(self, task: str, results: List[Dict[str, Any]], task_level: str = "simple") -> str:
-        """生成最终响应
-
-        Args:
-            task: 任务文本
-            results: 执行结果
-            task_level: 任务级别
-
-        Returns:
-            最终响应
-        """
-        import warnings
-        warnings.warn("_generate_final_response 已废弃 - 子类应实现自己的版本", DeprecationWarning)
-        
-        prompt = PromptTemplates.build_final_response_prompt(
-            user_input=task,
-            steps=results,
-            include_thought=False
-        )
-
-        self.logger.debug("生成最终响应提示词: %s", prompt)
-        # LLMClient 已废弃
-        # response = self.llm_client.complete(prompt, task_level=task_level)
-        # self.logger.debug("最终响应LLM响应: %s", response)
-        # return response
-        return "任务执行完成"
 
     def _handle_dangerous_operation_with_confirmation(self, action: str, parameters: Dict[str, Any]) -> Optional[str]:
         """处理高危操作，需要用户确认
@@ -323,91 +287,56 @@ class BaseEngine:
         
         return messages
 
-    def _get_json_schema(self) -> Dict[str, Any]:
-        """获取JSON Schema
 
-        Returns:
-            JSON Schema
-        """
-        return {
-            "name": "action_plan",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "thought": {
-                        "type": "string",
-                        "description": "你的思考过程，这部分需要流式展示给用户"
-                    },
-                    "action": {
-                        "type": "string",
-                        "description": "行动名称"
-                    },
-                    "action_input": {
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": True
-                    }
-                },
-                "required": ["thought", "action", "action_input"],
-                "additionalProperties": False
-            }
-        }
 
-    def _publish_think_stream(self, session_id: str, execution_id: str, step: int, content: str):
+    def _publish_think_stream(self, context: TaskContext, step: int, content: str):
         """发布思考流式事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             step: 步骤索引
             content: 思考内容
         """
         global_event_publisher.publish(
             'think_stream',
-            session_id=session_id,
-            execution_id=execution_id,
+            context=context,
             step_index=step,
             content=content,
             body={"reasoning_content": content},
             is_partial=True
         )
 
-    def _publish_think_start(self, session_id: str, execution_id: str, step: int, content: str):
+    def _publish_think_start(self, context: TaskContext, step: int, content: str):
         """发布思考开始事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             step: 步骤索引
             content: 初始思考内容
         """
         global_event_publisher.publish(
             'think_start',
-            session_id=session_id,
-            execution_id=execution_id,
+            context=context,
             step_index=step,
             content=content
         )
 
-    def _publish_think_end(self, session_id: str, execution_id: str, step: int, content: str):
+    def _publish_think_end(self, context: TaskContext, step: int, content: str):
         """发布思考结束事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             step: 步骤索引
             content: 最终思考内容
         """
         global_event_publisher.publish(
-            'think_end',
-            session_id=session_id,
-            execution_id=execution_id,
+            'think_final',
+            context=context,
             step_index=step,
             content=content
         )
 
-    def _publish_step_start(self, session_id: str, execution_id: str, step_idx: int, total_steps: int):
+    def _publish_step_start(self, context: TaskContext, step_idx: int, total_steps: int):
         """发布步骤开始事件
 
         Args:
@@ -418,18 +347,16 @@ class BaseEngine:
         """
         global_event_publisher.publish(
             'step_start',
-            session_id=session_id,
-            execution_id=execution_id,
+            context=context,
             step_index=step_idx,
             total_steps=total_steps
         )
 
-    def _publish_step_end(self, session_id: str, execution_id: str, step_idx: int, status: str, error: str = None, result: str = "", thought: str = "",description:str="", task_id: str = None,result_description:str=""):
+    def _publish_step_end(self, context: TaskContext, step_idx: int):
         """发布步骤结束事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             step_idx: 步骤索引
             status: 状态
             error: 错误信息
@@ -438,16 +365,8 @@ class BaseEngine:
         """
         global_event_publisher.publish(
             'step_end',
-            session_id=session_id,
-            execution_id=execution_id,
-            task_id=task_id,
-            step_index=step_idx,
-            status=status,
-            error=error,
-            result=result,
-            thought=thought,
-            description=description,
-            result_description=result_description
+            context=context,
+            step_index=step_idx
         )
 
     def _publish_task_end(self, result: str, context: TaskContext):
@@ -457,14 +376,11 @@ class BaseEngine:
             result: 结果
             context: 任务上下文
         """
+        context.task_info.result = result
         global_event_publisher.publish(
             'task_end',
-            session_id=context.session_id,
-            execution_id=context.execution_id,
-            task_id=context.task_id,
-            task_input=context.user_input,
+            context=context,
             result=result,
-            task_level=context.get_task_level(),
             input_tokens=context.input_tokens,
             output_tokens=context.output_tokens
         )
@@ -473,56 +389,45 @@ class BaseEngine:
             "type": "task_end",
             "result": result
         }
-    def _publish_task_failed(self, session_id: str, execution_id: str, error: str, task_id: str = None):
+    def _publish_task_failed(self, context: TaskContext, error: str):
         """发布任务失败事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             error: 错误信息
             task_id: 任务 ID
         """
         global_event_publisher.publish(
             'task_failed',
-            session_id=session_id,
-            execution_id=execution_id,
-            task_id=task_id,
+            context=context,
             error=error
         )
 
-    def _publish_plan_start(self, session_id: str, execution_id: str, task_id: str = None, task_level: str = "none", summary: str = None):
+    def _publish_plan_start(self, context: TaskContext, summary: str = None):    
         """发布计划开始事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             task_id: 任务 ID
             task_level: 任务级别
             summary: 任务摘要
         """
         global_event_publisher.publish(
             'plan_start',
-            session_id=session_id,
-            execution_id=execution_id,
-            task_id=task_id,
-            task_level=task_level,
+            context=context,
             summary=summary
         )
 
-    def _publish_plan_events(self, session_id: str, execution_id: str, plan: List[str], task_id: str = None):
+    def _publish_plan_events(self, context: TaskContext, plan: List[str]):
         """发布计划相关事件
 
         Args:
-            session_id: 会话ID
-            execution_id: 执行ID
+            context: 任务上下文
             plan: 计划步骤列表
-            task_id: 任务ID
         """
         global_event_publisher.publish(
             'plan_final',
-            session_id=session_id,
-            execution_id=execution_id,
-            task_id=task_id,
+            context=context,
             plan=[{"step": i+1, "description": step} for i, step in enumerate(plan)]
         )
 
@@ -632,109 +537,7 @@ class BaseEngine:
         """
         raise NotImplementedError("子类必须实现 _execute_task_stream 方法")
 
-    def _execute_new_task(self, context: TaskContext) -> Union[str, Generator[Dict[str, Any], None, None]]:
-        """执行新任务（统一使用流式处理逻辑）
-
-        Args:
-            context: 任务上下文对象
-
-        Returns:
-            执行结果（非流式）或流式响应生成器（流式）
-        """
-        try:
-            task = context.user_input
-            task_info = context.task_info
-            history = context.session_history
-            session_id = context.session_id
-            stream = context.stream
-            task_id = context.task_id
-            execution_id = context.execution_id
-            
-            self.logger.debug(f"开始执行新任务：{task} (stream={stream})")
-            
-            self.logger.debug(f"任务 ID：{task_id}")
-            self.logger.debug(f"执行 ID：{execution_id}")
-            
-            self._publish_task_start(session_id, execution_id, task, task_info, task_id)
-
-            if stream:
-                return self._execute_task_stream(context)
-            else:
-                for _ in self._execute_task_stream(context):
-                    pass
-                return ""
-
-        except Exception as e:
-            import traceback
-            error_trace = traceback.format_exc()
-            error_message = str(e)
-            self.logger.error(f"执行新任务时发生异常: {error_message}\n{error_trace}")
-            if stream:
-                def error_generator():
-                    yield {"type": "error", "message": f"{error_message}\n堆栈信息:\n{error_trace}"}
-                return error_generator()
-            return self._generate_error_response(task, -1, f"{error_message}\n堆栈信息:\n{error_trace}")
-
-    def _handle_task_completion(self, checkpoint: Dict[str, Any], all_results: List[Dict[str, Any]], 
-                              context: TaskContext) -> Generator[Dict[str, Any], None, None]:
-        """处理任务完成
-
-        Args:
-            checkpoint: 检查点
-            all_results: 所有结果
-            context: 任务上下文
-
-        Returns:
-            流式响应生成器
-        """
-        session_id = context.session_id
-        execution_id = context.execution_id
-        task = context.user_input
-        task_level = context.get_task_level()
-        
-        checkpoint["execution_status"] = "completed"
-        checkpoint["error_info"] = None
-        if hasattr(self, "_save_plan_checkpoint"):
-            self._save_plan_checkpoint(session_id, checkpoint)
-
-        # 检查最后一个步骤是否是 finish 动作
-        final_response = ""
-        if all_results and all_results[-1].get("action") == "finish":
-            # 如果最后一个步骤是 finish，直接使用 finish 的内容
-            finish_step = all_results[-1]
-            final_response = finish_step.get("action_input", "")
-            if not final_response:
-                # 如果 action_input 为空，尝试使用 thought 和 observation
-                final_response = finish_step.get("thought", "") + " " + finish_step.get("observation", "")
-        else:
-            # 否则调用模型生成最终响应
-            final_response = self._generate_final_response(task, all_results, task_level)
-
-        self._publish_task_end(final_response, context)
-
-    def _handle_step_failure(self, step_result: Dict[str, Any], checkpoint: Dict[str, Any],
-                           session_id: str, execution_id: str, step_idx: int, task: str):
-        """处理步骤失败
-
-        Args:
-            step_result: 步骤结果
-            checkpoint: 检查点
-            session_id: 会话ID
-            execution_id: 执行ID
-            step_idx: 步骤索引
-            task: 任务文本
-        """
-        self.logger.error(f"步骤{step_idx + 1}执行失败: {step_result.get('error')}")
-
-        checkpoint["execution_status"] = "failed"
-        checkpoint["error_info"] = step_result.get("error")
-        if hasattr(self, "_save_plan_checkpoint"):
-            self._save_plan_checkpoint(session_id, checkpoint)
-
-        if self.session_manager:
-            error_response = self._generate_error_response(task, step_idx, step_result.get("error"))
-            
-    def _publish_task_start(self, session_id: str, execution_id: str, task: str, task_info: Dict[str, Any], task_id: str = None):
+    def _publish_task_start(self, context: TaskContext):
         """发布任务开始事件
 
         Args:
@@ -745,11 +548,6 @@ class BaseEngine:
             task_id: 任务ID
         """
         global_event_publisher.publish(
-                'task_start',
-                session_id=session_id,
-                execution_id=execution_id,
-                task_id=task_id,
-                task_info=task_info,
-                user_input=task,
-                task_level=task_info.get("level", "none")
+            'task_start',
+            context=context
         )

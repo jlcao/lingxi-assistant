@@ -166,46 +166,23 @@ def run_server(config=None):
     # 直接传递app实例，避免模块重复导入导致的启动事件重复触发
     import sys
     
-    # 保存原始的 stdout 和 stderr
-    original_stdout = sys.stdout
-    original_stderr = sys.stderr
+    logger.info("准备启动 Uvicorn 服务器...")
+    logger.info(f"Uvicorn 配置: host={host}, port={port}, reload={web_config.get('debug', False)}")
     
+    # 尝试启动服务器
     try:
-        # 临时替换 stdout 和 stderr 为安全的对象，避免 Uvicorn 访问已关闭的流
-        class SafeStream:
-            def isatty(self):
-                return False
-            def write(self, data):
-                pass
-            def flush(self):
-                pass
-            def close(self):
-                pass
-            def fileno(self):
-                return -1
-            def readable(self):
-                return False
-            def writable(self):
-                return True
-            def seekable(self):
-                return False
-            @property
-            def closed(self):
-                return False
-        
-        sys.stdout = SafeStream()
-        sys.stderr = SafeStream()
-        
         uvicorn.run(
             app,
             host=host,
             port=port,
             reload=web_config.get('debug', False)
         )
-    finally:
-        # 恢复原始的 stdout 和 stderr
-        sys.stdout = original_stdout
-        sys.stderr = original_stderr
+        logger.info("Uvicorn 服务器启动成功")
+    except Exception as uvicorn_error:
+        logger.error(f"Uvicorn 启动失败: {uvicorn_error}")
+        import traceback
+        logger.error(f"Uvicorn 错误堆栈: {traceback.format_exc()}")
+        raise
 
 
 if __name__ == '__main__':

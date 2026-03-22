@@ -27,13 +27,17 @@ def setup_logging(config: Dict[str, Any] = None):
     # 获取日志配置
     log_config = config.get("logging", {})
     log_level = log_config.get("level", "INFO")
-    log_file = log_config.get("file_path", "logs/assistant.log")
+    log_file = log_config.get("file", "logs/assistant.log")
     log_format = log_config.get("format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     
     # 确保日志目录存在
     log_dir = os.path.dirname(log_file)
     if log_dir and not os.path.exists(log_dir):
-        os.makedirs(log_dir, exist_ok=True)
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            root_logger.debug(f"创建日志目录: {log_dir}")
+        except Exception as e:
+            root_logger.warning(f"创建日志目录失败: {e}")
     
     # 创建日志格式化器
     formatter = logging.Formatter(log_format)
@@ -83,15 +87,34 @@ def setup_logging(config: Dict[str, Any] = None):
     
     # 创建主日志文件处理器（只输出 INFO 及以上级别）
     try:
-        max_file_size = log_config.get("max_file_size_mb", 10) * 1024 * 1024
+        rotation_type = log_config.get("rotation_type", "size")  # size 或 time
         backup_count = log_config.get("backup_count", 5)
         
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_file,
-            maxBytes=max_file_size,
-            backupCount=backup_count,
-            encoding='utf-8'
-        )
+        if rotation_type == "time":
+            # 基于时间的轮转
+            when = log_config.get("rotation_when", "D")  # 轮转时间单位: S, M, H, D, W0-W6, midnight
+            interval = log_config.get("rotation_interval", 1)  # 轮转间隔
+            utc = log_config.get("rotation_utc", False)  # 是否使用 UTC 时间
+            
+            file_handler = logging.handlers.TimedRotatingFileHandler(
+                log_file,
+                when=when,
+                interval=interval,
+                backupCount=backup_count,
+                encoding='utf-8',
+                utc=utc
+            )
+        else:
+            # 基于大小的轮转
+            max_file_size = log_config.get("max_file_size_mb", 10) * 1024 * 1024
+            
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_file,
+                maxBytes=max_file_size,
+                backupCount=backup_count,
+                encoding='utf-8'
+            )
+        
         file_handler.setLevel(log_level)
         file_handler.setFormatter(formatter)
         file_handler.addFilter(quiet_exception_filter)
@@ -103,12 +126,32 @@ def setup_logging(config: Dict[str, Any] = None):
     # 创建 DEBUG 日志文件处理器（只输出 DEBUG 级别）
     try:
         debug_log_file = os.path.join(os.path.dirname(log_file), "debug.log")
-        debug_file_handler = logging.handlers.RotatingFileHandler(
-            debug_log_file,
-            maxBytes=10 * 1024 * 1024,  # 10MB
-            backupCount=5,
-            encoding='utf-8'
-        )
+        rotation_type = log_config.get("rotation_type", "size")
+        backup_count = log_config.get("backup_count", 5)
+        
+        if rotation_type == "time":
+            when = log_config.get("rotation_when", "D")
+            interval = log_config.get("rotation_interval", 1)
+            utc = log_config.get("rotation_utc", False)
+            
+            debug_file_handler = logging.handlers.TimedRotatingFileHandler(
+                debug_log_file,
+                when=when,
+                interval=interval,
+                backupCount=backup_count,
+                encoding='utf-8',
+                utc=utc
+            )
+        else:
+            max_file_size = log_config.get("max_file_size_mb", 10) * 1024 * 1024
+            
+            debug_file_handler = logging.handlers.RotatingFileHandler(
+                debug_log_file,
+                maxBytes=max_file_size,
+                backupCount=backup_count,
+                encoding='utf-8'
+            )
+        
         debug_file_handler.setLevel(logging.DEBUG)
         debug_file_handler.setFormatter(formatter)
         root_logger.addHandler(debug_file_handler)
@@ -121,6 +164,13 @@ def setup_logging(config: Dict[str, Any] = None):
     root_logger.info("日志系统初始化完成")
     root_logger.info(f"日志级别: {log_level}")
     root_logger.info(f"日志文件: {log_file}")
+    root_logger.info(f"日志轮转类型: {rotation_type}")
+    if rotation_type == "time":
+        root_logger.info(f"轮转时间单位: {when}")
+        root_logger.info(f"轮转间隔: {interval}")
+    else:
+        root_logger.info(f"最大文件大小: {log_config.get('max_file_size_mb', 10)}MB")
+    root_logger.info(f"备份文件数量: {backup_count}")
     root_logger.debug(f"DEBUG 日志文件: {os.path.join(os.path.dirname(log_file), 'debug.log')}")
     
     # 标记日志系统已经初始化
@@ -203,7 +253,11 @@ def add_file_handler(log_file: str, level: str = "INFO", max_bytes: int = 10 * 1
     # 确保日志目录存在
     log_dir = os.path.dirname(log_file)
     if log_dir and not os.path.exists(log_dir):
-        os.makedirs(log_dir, exist_ok=True)
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            root_logger.debug(f"创建日志目录: {log_dir}")
+        except Exception as e:
+            root_logger.warning(f"创建日志目录失败: {e}")
     
     # 创建文件处理器
     file_handler = logging.handlers.RotatingFileHandler(

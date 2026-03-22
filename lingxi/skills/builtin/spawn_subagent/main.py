@@ -21,7 +21,7 @@ def execute(parameters: Dict[str, Any]) -> str:
     """
     logger = logging.getLogger(__name__)
     
-    task = parameters.get("task")
+    task = parameters.get("task") or parameters.get("task_description")
     if not task:
         return "错误：缺少 task 参数"
     
@@ -56,15 +56,43 @@ def execute(parameters: Dict[str, Any]) -> str:
         
         # 异步执行 spawn
         async def spawn_task():
+            # 传递 context 参数，即使为空
             task_id = await skill_caller.subagent_scheduler.spawn(
                 task=task,
                 workspace_path=workspace_path,
-                timeout=timeout
+                timeout=timeout,
+                context={}
             )
             return task_id
         
         # 运行异步代码
-        task_id = asyncio.run(spawn_task())
+        # 使用在单独线程中执行异步代码的方式，避免与当前事件循环冲突
+        def run_async(coro):
+            # 在单独的线程中执行异步代码
+            import threading
+            result = None
+            error = None
+            
+            def run_in_thread():
+                nonlocal result, error
+                try:
+                    result = asyncio.run(coro)
+                except Exception as e:
+                    error = e
+            
+            # 创建并启动线程
+            thread = threading.Thread(target=run_in_thread)
+            thread.start()
+            thread.join()
+            
+            # 检查是否有错误
+            if error:
+                raise error
+            
+            return result
+        
+        # 执行spawn任务
+        task_id = run_async(spawn_task())
         
         if wait:
             # 等待任务完成
@@ -72,7 +100,8 @@ def execute(parameters: Dict[str, Any]) -> str:
                 result = await skill_caller.subagent_scheduler.wait_for_task(task_id, timeout)
                 return result
             
-            result = asyncio.run(wait_task())
+            # 执行wait任务
+            result = run_async(wait_task())
             
             if result:
                 return f"子代理任务完成\n任务 ID: {task_id}\n状态：{result.status}\n结果：{result.result}"

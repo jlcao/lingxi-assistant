@@ -7,7 +7,7 @@
     <div class="intervention-body">
       <div v-for="step in failedSteps" :key="step.stepIndex" class="intervention-step">
         <div class="intervention-step-name">
-          步骤 {{ step.stepIndex + 1 }}: {{ step.name }}
+          步骤 {{ step.stepIndex }}: {{ step.name }}
           <span class="intervention-step-retry">重试次数: {{ step.retryCount }}/{{ step.maxRetries }}</span>
         </div>
         <div v-if="step.error" class="intervention-error">

@@ -4,6 +4,7 @@ import logging
 import sqlite3
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from lingxi.core.session.database_manager import DatabaseManager
 
 from lingxi.core.session.session_models import Step
 
@@ -28,6 +29,7 @@ def step_to_dict(step: Step) -> dict:
 def dict_to_step(step_dict: dict) -> Step:
     """将字典转换为 Step 对象"""
     step = Step(
+        session_id=step_dict.get("session_id", ""),
         step_id=step_dict.get("step_id", ""),
         task_id=step_dict.get("task_id", ""),
         step_index=step_dict.get("step_index", 0),
@@ -47,21 +49,21 @@ class StepManager:
     """步骤管理器，负责任务步骤的增删改查"""
     _instance = None  # 单例实例
 
-    def __new__(cls, db_manager, logger: logging.Logger):
+    def __new__(cls):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, db_manager, logger: logging.Logger):
+    def __init__(self):
         """初始化步骤管理器
 
         Args:
             db_manager: 数据库管理器实例
             logger: 日志记录器
         """
-        self.db_manager = db_manager
-        self.logger = logger
+        self.db_manager = DatabaseManager()
+        self.logger = logging.getLogger(__name__)
         self._initialized = True
 
     def add_step(self, session_id: str, task_id: str, step_index: int, result: str, status: str = None, thought: str = None, action: str = None, action_input: str = None, description: str = None, result_description: str = None):
@@ -99,7 +101,7 @@ class StepManager:
 
         self.logger.debug(f"步骤已添加，session_id: {session_id}, task_id: {task_id}, step_index: {step_index}")
 
-    def get_steps(self, task_id: str) -> List[Dict[str, Any]]:
+    def get_steps(self, task_id: str) -> List[Step]:
         """获取任务的所有步骤
 
         Args:
@@ -123,9 +125,9 @@ class StepManager:
         rows = cursor.fetchall()
         conn.close()
 
-        steps = []
+        steps: List[Step] = []
         for row in rows:
-            steps.append({
+            steps.append(dict_to_step({
                 "step_id": row[0],
                 "task_id": row[1],
                 "step_index": row[2],
@@ -137,9 +139,33 @@ class StepManager:
                 "status": row[8],
                 "result_description": row[9],
                 "created_at": row[10]
-            })
+            }))
 
         return steps
+    def get_steps_for_frontend(self, task_id: str) -> List[Dict[str, Any]]:
+        """获取任务的所有步骤（前端用）
+
+        Returns:
+            步骤列表
+        """
+        steps = self.get_steps(task_id)
+        tmp_steps = []
+        for step in steps:
+            tmp_steps.append({
+                "stepId": step.step_id,
+                "taskId": step.task_id,
+                "stepIndex": step.step_index,
+                "stepType": step.step_type,
+                "description": step.description,
+                "thought": step.thought,
+                "result": step.result,
+                "skillCall": step.skill_call,
+                "status": step.status,
+                "resultDescription": step.result_description,
+                "createdAt": step.created_at
+            })
+
+        return tmp_steps
 
     def get_completed_steps(self, task_id: str, current_idx: int) -> List[Dict[str, Any]]:
         """获取已完成的步骤

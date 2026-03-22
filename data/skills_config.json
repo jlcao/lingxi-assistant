@@ -1,41 +1,113 @@
 {
   "skills": {
-    "fetch_webpage": {
-      "skill_id": "fetch_webpage",
-      "skill_name": "fetch_webpage",
+    "memory": {
+      "skill_id": "memory",
+      "skill_name": "memory",
       "version": "1.0.0",
       "type": "local",
-      "description": "Fetch webpage content and optionally save to a local file. Use this skill when the user needs to retrieve web content, download web pages, or save web content to a file.",
+      "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
       "author": "Lingxi Team",
       "enabled": true,
       "config": {
-        "name": "fetch_webpage",
-        "description": "Fetch webpage content and optionally save to a local file. Use this skill when the user needs to retrieve web content, download web pages, or save web content to a file.",
+        "name": "memory",
+        "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
         "version": "1.0.0",
-        "trigger_conditions": "用户请求获取网页内容、下载网页、保存网页到文件时触发",
-        "execution_guidelines": "1. 验证url参数\\n2. 使用requests库获取网页内容\\n3. 使用html2text将HTML转换为Markdown\\n4. 如果提供save_path，保存到文件\\n5. 返回网页内容或保存结果",
+        "trigger_conditions": "用户要求查看、列出、管理记忆时触发",
+        "execution_guidelines": "1. 支持分类过滤 2. 支持数量限制 3. 显示统计信息",
         "author": "Lingxi Team",
         "license": "MIT",
-        "skill_id": "fetch_webpage"
+        "depend": "内置file工具（read/search/write/delete）",
+        "storage_path": "user_dir/.lingxi/memory/MEMORY.md",
+        "skill_id": "memory"
       }
     },
-    "search": {
-      "skill_id": "search",
-      "skill_name": "search",
-      "version": "2.0.0",
+    "spawn_subagent": {
+      "skill_id": "spawn_subagent",
+      "skill_name": "spawn_subagent",
+      "version": "1.0.0",
       "type": "local",
-      "description": "Search for information on the internet. Use this skill when the user asks to search for information, look up facts, find resources, or research topics online.",
+      "description": "创建子代理来执行任务，当你的任务特别复杂的时候，你可以创建一个子代理来执行任务",
       "author": "Lingxi Team",
       "enabled": true,
       "config": {
-        "name": "search",
-        "description": "Search for information on the internet. Use this skill when the user asks to search for information, look up facts, find resources, or research topics online.",
-        "version": "2.0.0",
-        "trigger_conditions": "用户请求搜索信息、查找事实、研究主题、查询网络时触发",
-        "execution_guidelines": "1. 验证query参数\\n2. 支持多站点搜索（CSDN、百度百科、腾讯新闻）\\n3. 可指定搜索站点和结果数量\\n4. 返回格式化的搜索结果",
+        "name": "spawn_subagent",
+        "description": "创建子代理来执行任务，当你的任务特别复杂的时候，你可以创建一个子代理来执行任务",
+        "version": "1.0.0",
         "author": "Lingxi Team",
         "license": "MIT",
-        "skill_id": "search"
+        "skill_id": "spawn_subagent"
+      }
+    },
+    "docx": {
+      "skill_id": "docx",
+      "skill_name": "docx",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+      "author": "Anthropic",
+      "enabled": true,
+      "config": {
+        "name": "docx",
+        "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+        "version": "1.0.0",
+        "trigger_conditions": "用户请求创建Word文档、编辑Word文档、处理修订、添加注释时触发",
+        "execution_guidelines": "1. 返回docx技能的完整使用说明\\n2. 提供解包、打包、验证等工具脚本\\n3. 支持修订和注释处理\\n4. 保留格式和文本结构",
+        "author": "Anthropic",
+        "license": "Proprietary. LICENSE.txt has complete terms",
+        "skill_id": "docx"
+      }
+    },
+    "pdf": {
+      "skill_id": "pdf",
+      "skill_name": "pdf",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+      "author": "Anthropic",
+      "enabled": true,
+      "config": {
+        "name": "pdf",
+        "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+        "version": "1.0.0",
+        "trigger_conditions": "用户请求填写PDF表单、批量处理PDF、生成PDF、合并拆分PDF时触发",
+        "execution_guidelines": "1. 返回pdf技能的完整使用说明\\n2. 提供PDF转图像、提取表单字段、填写表单等工具\\n3. 支持批量PDF操作\\n4. 提供边界框检查工具",
+        "author": "Anthropic",
+        "license": "Proprietary. LICENSE.txt has complete terms",
+        "skill_id": "pdf"
+      }
+    },
+    "skill-creator": {
+      "skill_id": "skill-creator",
+      "skill_name": "skill-creator",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "name": "skill-creator",
+        "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+        "license": "Complete terms in LICENSE.txt",
+        "skill_id": "skill-creator"
+      }
+    },
+    "xlsx": {
+      "skill_id": "xlsx",
+      "skill_name": "xlsx",
+      "version": "2.1.0",
+      "type": "local",
+      "description": "Comprehensive spreadsheet operations including read, analyze, merge, create, edit, and sort. Supports Excel files (.xlsx, .xlsm) and CSV files (.csv, .tsv).",
+      "author": "Lingxi Team",
+      "enabled": true,
+      "config": {
+        "name": "xlsx",
+        "description": "Comprehensive spreadsheet operations including read, analyze, merge, create, edit, and sort. Supports Excel files (.xlsx, .xlsm) and CSV files (.csv, .tsv).",
+        "version": "2.1.0",
+        "trigger_conditions": "用户请求读取Excel文件、分析数据、合并表格、创建新表格、编辑表格或排序表格时触发",
+        "execution_guidelines": "1. 根据operation参数执行相应操作\\n2. 返回操作结果或错误信息\\n3. 支持多种Excel操作：读取、分析、合并、创建、编辑、排序",
+        "author": "Lingxi Team",
+        "license": "MIT",
+        "skill_id": "xlsx"
       }
     }
   }

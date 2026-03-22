@@ -143,7 +143,7 @@ class TestSessionManager:
         
         # 创建任务（添加历史记录）
         task_id = str(uuid.uuid4())
-        session_manager.create_task(
+        session_manager.task_manager.create_task(
             session_id=session_id,
             task_id=task_id,
             task_type="simple",
@@ -151,7 +151,7 @@ class TestSessionManager:
         )
         
         # 设置任务结果
-        session_manager.set_task_result(
+        session_manager.task_manager.set_task_result(
             session_id=session_id,
             task_id=task_id,
             result="你好！有什么可以帮助你的？"

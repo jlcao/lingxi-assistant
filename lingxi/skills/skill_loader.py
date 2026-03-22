@@ -257,7 +257,10 @@ class SkillLoader:
             # 解析 YAML front matter
             yaml_match = re.search(r'^---\s*\n(.*?)\n---\s*\n', content, re.DOTALL)
             if not yaml_match:
-                return None
+                # 尝试匹配没有空行的情况
+                yaml_match = re.search(r'^---\s*\n(.*?)\n---', content, re.DOTALL)
+                if not yaml_match:
+                    return None
             
             yaml_content = yaml_match.group(1)
             

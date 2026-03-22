@@ -1,92 +1,105 @@
 <template>
   <div class="message-list" ref="scrollContainer">
-    <div
-      v-for="turn in turns"
-      :key="turn.id || turn.time"
-      class="message-item"
-      :class="turn.role"
-    >
-      <div class="message-avatar">
-        <el-icon v-if="turn.role === 'user'">
-          <User /></el-icon>
-        <el-icon v-else>
-          <ChatDotRound /></el-icon>
-      </div>
-      <div class="message-content">
-        <div class="message-header">
-          <span class="message-role">{{ turn.role === 'user' ? '用户' : '助手' }}</span>
-          <span class="message-time">{{ formatTime(turn.time || turn.timestamp) }}</span>
-          <span v-if="turn.status" class="message-status" :class="turn.status">
-            {{ turn.status === 'running' ? '执行中' : turn.status === 'completed' ? '已完成' : '失败' }}
-          </span>
-        </div>
-
-        <div v-if="turn.planThinking" class="message-plan-thinking">
-          <div class="plan-thinking-header">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            <span class="plan-thinking-label">正在思考...</span>
+    <div v-if="session">
+      <div v-for="task in session.tasks" :key="task.taskId || task.createdAt">
+        <div class="message-item" :class="'user'">
+          <div class="message-avatar">
+            <el-icon>
+              <User />
+            </el-icon>
           </div>
-          <div v-if="turn.planThinkingContent" class="plan-thinking-content">
-            {{ turn.planThinkingContent }}
+          <div class="message-content">
+            <div class="message-header">
+              <span class="message-role">{{ '用户' }}</span>
+              <span class="message-time">{{ formatTime(task.createdAt) }}</span>
+            </div>
+            <div class="message-text-container">
+              <div class="message-text-user" v-html="renderMarkdown(task.userInput)" />
+            </div>
           </div>
         </div>
 
-        <div v-if="getPlanSteps(turn.plan).length > 0" class="message-plan">
-          <div class="plan-header" @click="togglePlanExpand(turn.id)">
-            <span class="plan-label">执行计划：</span>
-            <span class="plan-expand-icon">{{ isPlanExpanded(turn.id) ? '▼' : '▶' }}</span>
+        <div class="message-item" :class="'assistant'">
+          <div class="message-avatar">
+            <el-icon>
+              <ChatDotRound />
+            </el-icon>
           </div>
-          <transition name="plan-collapse">
-            <div v-if="isPlanExpanded(turn.id)" class="plan-steps">
-              <div v-for="(step, index) in getPlanSteps(turn.plan)" :key="index" class="plan-step">
-                {{ index + 1 }}. {{ step }}
+          <div class="message-content">
+            <div class="message-header">
+              <span class="message-role">{{ '助手' }}</span>
+              <span class="message-time">{{ formatTime(task.createdAt) }}</span>
+              <span v-if="task.status" class="message-status" :class="task.status">
+                {{ task.status === 'running' ? '执行中' : task.status === 'completed' ? '已完成' : '失败' }}
+              </span>
+            </div>
+
+            <div v-if="task.planThinking === true && task.steps && task.steps.length === 0" class="message-plan-thinking">
+              <div class="plan-thinking-header">
+                <el-icon class="is-loading">
+                  <Loading />
+                </el-icon>
+                <span class="plan-thinking-label">正在思考...</span>
+              </div>
+              <div v-if="task.planThinkingContent" class="plan-thinking-content">
+                {{ task.planThinkingContent }}
               </div>
             </div>
-          </transition>
-        </div>
-        <div v-if="turn.steps && turn.steps.length > 0" class="message-steps">
-          <div class="steps-label">执行步骤：</div>
-          <div class="steps-list">
-            <div v-for="(step, index) in turn.steps" :key="index" class="step-item" :class="step.status">
-              <div class="step-header" @click="toggleStepExpand(turn.id, index)">
-                <span class="step-index">{{ (step.step_index ?? index) + 1 }}.</span>
-                <span class="step-description">{{ step.description }}</span>
-                <span class="step-status">{{ step.status === 'running' ? '执行中' : step.status === 'completed' ? '已完成' : '失败' }}</span>
-                <span class="step-expand-icon">{{ isStepExpanded(turn.id, index) ? '▼' : '▶' }}</span>
+
+            <div v-if="getPlanSteps(task.plan).length > 0" class="message-plan">
+              <div class="plan-header" @click="togglePlanExpand(task.taskId)">
+                <span class="plan-label">执行计划：</span>
+                <span class="plan-expand-icon">{{ isPlanExpanded(task.taskId) ? '▼' : '▶' }}</span>
               </div>
-              <transition name="step-collapse" mode="out-in">
-                <div v-if="isStepExpanded(turn.id, index)" class="step-content">
-                  <div v-if="step.thought" class="step-thought">
-                    <div class="thought-label">思考过程：</div>
-                    <div class="thought-content">{{ step.thought }}</div>
+              <transition name="plan-collapse">
+                <div v-if="isPlanExpanded(task.taskId)" class="plan-steps">
+                  <div v-for="(step, index) in getPlanSteps(task.plan)" :key="index" class="plan-step">
+                    {{ index + 1 }}. {{ step }}
                   </div>
-                  <div v-if="step.result" class="step-result">{{ step.result_description || step.result }}</div>
                 </div>
               </transition>
             </div>
+            <div v-if="task.steps && task.steps.length > 0" class="message-steps">
+              <div class="steps-label">执行步骤：</div>
+              <div class="steps-list">
+                <div v-for="(step, index) in task.steps" :key="index" class="step-item" :class="step?.status">
+                  <div class="step-header" @click="toggleStepExpand(task.taskId, index)">
+                    <span class="step-index">{{ ((step?.stepIndex) ?? index) }}.</span>
+                    <span class="step-description">{{ step?.description }}</span>
+                    <span class="step-status">{{ step?.status === 'running' ? '执行中' : step?.status === 'completed' ? '已完成'
+                      : '失败' }}</span>
+                    <span class="step-expand-icon">{{ isStepExpanded(task.taskId, index) ? '▼' : '▶' }}</span>
+                  </div>
+
+                  <transition name="step-collapse" mode="out-in">
+                    <div v-if="isStepExpanded(task.taskId, index)" class="step-content">
+                      <div v-if="step?.thought" class="step-thought">
+                        <div class="thought-label">思考过程：</div>
+                        <div class="thought-content">{{ step?.thought }}</div>
+                      </div>
+                      <div v-if="step?.result" class="step-result">{{ step?.resultDescription || step?.result }}</div>
+                    </div>
+                  </transition>
+                </div>
+              </div>
+            </div>
+            <div v-if="task.result != '' && task.result !== undefined" class="message-text-container">
+              <div class="message-text-wrapper">
+                <div class="message-text" v-html="renderMarkdown(task.result)" />
+              </div>
+            </div>
+            <div v-else class="message-text-container streaming">
+              <div class="streaming-indicator">
+                <el-icon class="is-loading">
+                  <Loading />
+                </el-icon>
+                <span>正在生成回复...</span>
+              </div>
+            </div>
           </div>
+          <StepInterventionCard v-if="hasFailedSteps(task)" :steps="task.steps || []" @skip="handleSkip"
+            @retry="handleRetry" @batch-retry="handleBatchRetry" @submit="handleSubmit" />
         </div>
-        <div v-if="!turn.isStreaming && !hasRunningSteps(turn)" class="message-text-container">
-          <div v-if="turn.role === 'assistant'" class="message-text-wrapper">
-            <h3 v-if="turn.taskLevel === 'complex'" class="message-text-title">最终结果</h3>
-            <div class="message-text" v-html="renderMarkdown(turn.content)" />
-          </div>
-          <div v-else class="message-text-user" v-html="renderMarkdown(turn.content)" />
-        </div>
-        <div v-else class="message-text-container streaming">
-          <div v-if="turn.isStreaming && !hasRunningSteps(turn)" class="streaming-indicator">
-            <el-icon class="is-loading"><Loading /></el-icon>
-            <span>正在生成回复...</span>
-          </div>
-        </div>
-        <StepInterventionCard
-          v-if="hasFailedSteps(turn)"
-          :steps="buildSteps(turn)"
-          @skip="handleSkip"
-          @retry="handleRetry"
-          @batch-retry="handleBatchRetry"
-          @submit="handleSubmit"
-        />
       </div>
     </div>
   </div>
@@ -97,10 +110,9 @@ import { ChatDotRound, Loading, User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import { storeToRefs } from 'pinia'
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, ref, watch, computed } from 'vue'
 import { useAppStore } from '../../stores/app'
 import StepInterventionCard from './StepInterventionCard.vue'
-
 // 配置marked库
 marked.setOptions({
   breaks: true,
@@ -108,11 +120,14 @@ marked.setOptions({
 })
 
 const appStore = useAppStore()
-const { turns } = storeToRefs(appStore)
+const { sessions, currentSessionId } = storeToRefs(appStore)
+
+
+const session = computed(() => sessions.value.find(s => s.sessionId === currentSessionId.value))
 
 const scrollContainer = ref<HTMLElement>()
 
-watch(turns, () => {
+watch(session.value?.tasks || [], () => {
   nextTick(() => {
     scrollToBottom()
   })
@@ -131,10 +146,10 @@ function formatTime(timestamp: number): string {
 
 function getPlanSteps(plan: any): string[] {
   if (!plan) return []
-  
+
   try {
     let parsed: any[] = []
-    
+
     // 如果已经是数组，直接使用
     if (Array.isArray(plan)) {
       parsed = plan
@@ -149,7 +164,7 @@ function getPlanSteps(plan: any): string[] {
     else {
       return []
     }
-    
+
     // 处理数组元素，提取描述文本
     return parsed.map((item: any) => {
       if (typeof item === 'string') {
@@ -180,7 +195,7 @@ function getPlanSteps(plan: any): string[] {
 
 function renderMarkdown(content: any): string {
   if (!content) return ''
-  
+
   // 检查是否为JSON格式的内容
   if (typeof content === 'object' && content !== null) {
     // 提取最终结果部分
@@ -196,10 +211,10 @@ function renderMarkdown(content: any): string {
       return marked.parse('*暂无最终结果*')
     }
   }
-  
+
   // 处理字符串格式的内容（Markdown）
   const contentStr = typeof content === 'string' ? content : JSON.stringify(content)
-  
+
   // 提取最终结果部分，只显示最终结果
   if (contentStr.includes('# 最终结果')) {
     const parts = contentStr.split('# 最终结果')
@@ -212,97 +227,38 @@ function renderMarkdown(content: any): string {
       return marked.parse(finalResult)
     }
   }
-  
+
   return marked.parse(contentStr)
 }
 
 
-function hasFailedSteps(turn: any): boolean {
-  if (turn.status === 'failed') {
+function hasFailedSteps(task: any): boolean {
+  if (task.status === 'failed') {
     return true
   }
-  if (turn.metadata?.action === 'task_failed') {
+  if (task.errorInfo) {
     return true
   }
-  if (turn.steps && turn.steps.some((s: any) => s.status === 'failed')) {
-    return true
-  }
-  if (turn.error) {
+  if (task.steps && task.steps.some((s: any) => s && s.status === 'failed')) {
     return true
   }
   return false
 }
 
-function hasRunningSteps(turn: any): boolean {
-  if (turn.status === 'running') {
+function hasRunningSteps(task: any): boolean {
+  if (task.status === 'running') {
     return true
   }
-  if (turn.isStreaming) {
+  if (task.planThinking) {
     return true
   }
-  if (turn.steps && turn.steps.some((s: any) => s.status === 'running')) {
+  if (task.steps && task.steps.some((s: any) => s && (s.status === 'running' || s.isThinking))) {
     return true
   }
   return false
 }
 
-function buildSteps(turn: any): any[] {
-  const steps: any[] = []
 
-  if (turn.metadata?.action === 'task_failed') {
-    steps.push({
-      stepIndex: turn.metadata.failed_step || 0,
-      name: '任务执行失败',
-      status: 'failed',
-      retryCount: 0,
-      maxRetries: 3,
-      error: {
-        message: turn.metadata.error || '未知错误',
-        type: 'TaskExecutionError',
-        suggestions: ['检查输入参数', '重试任务', '联系技术支持'],
-        requiresIntervention: true
-      }
-    })
-  }
-
-  if (turn.steps) {
-    turn.steps.forEach((step: any, index: number) => {
-      if (step.status === 'failed') {
-        steps.push({
-          stepIndex: index,
-          name: step.description || `步骤 ${index + 1}`,
-          status: 'failed',
-          retryCount: step.retry_count || 0,
-          maxRetries: step.max_retries || 3,
-          error: {
-            message: step.error || '执行失败',
-            type: 'StepExecutionError',
-            suggestions: step.suggestions || ['重试步骤', '跳过步骤', '修正参数'],
-            requiresIntervention: true
-          }
-        })
-      }
-    })
-  }
-
-  if (turn.error && steps.length === 0) {
-    steps.push({
-      stepIndex: 0,
-      name: '执行错误',
-      status: 'failed',
-      retryCount: 0,
-      maxRetries: 3,
-      error: {
-        message: turn.error,
-        type: 'ExecutionError',
-        suggestions: ['重试操作', '检查配置', '查看日志'],
-        requiresIntervention: true
-      }
-    })
-  }
-
-  return steps
-}
 
 function handleSkip(stepIndex: number) {
   console.log('Skip step:', stepIndex)
@@ -336,6 +292,11 @@ function toggleStepExpand(turnId: string, stepIndex: number) {
 
 // 计算步骤的展开状态
 function isStepExpanded(turnId: string, stepIndex: number): boolean {
+  // 如果步骤正在执行，默认展开
+  const task = session.value?.tasks.find(t => t.taskId === turnId)
+  if (task && task.steps && task.steps[stepIndex] && task.steps[stepIndex].status === 'running') {
+    return true
+  }
   return expandedSteps.value[turnId]?.[stepIndex] || false
 }
 
@@ -353,46 +314,6 @@ function isPlanExpanded(turnId: string): boolean {
   return true
 }
 
-// 监听turns变化，处理步骤的自动折叠逻辑
-watch(turns, (newTurns) => {
-  newTurns.forEach(turn => {
-    if (turn.plan && getPlanSteps(turn.plan).length > 0) {
-      if (expandedPlans.value[turn.id] === undefined) {
-        expandedPlans.value[turn.id] = true
-      }
-    }
-    
-    if (turn.steps && turn.steps.length > 0) {
-      const runningStepIndex = turn.steps.findIndex(step => step.status === 'running')
-      
-      if (runningStepIndex !== -1) {
-        expandedPlans.value[turn.id] = false
-        
-        if (!expandedSteps.value[turn.id]) {
-          expandedSteps.value[turn.id] = {}
-        }
-        expandedSteps.value[turn.id][runningStepIndex] = true
-        
-        setTimeout(() => {
-          turn.steps.forEach((step, index) => {
-            if (index !== runningStepIndex) {
-              expandedSteps.value[turn.id][index] = false
-            }
-          })
-        }, 100)
-      } else if (turn.status === 'completed' && turn.steps.length > 0) {
-        setTimeout(() => {
-          if (!expandedSteps.value[turn.id]) {
-            expandedSteps.value[turn.id] = {}
-          }
-          turn.steps.forEach((step, index) => {
-            expandedSteps.value[turn.id][index] = false
-          })
-        }, 100)
-      }
-    }
-  })
-}, { deep: true })
 </script>
 
 <style scoped lang="scss">
@@ -753,6 +674,8 @@ watch(turns, (newTurns) => {
   border-radius: 8px;
   padding: 16px;
   margin-top: 8px;
+  display: block;
+  max-width: 100%;
 
   .user & {
     background-color: #f0f7ff;
@@ -783,7 +706,7 @@ watch(turns, (newTurns) => {
   display: inline-block;
   max-width: 100%;
   text-align: left;
-  
+
   ::v-deep(p) {
     margin: 0;
     line-height: 1.6;
@@ -807,6 +730,7 @@ watch(turns, (newTurns) => {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -820,7 +744,8 @@ watch(turns, (newTurns) => {
   display: block;
   text-align: left;
 
-  ul, ol {
+  ul,
+  ol {
     margin: 8px 0;
     padding-left: 32px;
     text-indent: 0;
@@ -832,7 +757,12 @@ watch(turns, (newTurns) => {
     text-indent: 0;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     margin: 16px 0 8px 0;
     font-weight: 600;
   }
@@ -895,7 +825,8 @@ watch(turns, (newTurns) => {
     margin: 12px 0;
     width: 100%;
 
-    th, td {
+    th,
+    td {
       border: 1px solid #dfe2e5;
       padding: 6px 13px;
     }
@@ -909,30 +840,32 @@ watch(turns, (newTurns) => {
 
 // 全局样式 - 用于 v-html 渲染的 Markdown 内容
 :deep(.message-text) {
-  ul, ol {
+
+  ul,
+  ol {
     margin: 8px 0;
     padding-left: 32px !important;
     text-indent: 0 !important;
-    
+
     li {
       margin: 4px 0;
       padding-left: 4px !important;
       text-indent: 0 !important;
       list-style-position: outside !important;
-      
+
       // 确保列表项内容正确缩进
-      > * {
+      >* {
         text-indent: 0;
       }
     }
   }
-  
+
   // 有序列表特殊处理
   ol {
     li {
       list-style-type: decimal;
       position: relative;
-      
+
       &::marker {
         display: inline-block;
         min-width: 20px;
@@ -941,7 +874,7 @@ watch(turns, (newTurns) => {
       }
     }
   }
-  
+
   // 无序列表特殊处理
   ul {
     li {

@@ -18,7 +18,7 @@ class SkillCaller:
     
     _instance = None  # 单例实例
     
-    def __init__(self, config: Dict[str, Any]):
+    def __new__(cls, config: Dict[str, Any]):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -30,12 +30,17 @@ class SkillCaller:
         Args:
             config: 系统配置
         """
+        # 防止重复初始化
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
         self.config = config
         self.logger = logging.getLogger(__name__)
         skill_call_config = config.get("skill_call", {})
         self.default_timeout = skill_call_config.get("default_timeout", 30)
         self.retry_count = skill_call_config.get("retry_count", 1)
         self.verify_ssl = skill_call_config.get("verify_ssl", True)
+        self._initialized = True
         
         # 初始化技能管理器（包含技能注册表）
         # 使用统一的 SkillSystem
@@ -53,7 +58,7 @@ class SkillCaller:
         
         # 初始化 SOUL 注入器
         workspace_path = config.get("workspace", {}).get("default_path", "./workspace")
-        self.soul_injector = SoulInjector(workspace_path)
+        self.soul_injector = SoulInjector()
         self.soul_injector.load()
         self.logger.debug("SOUL 注入器已初始化")
         
@@ -197,19 +202,19 @@ class SkillCaller:
             self.sandbox.check_security_parameters(skill_name, action_type, parameters)
         except SecurityError as e:
             self.logger.error(f"安全检查失败: {e}")
-            return {"success": False, "error": f"该任务无法完成，只能操作工作空间内的文件或目录: {str(e)}"}
+            return {"success": False, "result": f"该任务无法完成，只能操作工作空间内的文件或目录: {str(e)}"}
 
         if action_type not in ["tool", "skill"]:
             error_msg = f"无效的行动类型: {action_type}"
             self.logger.warning(error_msg)
-            return {"success": False, "error": error_msg}
+            return {"success": False, "result": error_msg}
         if action_type == "tool" :
             tool_res = self.tool.execute_tool(skill_name, **parameters)
             tool_status = tool_res.get('status')
             if tool_status == 'F':
                 error_msg = f"工具执行失败: {skill_name} : {tool_res.get('error')}"
                 self.logger.warning(error_msg)
-                return {"success": False, "error": error_msg, "result_description": tool_res.get('result_description')}
+                return {"success": False, "result": error_msg, "result_description": tool_res.get('result_description')}
             elif tool_status == 'S':
                 return {"success": True, "result": str(tool_res), "result_description": tool_res.get('result_description')}
         else :

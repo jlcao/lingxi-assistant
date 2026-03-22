@@ -3,14 +3,17 @@
 完全异步化的 ReAct 引擎，解决 WebSocket 阻塞问题
 """
 
+import json
 import logging
 import time
+from turtle import st
 from typing import Dict, List, Optional, Any, Union
 from collections.abc import AsyncGenerator
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
-from lingxi.core.context import TaskContext
+from lingxi.core.context.task_context import TaskContext
 from lingxi.core.llm.async_llm_client import AsyncLLMClient
+from lingxi.core.session.session_models import Step
 from .base import BaseEngine
 
 
@@ -41,52 +44,7 @@ class AsyncReActCore(BaseEngine):
         """关闭异步资源"""
         await self.async_llm_client.close()
 
-    def _build_history_context(self, history: List[Dict[str, Any]]) -> str:
-        """构建历史上下文
-        
-'task_id' =
-'task_session_e71ac9b2_ebfa92ce'
-'session_id' =
-'session_e71ac9b2'
-'task_type' =
-'task'
-'task_level' =
-'simple'
-'plan' =
-'[{"step": 1, "description": "\\u8bbe\\u8ba1\\u8868\\u683c\\u7ed3\\u6784\\uff1a\\u786e\\u5b9a\\u5916\\u8bbe\\u767b\\u8bb0\\u6240\\u9700\\u5b57\\u6bb5\\uff08\\u5e8f\\u53f7\\u3001\\u5916\\u8bbe\\u540d\\u79f0\\u3001\\u5916\\u8bbe\\u7c7b\\u578b\\u3001\\u5382\\u5bb6/\\u54c1\\u724c\\u3001\\u578b\\u53f7\\u3001\\u914d\\u7f6e\\u53c2\\u6570\\u3001\\u5e8f\\u5217\\u53f7\\u3001\\u8d2d\\u7f6e\\u65e5\\u671f\\u3001\\u4f7f\\u7528\\u90e8\\u95e8\\u3001\\u72b6\\u6001\\u3001\\u5907\\u6ce8\\u7b49\\uff09"}, {"step": 2, "description": "\\u4f7f\\u7528xlsx\\u6280\\u80fd\\u521b\\u5efaExcel\\u6587\\u4ef6\\uff0c\\u8bbe\\u7f6e\\u8868\\u5934\\u548c\\u57fa\\u7840\\u683c\\u5f0f"}, {"step": 3, "description": "\\u6dfb\\u52a0\\u793a\\u4f8b\\u6570\\u636e\\u884c\\uff0c\\u65b9\\u4fbf\\u7528\\u6237\\u7406\\u89e3\\u586b\\u5199\\u89c4\\u8303"}]'
-'user_input' =
-'帮我创建一个excel文件，用于登记工行的终端外设列表记录了外设的厂家和配置'
-'result' =
-'已成功创建工行终端外设登记表Excel文件！\n\n📁 文件路径：D:\\workspace\\work2\\工行终端外设登记表.xlsx\n\n📋 包含字段（共13项）：\n1. 序号\n2. 设备名称\n3. 设备类型\n4. 厂家/品牌\n5. 型号\n6. 配置信息\n7. 序列号\n8. 数量\n9. 使用部门\n10. 位置/网点\n11. 登记日期\n12. 状态\n13. 备注\n\n✨ 文件特点：\n- 蓝色表头，白色加粗字体\n- 已添加5条示例数据供参考\n- 列宽已优化设置\n- 首行冻结，方便滚动查看\n- 包含边框和居中对齐样式\n- 配置信息和备注列左对齐，便于阅读长文本\n\n您可以直接打开文件进行编辑和登记使用！'
-'status' =
-'completed'
-'current_step_idx' =
-0
-'replan_count' =
-0
-'error_info' =
-None
-'input_tokens' =
-0
-'output_tokens' =
-0
-'created_at' =
-'2026-03-18 10:37:28'
-'updated_at' =
-'2026-03-18 10:41:32'
-        """
-        if not history:
-            return ""
-
-        
-        
-        context_lines = []
-        for msg in history[-10:]:
-            user_input = f"用户输入：{msg.get('user_input', '')}"
-            result = f"处理结果：{msg.get('result', '')}"
-            context_lines.append(f"{user_input}\n{result}")
-        
-        return "\n".join(context_lines)
+    
 
     def _build_initial_messages(self, context: TaskContext, history_context: str) -> List[
         Dict[str, Any]]:
@@ -110,18 +68,24 @@ None
         system_info = PromptTemplates.get_system_info(context.workspace_path)
         
         # 格式化任务计划
-        task_plan_str = PromptTemplates.format_task_plan(context.task_info.get("plan", []))
+        task_plan = context.task_info.plan
+        # 处理 plan 可能是字符串的情况
+        if isinstance(task_plan, str):
+            try:
+                import json
+                task_plan = json.loads(task_plan)
+            except (json.JSONDecodeError, TypeError):
+                task_plan = []
+        task_plan_str = PromptTemplates.format_task_plan(task_plan)
 
         # 使用build_react_messages_with_cache构建消息列表
         return PromptTemplates.build_react_messages_with_cache(
-            user_input=context.user_input,
-            task_info=context.task_info,
+            context=context,
             history_context=history_context,
             skills_list=skills_list,
-            steps=[],
+            #steps=[],
             system_info=system_info,
-            task_plan=task_plan_str,
-            soul_prompt=context.session_context.soul_prompt
+            task_plan=task_plan_str
         )
 
     def _build_step_messages(self, messages: List[Dict[str, Any]], steps: List[Dict[str, Any]]):
@@ -145,6 +109,44 @@ None
                 "role": "user",
                 "content": [PromptTemplates.build_cached_text_content(steps_part, enable_cache=False)]
             })
+        elif len(messages) >= 2:
+            messages[-1] = {
+                "role": "user",
+                "content": [PromptTemplates.build_cached_text_content(steps_part, enable_cache=False)]
+            }
+        
+        # 添加调试日志
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"构建步骤消息，消息数量: {len(messages)}")
+        for i, msg in enumerate(messages):
+            logger.debug(f"消息 {i}: role={msg['role']}, content={repr(str(msg['content'])[:200])}")
+        
+        return messages
+    def _build_step_messages(self, messages: List[Dict[str, Any]], history_context: str):
+        """构建步骤消息
+
+        Args:
+            messages: 消息列表
+            history_context: 历史上下文
+
+        Returns:
+            更新后的消息列表
+        """
+        history_part = f"""
+"""
+        steps_part = f"""历史上下文:
+{history_context}\n
+现在请输出下一步:"""
+        
+
+        # 保留system消息中的信息，添加user消息
+        if len(messages) == 1:
+            messages.append({
+                "role": "user",
+                "content": [PromptTemplates.build_cached_text_content(steps_part, enable_cache=False)]
+            })
+            
         elif len(messages) >= 2:
             messages[-1] = {
                 "role": "user",
@@ -234,30 +236,51 @@ None
 
         # 尝试 1: 解析 JSON 格式
         try:
+            # 查找 JSON 对象的开始和结束
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
                 json_str = json_match.group()
-                parsed = json.loads(json_str)
-                return parsed
+                # 尝试直接解析
+                try:
+                    parsed = json.loads(json_str)
+                    return parsed
+                except json.JSONDecodeError as e:
+                    self.logger.debug(f"JSON 直接解析失败，尝试清理转义字符：{e}")
+                    try:
+                        # 清理路径中的无效转义序列（如 \\w, \\工 等）
+                        # 只保留有效的 JSON 转义序列
+                        cleaned_json = re.sub(r'\\([^\\nrtbf"\'\\])', r'\\\\\1', json_str)
+                        # 再次尝试解析
+                        parsed = json.loads(cleaned_json)
+                        return parsed
+                    except Exception as cleanup_error:
+                        self.logger.error(f"JSON 清理后仍然失败：{cleanup_error}")
+                        # 如果清理后仍然失败，尝试更激进的清理
+                        try:
+                            # 移除所有无效的转义序列
+                            aggressive_cleaned = re.sub(r'\\[^\\nrtbf"\'\\]', r'\\\\', json_str)
+                            parsed = json.loads(aggressive_cleaned)
+                            return parsed
+                        except Exception as aggressive_error:
+                            self.logger.error(f"激进清理后仍然失败：{aggressive_error}")
+                            raise e
         except Exception as e:
-            self.logger.error(f"JSON 格式解析失败：{e}，尝试文本格式")
-            raise e
+            self.logger.error(f"JSON 格式解析失败：{e}，尝试文本格式",e, exc_info=True)
+            return {"status": "error", "message": str(e)}
 
-    async def _execute_step(
+    async def _execute_step(    
         self,
-        step: int,
+        step_index: int,
         messages: List[Dict[str, Any]],
         task_level: str,
-        steps: List[Dict[str, Any]],
         context: TaskContext
     ) -> Dict[str, Any]:
         """执行单个步骤（异步）
 
         Args:
-            step: 步骤索引
+            step_index: 步骤索引
             messages: 消息列表
             task_level: 任务级别
-            steps: 已执行步骤
             context: 任务上下文
 
         Returns:
@@ -268,20 +291,36 @@ None
         stream = context.stream
         task_id = context.task_id
         thinking_mode = context.thinking_mode
+
+        step = Step(
+            step_id=f"{session_id}_{task_id}_{step_index}",
+            session_id=session_id,
+            task_id=task_id,
+            step_index=step_index,
+            description=f"步骤 {step_index}",
+            step_type="call",
+            result="",
+        )
+
+        context.steps.append(step)
         
-        self._build_step_messages(messages, steps)
+        #self._build_step_messages(messages, steps)
+        self._build_step_messages(messages, context.session_context.get_history_context())
+        
 
         self.logger.debug(f"生成思考和行动（stream={stream}，thinking_mode={thinking_mode}）")
+        self._publish_step_start(context, step_index, self.max_steps)
 
         full_response = ""
         usage = None
-        self._publish_think_start(session_id, execution_id, step, "")
+        self._publish_think_start(context, step_index, "")
         async for response_chunk in self._process_llm_response(messages, task_level, stream, thinking_mode):
             chunk_type = response_chunk["type"]
             
             if chunk_type == "thought_chunk":
                 content = response_chunk["content"]
-                self._publish_think_stream(session_id, execution_id, step, content)
+                self._publish_think_stream(context, step_index, content)
+                yield response_chunk
             elif chunk_type == "complete":
                 full_response = response_chunk["response"]
                 usage = response_chunk.get("usage")
@@ -289,38 +328,53 @@ None
                 break
         
         parsed = self._parse_response(full_response)
-        self._publish_think_end(session_id, execution_id, step, parsed.get("thought", "") if parsed else "")
+        self._publish_think_end(context, step_index, parsed.get("thought", "") if parsed else "")
 
         if not parsed:
-            self.logger.error(f"LLM 响应解析失败！完整响应：{repr(full_response)}")
-            thought = ""
-            description = ""
-            self._publish_step_end(
-                session_id, execution_id, step, "failed", None,
-                "无法解析 LLM 响应", thought,
-                description, task_id,None
-            )
-            self._publish_task_failed(session_id, execution_id, "无法解析 LLM 响应", task_id)
-            return {"parsed": parsed, "usage": usage}
-
-        if parsed.get("action") == "finish":
+            step.status = "failed"
+            step.error = "解析响应失败"
+            step.result = "解析响应失败"
+            step.description = "解析响应失败"
+            self._publish_step_end(context, step_index)
+            yield {"parsed": parsed, "usage": None}
+        elif parsed.get("status") == "error":
+            step.status = "failed"
+            step.error =  parsed.get("message", "")
+            step.result = parsed.get("message", "")
+            step.status = "failed"
+            step.description =  parsed.get("message", "")    
+            self._publish_step_end(context, step_index)
+            yield {"parsed": parsed, "usage": None}
+        elif parsed.get("action") == "finish":
             final_answer = parsed.get("action_input", "")
-            self._publish_step_end(
-                session_id, execution_id, step, "completed", None,
-                final_answer, parsed.get("thought"),
-                parsed.get("description", ""), task_id,None
-            )
-            self._handle_finish_action(parsed, steps)
-            return {"parsed": parsed, "usage": usage}
-        # 调用工具或者技能
-        chunk = self._handle_step_complete(parsed, step)
-        observation = chunk.get("observation", "")
-        self._publish_step_end(
-            session_id, execution_id, step, "completed", None,
-            observation, parsed.get("thought"),
-            parsed.get("description", ""), task_id,chunk.get("result_description", "")
-        )
-        return {"parsed": parsed, "usage": usage}
+            step.status = "completed"
+            step.result = final_answer
+            step.skill_call = parsed.get("action", "")
+            step.description = parsed.get("description", "")
+            step.thought = parsed.get("thought", "")
+            context.task_info.status = "completed"
+            step.step_type = "finish"
+            self._publish_step_end(context, step_index)
+            #self._handle_finish_action(parsed, steps)
+            yield {"parsed": parsed, "usage": usage}
+        else:
+            step.status = "completed"
+            step.skill_call = parsed.get("action", "")
+            step.description = parsed.get("description", "")
+            step.thought = parsed.get("thought", "")
+            step.step_type = "call"
+            step.result_description = parsed.get("result_description", "")
+            # 调用工具或者技能
+            chunk = self._handle_step_complete(parsed, step_index)
+            observation = chunk.get("observation", "")
+            step.result = observation
+            step.result_description = chunk.get("result_description", "")
+            self._publish_step_end(context, step_index)
+            yield {"parsed": parsed, "usage": usage}
+        
+    
+        
+        
 
     async def _execute_task_stream(
         self,
@@ -336,27 +390,24 @@ None
         """
         user_input = context.user_input
         task_info = context.task_info
-        history = context.session_history
-        session_id = context.session_id
-        execution_id = context.execution_id
         stream = context.stream
         
-        self.logger.debug(f"异步 ReAct 处理任务：{task_info.get('task_type')} (stream={stream})")
+        self.logger.debug(f"异步 ReAct 处理任务：{task_info.task_type} (stream={stream})")
         self.logger.debug(f"用户输入：{user_input}")
 
-        task_level = task_info.get("level", "simple")
-        history_context = self._build_history_context(history)
+        task_level = task_info.task_type or "simple"
+        history_context = context.session_context.get_history_context()
         messages = self._build_initial_messages(context, history_context)
-        steps = []
-
+        step_index = 0
         for step in range(self.max_steps):
             self.logger.debug(f"步骤 {step + 1}/{self.max_steps}")
-            self._publish_step_start(session_id, execution_id, step, self.max_steps)
-            
-            step_result = await self._execute_step(
-                step, messages, task_level, steps, context
-            )
-            
+            step_index = step + 1
+            step_result = []
+            async for chunk in self._execute_step(step_index, messages, task_level, context):
+                if(chunk.get("parsed") is not None):
+                    step_result = chunk
+                else:
+                    yield chunk
             if step_result and "usage" in step_result:
                 usage = step_result["usage"]
                 if usage:
@@ -364,17 +415,28 @@ None
                     output_tokens = getattr(usage, "completion_tokens", 0)
                     context.add_tokens(input_tokens, output_tokens)
                     self.logger.debug(f"步骤 {step + 1} Token 使用：input={input_tokens}, output={output_tokens}")
-            
-            res = step_result.get("parsed") if step_result else None
-            steps.append(res)
-
-            if res and res.get("action") == "finish":
+            if step_result and step_result.get("parsed") and step_result.get("parsed").get("action") == "finish":
                 self.logger.debug("检测到 finish 动作，结束任务执行")
-                final_answer = res.get("action_input", "")
+                final_answer = step_result.get("parsed").get("action_input", "")
                 self._publish_task_end(final_answer, context)
                 
                 yield {"type": "task_finish", "result": final_answer}
                 return
+            else:
+                yield step_result
+        if(step_index >= self.max_steps):
+            self._publish_task_end( "最大步骤数超过",context)
+            yield {"type": "task_finish", "result": "最大步骤数超过"}
+            #yield {"type": "task_finish", "result": ""}
+            #res = step_result.get("parsed") if step_result else None
+
+            #if res and res.get("action") == "finish":
+            #    self.logger.debug("检测到 finish 动作，结束任务执行")
+            #    final_answer = res.get("action_input", "")
+            #    self._publish_task_end(final_answer, context)
+                
+            #    yield {"type": "task_finish", "result": final_answer}
+            #    return
 
     async def process(
         self,

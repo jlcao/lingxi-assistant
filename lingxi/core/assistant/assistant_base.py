@@ -14,8 +14,9 @@ from lingxi.utils.logging import setup_logging
 # from lingxi.core.classification import TaskClassifier
 from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.event.console_subscriber import ConsoleSubscriber
-from lingxi.core.context import TaskContext
-
+from lingxi.core.context.task_context import TaskContext
+from lingxi.core.context.context_manager import ContextManager
+from lingxi.core.event.ContextAddMsg_subscriber import ContextAddMsgSubscriber
 if TYPE_CHECKING:
     from lingxi.core.session import SessionManager
     from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
@@ -49,7 +50,9 @@ class BaseAssistant(ABC):
         self.logger.info(f"版本：{self.config.get('system', {}).get('version', '0.2.0')}")
 
         from lingxi.core.session import SessionManager
-        self.session_manager = SessionManager(self.config)
+        self.session_manager = SessionManager()
+        self.context_manager = ContextManager()
+        
         # 任务分类功能已移除 - 2026-03-15
         # self.classifier = TaskClassifier(self.config)
         self.classifier = None  # 保留字段避免引用错误
@@ -58,6 +61,8 @@ class BaseAssistant(ABC):
         self.mode_selector = None  # 保留字段避免引用错误
         self.skill_caller = SkillCaller(self.config)
         self.console_subscriber = ConsoleSubscriber()
+        
+        #
         
         # 延迟初始化 SessionStoreSubscriber，避免循环依赖
         self._session_store_subscriber = None
@@ -75,6 +80,10 @@ class BaseAssistant(ABC):
             session_store=self.session_manager
         )
         self.logger.debug("workspace_manager 资源引用已设置（sandbox、skill_caller、session_store）")
+        
+        # 为子代理调度器设置 SessionManager
+        self.skill_caller.set_session_manager_for_subagents(self.session_manager)
+        self.logger.debug("子代理调度器的 SessionManager 已设置")
     
     def init_session_store_subscriber(self) -> None:
         """初始化会话存储订阅者（延迟初始化，避免循环依赖）
@@ -84,7 +93,8 @@ class BaseAssistant(ABC):
         if self._session_store_subscriber is None:
             from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
             self._session_store_subscriber = SessionStoreSubscriber(self.session_manager)
-            self.logger.debug("SessionStoreSubscriber 已初始化")
+            self.context_add_msg_subscriber = ContextAddMsgSubscriber()
+            self.logger.debug("SessionStoreSubscriber 和 ContextAddMsgSubscriber 已初始化")
     
     @property
     def session_store_subscriber(self) -> 'SessionStoreSubscriber':
