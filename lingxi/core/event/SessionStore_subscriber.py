@@ -105,7 +105,7 @@ class SessionStoreSubscriber:
         task_id = context.task_id
         task_input = context.user_input
         task_level = context.task_info.task_type
-        summary = kwargs.get('summary', '')
+        summary = context.description
         session_id = context.session_id
         self.logger.debug(f"收到 plan_start 事件：session={session_id}, task_id={task_id}")
         if not task_id:

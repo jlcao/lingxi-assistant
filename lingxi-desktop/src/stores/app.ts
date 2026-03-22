@@ -82,6 +82,16 @@ export const useAppStore = defineStore('app', {
     setSessions(sessions: Session[]) {
       this.sessions = sessions
     },
+
+    updateSessionTitle(sessionId: string, title: string) {
+      const sessionIndex = this.sessions.findIndex(session => session.sessionId === sessionId)
+      if (sessionIndex !== -1) {
+        if (this.sessions[sessionIndex].title||this.sessions[sessionIndex].title==='') {
+          this.sessions[sessionIndex].title = title
+        }
+      }
+    },
+
     setCheckpoints(checkpoints: Checkpoint[]) {
       this.checkpoints = checkpoints
       this.activeCheckpoints = checkpoints

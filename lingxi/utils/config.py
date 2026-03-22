@@ -48,7 +48,13 @@ DEFAULT_CONFIG = {
     "logging": {
         "level": "DEBUG",
         "file": str(GLOBAL_LINGXI_DIR / "logs" / "lingxi.log"),
-        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        "rotation_type": "size",  # size 或 time
+        "max_file_size_mb": 10,  # 基于大小轮转时的最大文件大小
+        "backup_count": 5,  # 备份文件数量
+        "rotation_when": "D",  # 基于时间轮转时的时间单位: S, M, H, D, W0-W6, midnight
+        "rotation_interval": 1,  # 基于时间轮转时的间隔
+        "rotation_utc": False  # 基于时间轮转时是否使用 UTC 时间
     },
     "session": {
         "timeout": 3600,

@@ -456,7 +456,7 @@ qwen3.5-plus
 
 {context.soul_prompt or ""}
 
-# 记忆
+# MEMORY
 这些记忆是你对这个世界的认知，你需要运用memory技能好好的维护这些记忆
 
 {context.userMemory or ""}

@@ -212,6 +212,7 @@ function setupWebSocketListeners() {
       }else{
         appStore.planThinkFinal(data.sessionId,data.taskId,false)
       }
+      appStore.updateSessionTitle(data.sessionId,data.title)
       // 确保session有tasks属性
       
     })

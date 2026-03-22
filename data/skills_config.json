@@ -57,44 +57,6 @@
         "skill_id": "docx"
       }
     },
-    "extract_news": {
-      "skill_id": "extract_news",
-      "skill_name": "extract_news",
-      "version": "1.0.0",
-      "type": "local",
-      "description": "Extract news content from webpage using trafilatura. Use this skill when user needs to extract main content from news articles, blog posts, or web pages.",
-      "author": "Lingxi Team",
-      "enabled": true,
-      "config": {
-        "name": "extract_news",
-        "description": "Extract news content from webpage using trafilatura. Use this skill when user needs to extract main content from news articles, blog posts, or web pages.",
-        "version": "1.0.0",
-        "trigger_conditions": "用户请求从网页提取新闻内容、文章正文、去除广告和导航栏时触发",
-        "execution_guidelines": "1. 验证url参数\\n2. 使用trafilatura提取网页主要内容\\n3. 支持提取标题、正文、作者、发布日期等\\n4. 如果提供save_path，保存到文件\\n5. 返回提取的新闻内容",
-        "author": "Lingxi Team",
-        "license": "MIT",
-        "skill_id": "extract_news"
-      }
-    },
-    "financial_news": {
-      "skill_id": "financial_news",
-      "skill_name": "financial_news",
-      "version": "1.0.0",
-      "type": "local",
-      "description": "Get latest financial news headlines from CaiLian She (财联社). Use this skill when user asks for financial news, stock market news, or economic headlines.",
-      "author": "Lingxi Team",
-      "enabled": true,
-      "config": {
-        "name": "financial_news",
-        "description": "Get latest financial news headlines from CaiLian She (财联社). Use this skill when user asks for financial news, stock market news, or economic headlines.",
-        "version": "1.0.0",
-        "trigger_conditions": "用户请求获取财经新闻、股市新闻、经济头条时触发",
-        "execution_guidelines": "1. 验证参数\\n2. 优先使用Selenium获取新闻（支持动态内容）\\n3. 如果Selenium失败，回退到requests方法\\n4. 过滤最近24小时的新闻\\n5. 返回格式化的新闻列表",
-        "author": "Lingxi Team",
-        "license": "MIT",
-        "skill_id": "financial_news"
-      }
-    },
     "pdf": {
       "skill_id": "pdf",
       "skill_name": "pdf",

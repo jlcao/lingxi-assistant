@@ -221,7 +221,7 @@ class WebSocketSubscriber:
             execution_id=context.execution_id,
             task_id=context.task_id,
             step_index=0,
-            data={**kwargs}
+            data={**kwargs,"title":context.description or ""}
         ))
 
     def handle_plan_final(self, context: TaskContext, plan: list, **kwargs):

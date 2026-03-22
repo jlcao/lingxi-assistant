@@ -208,6 +208,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
                                 self._publish_think_stream(context, 0, incremental_thought)
 
             self.logger.debug(f"原始 LLM 响应：{full_response}")
+
             self._publish_think_end(context, 0, last_thought)
             
             from lingxi.core.engine.utils import parse_json_with_escape_cleaning

@@ -12,11 +12,6 @@ context_management:
     compression_trigger: 0.7
     critical_threshold: 0.9
     max_tokens: 8000
-memory:
-  enabled: true
-  retrieval_top_k: 5
-  user_memory_path: ~/.lingxi/conf/MEMORY.md
-  project_memory_path: ~/.lingxi/conf/PROJECT_MEMORY.md
 engine:
   default: react
   max_steps: 50
@@ -69,6 +64,11 @@ logging:
   format: '%(asctime)s - %(levelname)s - %(message)s'
   level: INFO
   max_file_size_mb: 10
+memory:
+  enabled: true
+  project_memory_path: ~/.lingxi/conf/PROJECT_MEMORY.md
+  retrieval_top_k: 5
+  user_memory_path: ~/.lingxi/conf/MEMORY.md
 session:
   checkpoint_ttl_hours: 24
   db_path: data/assistant.db
@@ -119,4 +119,4 @@ web:
     ping_interval: 20
     ping_timeout: 30
 workspace:
-  last_workspace: F:\work\workspace1
+  last_workspace: F:\work\workspace2
