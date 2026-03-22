@@ -351,7 +351,54 @@ class TaskManager:
 
         self.logger.debug(f"任务错误已设置，task_id: {task_id}, error: {error_info}")
 
-    def get_tasks_by_session(self, session_id: str) -> List[Dict[str, Any]]:
+    def get_tasks_by_session(self, session_id: str) -> List[Task]:
+        """获取会话的所有任务
+
+        Args:
+            session_id: 会话ID
+
+        Returns:
+            任务列表
+        """
+        conn = self.db_manager.get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT task_id, session_id, task_type, task_level, plan, user_input, result, 
+                   status, current_step_idx, replan_count, error_info,
+                   input_tokens, output_tokens, created_at, updated_at
+            FROM tasks
+            WHERE session_id = ?
+            ORDER BY created_at ASC
+        """, (session_id,))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        tasks: List[Task] = []
+        for row in rows:
+            task = dict_to_task(task_dict = {
+                "task_id": row[0],
+                "session_id": row[1],
+                "task_type": row[2],
+                "task_level": row[3],
+                "plan": row[4],
+                "user_input": row[5],
+                "result": row[6],
+                "status": row[7],
+                "current_step_idx": row[8],
+                "replan_count": row[9],
+                "error_info": row[10],
+                "input_tokens": row[11],
+                "output_tokens": row[12],
+                "created_at": row[13],
+                "updated_at": row[14]
+            })
+            task.steps = self.step_manager.get_steps(row[0])
+            tasks.append(task)
+        return tasks
+
+    def get_tasks_by_session_for_frontend(self, session_id: str):
         """获取会话的所有任务
 
         Args:
@@ -377,28 +424,27 @@ class TaskManager:
 
         tasks = []
         for row in rows:
-            task_dict = {
-                "task_id": row[0],
-                "session_id": row[1],
-                "task_type": row[2],
-                "task_level": row[3],
+            task_data = {
+                "taskId": row[0],
+                "sessionId": row[1],
+                "taskType": row[2],
+                "taskLevel": row[3],
                 "plan": row[4],
-                "user_input": row[5],
+                "userInput": row[5],
                 "result": row[6],
                 "status": row[7],
                 "current_step_idx": row[8],
-                "replan_count": row[9],
-                "error_info": row[10],
-                "input_tokens": row[11],
-                "output_tokens": row[12],
-                "created_at": row[13],
-                "updated_at": row[14]
+                "replanCount": row[9],
+                "errorInfo": row[10],
+                "inputTokens": row[11],
+                "outputTokens": row[12],
+                "createdAt": row[13],
+                "updatedAt": row[14],
+                "steps": self.step_manager.get_steps_for_frontend(row[0])
             }
-
-            task_dict["steps"] = self.step_manager.get_steps(row[0])
-            tasks.append(task_dict)
-
+            tasks.append(task_data)
         return tasks
+
 
     def delete_tasks_by_session(self, session_id: str):
         """删除会话的所有任务

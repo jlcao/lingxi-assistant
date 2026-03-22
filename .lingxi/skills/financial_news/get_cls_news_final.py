@@ -239,7 +239,19 @@ def get_cls_news_playwright_sync():
     同步版本的Playwright新闻获取函数
     """
     import asyncio
-    return asyncio.run(get_cls_news_playwright())
+    try:
+        # 检查是否已有事件循环
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # 如果已有运行中的事件循环，使用requests方法
+            print("检测到运行中的事件循环，使用requests方法获取新闻")
+            return get_cls_news_requests()
+        else:
+            # 否则使用asyncio.run
+            return asyncio.run(get_cls_news_playwright())
+    except RuntimeError:
+        # 如果没有事件循环，创建一个新的
+        return asyncio.run(get_cls_news_playwright())
 
 def get_cls_news_requests():
     """

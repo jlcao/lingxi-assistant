@@ -1,41 +1,170 @@
 {
   "skills": {
-    "fetch_webpage": {
-      "skill_id": "fetch_webpage",
-      "skill_name": "fetch_webpage",
+    "memory_list": {
+      "skill_id": "memory_list",
+      "skill_name": "memory_list",
       "version": "1.0.0",
       "type": "local",
-      "description": "Fetch webpage content and optionally save to a local file. Use this skill when the user needs to retrieve web content, download web pages, or save web content to a file.",
+      "description": "列出所有记忆或按分类列出记忆。用于查看已保存的记忆内容。",
       "author": "Lingxi Team",
       "enabled": true,
       "config": {
-        "name": "fetch_webpage",
-        "description": "Fetch webpage content and optionally save to a local file. Use this skill when the user needs to retrieve web content, download web pages, or save web content to a file.",
+        "name": "memory_list",
+        "description": "列出所有记忆或按分类列出记忆。用于查看已保存的记忆内容。",
         "version": "1.0.0",
-        "trigger_conditions": "用户请求获取网页内容、下载网页、保存网页到文件时触发",
-        "execution_guidelines": "1. 验证url参数\\n2. 使用requests库获取网页内容\\n3. 使用html2text将HTML转换为Markdown\\n4. 如果提供save_path，保存到文件\\n5. 返回网页内容或保存结果",
+        "trigger_conditions": "用户要求查看、列出记忆时使用",
+        "execution_guidelines": "1. 支持分类过滤\\n2. 支持数量限制\\n3. 显示统计信息",
         "author": "Lingxi Team",
         "license": "MIT",
-        "skill_id": "fetch_webpage"
+        "skill_id": "memory_list"
       }
     },
-    "search": {
-      "skill_id": "search",
-      "skill_name": "search",
-      "version": "2.0.0",
+    "memory_save": {
+      "skill_id": "memory_save",
+      "skill_name": "memory_save",
+      "version": "1.0.0",
       "type": "local",
-      "description": "Search for information on the internet. Use this skill when the user asks to search for information, look up facts, find resources, or research topics online.",
+      "description": "保存新的记忆。当用户告诉你需要记住行为规则，或者用户的偏好时，用户明确要求你记住这某些信息时使用此技能。",
       "author": "Lingxi Team",
       "enabled": true,
       "config": {
-        "name": "search",
-        "description": "Search for information on the internet. Use this skill when the user asks to search for information, look up facts, find resources, or research topics online.",
-        "version": "2.0.0",
-        "trigger_conditions": "用户请求搜索信息、查找事实、研究主题、查询网络时触发",
-        "execution_guidelines": "1. 验证query参数\\n2. 支持多站点搜索（CSDN、百度百科、腾讯新闻）\\n3. 可指定搜索站点和结果数量\\n4. 返回格式化的搜索结果",
+        "name": "memory_save",
+        "description": "保存新的记忆。当用户告诉你需要记住行为规则，或者用户的偏好时，用户明确要求你记住这某些信息时使用此技能。",
+        "version": "1.0.0",
+        "trigger_conditions": "用户要求记住、记录、保存某些信息时触发",
+        "execution_guidelines": "1. 验证 content 参数\\n2. 支持分类选择\\n3. 支持标签和重要性设置",
         "author": "Lingxi Team",
         "license": "MIT",
-        "skill_id": "search"
+        "skill_id": "memory_save"
+      }
+    },
+    "memory_search": {
+      "skill_id": "memory_search",
+      "skill_name": "memory_search",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "搜索记忆。当用户询问之前提到的内容、偏好、习惯或历史决策时使用此技能。",
+      "author": "Lingxi Team",
+      "enabled": true,
+      "config": {
+        "name": "memory_search",
+        "description": "搜索记忆。当用户询问之前提到的内容、偏好、习惯或历史决策时使用此技能。",
+        "version": "1.0.0",
+        "trigger_conditions": "用户询问记忆、历史、偏好、习惯时触发",
+        "execution_guidelines": "1. 验证 query 参数\\n2. 支持分类过滤\\n3. 支持标签过滤\\n4. 返回格式化的搜索结果",
+        "author": "Lingxi Team",
+        "license": "MIT",
+        "skill_id": "memory_search"
+      }
+    },
+    "docx": {
+      "skill_id": "docx",
+      "skill_name": "docx",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+      "author": "Anthropic",
+      "enabled": true,
+      "config": {
+        "name": "docx",
+        "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+        "version": "1.0.0",
+        "trigger_conditions": "用户请求创建Word文档、编辑Word文档、处理修订、添加注释时触发",
+        "execution_guidelines": "1. 返回docx技能的完整使用说明\\n2. 提供解包、打包、验证等工具脚本\\n3. 支持修订和注释处理\\n4. 保留格式和文本结构",
+        "author": "Anthropic",
+        "license": "Proprietary. LICENSE.txt has complete terms",
+        "skill_id": "docx"
+      }
+    },
+    "extract_news": {
+      "skill_id": "extract_news",
+      "skill_name": "extract_news",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "Extract news content from webpage using trafilatura. Use this skill when user needs to extract main content from news articles, blog posts, or web pages.",
+      "author": "Lingxi Team",
+      "enabled": true,
+      "config": {
+        "name": "extract_news",
+        "description": "Extract news content from webpage using trafilatura. Use this skill when user needs to extract main content from news articles, blog posts, or web pages.",
+        "version": "1.0.0",
+        "trigger_conditions": "用户请求从网页提取新闻内容、文章正文、去除广告和导航栏时触发",
+        "execution_guidelines": "1. 验证url参数\\n2. 使用trafilatura提取网页主要内容\\n3. 支持提取标题、正文、作者、发布日期等\\n4. 如果提供save_path，保存到文件\\n5. 返回提取的新闻内容",
+        "author": "Lingxi Team",
+        "license": "MIT",
+        "skill_id": "extract_news"
+      }
+    },
+    "financial_news": {
+      "skill_id": "financial_news",
+      "skill_name": "financial_news",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "Get latest financial news headlines from CaiLian She (财联社). Use this skill when user asks for financial news, stock market news, or economic headlines.",
+      "author": "Lingxi Team",
+      "enabled": true,
+      "config": {
+        "name": "financial_news",
+        "description": "Get latest financial news headlines from CaiLian She (财联社). Use this skill when user asks for financial news, stock market news, or economic headlines.",
+        "version": "1.0.0",
+        "trigger_conditions": "用户请求获取财经新闻、股市新闻、经济头条时触发",
+        "execution_guidelines": "1. 验证参数\\n2. 优先使用Selenium获取新闻（支持动态内容）\\n3. 如果Selenium失败，回退到requests方法\\n4. 过滤最近24小时的新闻\\n5. 返回格式化的新闻列表",
+        "author": "Lingxi Team",
+        "license": "MIT",
+        "skill_id": "financial_news"
+      }
+    },
+    "pdf": {
+      "skill_id": "pdf",
+      "skill_name": "pdf",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+      "author": "Anthropic",
+      "enabled": true,
+      "config": {
+        "name": "pdf",
+        "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+        "version": "1.0.0",
+        "trigger_conditions": "用户请求填写PDF表单、批量处理PDF、生成PDF、合并拆分PDF时触发",
+        "execution_guidelines": "1. 返回pdf技能的完整使用说明\\n2. 提供PDF转图像、提取表单字段、填写表单等工具\\n3. 支持批量PDF操作\\n4. 提供边界框检查工具",
+        "author": "Anthropic",
+        "license": "Proprietary. LICENSE.txt has complete terms",
+        "skill_id": "pdf"
+      }
+    },
+    "skill-creator": {
+      "skill_id": "skill-creator",
+      "skill_name": "skill-creator",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+      "author": "",
+      "enabled": true,
+      "config": {
+        "name": "skill-creator",
+        "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+        "license": "Complete terms in LICENSE.txt",
+        "skill_id": "skill-creator"
+      }
+    },
+    "xlsx": {
+      "skill_id": "xlsx",
+      "skill_name": "xlsx",
+      "version": "2.1.0",
+      "type": "local",
+      "description": "Comprehensive spreadsheet operations including read, analyze, merge, create, edit, and sort. Supports Excel files (.xlsx, .xlsm) and CSV files (.csv, .tsv).",
+      "author": "Lingxi Team",
+      "enabled": true,
+      "config": {
+        "name": "xlsx",
+        "description": "Comprehensive spreadsheet operations including read, analyze, merge, create, edit, and sort. Supports Excel files (.xlsx, .xlsm) and CSV files (.csv, .tsv).",
+        "version": "2.1.0",
+        "trigger_conditions": "用户请求读取Excel文件、分析数据、合并表格、创建新表格、编辑表格或排序表格时触发",
+        "execution_guidelines": "1. 根据operation参数执行相应操作\\n2. 返回操作结果或错误信息\\n3. 支持多种Excel操作：读取、分析、合并、创建、编辑、排序",
+        "author": "Lingxi Team",
+        "license": "MIT",
+        "skill_id": "xlsx"
       }
     }
   }

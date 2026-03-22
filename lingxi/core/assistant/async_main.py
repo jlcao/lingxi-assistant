@@ -10,6 +10,8 @@ from collections.abc import AsyncGenerator
 from lingxi.core.assistant.assistant_base import BaseAssistant
 from lingxi.core.engine.async_plan_react import AsyncPlanReActEngine
 from lingxi.core.context.task_context import TaskContext
+from lingxi.core.session.session_models import Task
+from lingxi.utils.config import get_workspace_path
 
 
 class AsyncLingxiAssistant(BaseAssistant):
@@ -41,30 +43,26 @@ class AsyncLingxiAssistant(BaseAssistant):
                 return response
 
             # 根据配置决定是否启用历史压缩
-            compress_enabled = self.config.get("context_management", {}).get("compression", {}).get("enabled", False)
-            history = self.session_manager.get_history(session_id, compress=compress_enabled)
-
+            history = self.session_manager.get_history(session_id)
             engine = AsyncPlanReActEngine(self.config, self.skill_caller, self.session_manager)
-
             session_context = self.context_manager.get_session_context(session_id)
-
-            workspace_path = str(self.workspace_manager.current_workspace) if self.workspace_manager.current_workspace else None
-
+            # 添加历史会话到上下文管理器
+            session_context.add_history(history)
             context = TaskContext(
                 user_input=user_input,
-                task_info={"level": "simple"},
                 session_id=session_id,
                 session_history=history,
                 stream=stream,
-                workspace_path=workspace_path,
+                workspace_path=get_workspace_path(),
                 thinking_mode=thinking_mode,
                 session_context=session_context
             )
-
+            #注入SOUL和记忆上下文
+            self.context_manager._build_soul_and_memory(context)
+            self.context_manager._build_memory_context(context)
+            
             response = await engine.process(context)
-
             return response
-
         except Exception as e:
             import traceback
             error_trace = traceback.format_exc()

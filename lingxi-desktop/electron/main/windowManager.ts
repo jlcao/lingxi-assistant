@@ -27,7 +27,7 @@ export class WindowManager {
     })
 
     if (process.env.NODE_ENV === 'development') {
-      this.mainWindow.loadURL('http://localhost:5173')
+      this.mainWindow.loadURL('http://localhost:5175')
       this.mainWindow.webContents.openDevTools()
     } else {
       this.mainWindow.loadFile(path.join(__dirname, '../../dist/index.html'))

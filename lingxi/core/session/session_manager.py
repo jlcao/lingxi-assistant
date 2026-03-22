@@ -12,11 +12,11 @@ from lingxi.core.session.session_models import Session
 from lingxi.core.session.database_manager import DatabaseManager
 from lingxi.core.session.task_manager import TaskManager, task_to_dict, dict_to_task
 from lingxi.core.session.step_manager import StepManager, step_to_dict, dict_to_step
+from lingxi.core.session.session_models import Task
 from lingxi.core.session.workspace_registry import WorkspaceRegistry
 from lingxi.core.soul import SoulInjector
 from lingxi.core.memory import MemoryManager, MemoryExtractor
 from lingxi.utils.config import get_config,set_workspace_path
-from lingxi.core.context.context_manager import ContextManager
 
 
 def session_to_dict(session: Session) -> dict:
@@ -68,7 +68,12 @@ class SessionManager:
         
         # 处理数据库路径：如果是相对路径，转换为相对于用户目录的绝对路径
       
-        self.db_path = self.config.get("session", {}).get("db_path", "data/assistant.db")
+        self.db_path = self.config.get("session", {}).get("db_path") or self.config.get("database", {}).get("lingxi_db", "data/assistant.db")
+        # 确保路径是绝对路径，相对于用户目录
+        from pathlib import Path
+        if not Path(self.db_path).is_absolute():
+            from lingxi.utils.config import GLOBAL_LINGXI_DIR
+            self.db_path = str(GLOBAL_LINGXI_DIR / self.db_path)
         
         self.max_history_turns = self.config.get("session", {}).get("max_history_turns", 50)
         self.memory_cache = {}
@@ -79,7 +84,6 @@ class SessionManager:
         self.db_manager = DatabaseManager()
         self.step_manager = StepManager()
         self.task_manager = TaskManager()
-        self.context_manager = ContextManager()
 
         # 初始化工作目录注册表
         self.workspace_registry = WorkspaceRegistry()
@@ -141,25 +145,19 @@ class SessionManager:
         set_workspace_path(workspace_path) #更新公共的工作目录路径
         self.logger.info(f"工作目录已切换到：{workspace_path}，SOUL 已重新加载")
 
-    def get_history(self, session_id: str, max_turns: int = None, compress: bool = False) -> List[Dict[str, Any]]:
+    def get_history(self, session_id: str) -> List[Task]:
         """获取会话历史
 
         Args:
             session_id: 会话 ID
-            max_turns: 最大返回轮次
-            compress: 是否启用历史压缩（默认 False）
-
         Returns:
             会话历史记录（任务列表，包含步骤信息）
         """
         tasks = self.task_manager.get_tasks_by_session(session_id)
 
-        if max_turns and len(tasks) > max_turns:
-            tasks = tasks[:max_turns]
-
-        # 如果启用压缩，调用压缩方法
-        if compress:
-            tasks = self._compress_history(tasks)
+        # 压缩方法已经迁移到ContextManager中
+        #if compress:
+        #    tasks = self._compress_history(tasks)
 
         return tasks
 
@@ -280,13 +278,13 @@ class SessionManager:
                 cursor.close()
 
                 sessions.append({
-                    "session_id": session_id,
+                    "sessionId": session_id,
                     "title": title,
-                    "message_count": task_count,
-                    "first_message": first_message,
-                    "created_at": created_at,
-                    "updated_at": updated_at,
-                    "has_checkpoint": False
+                    "taskCount": task_count,
+                    "firstMessage": first_message,
+                    "createdAt": created_at,
+                    "updatedAt": updated_at,
+                    "hasCheckpoint": False
                 })
             except Exception as e:
                 self.logger.error(f"解析会话{session_id}时出错：{e}")
@@ -329,6 +327,44 @@ class SessionManager:
             "updated_at": updated_at,
             "has_checkpoint": checkpoint_json is not None
         }
+    
+    def get_session_info_for_frontend(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """获取会话详细信息（前端前端使用）
+
+        Args:
+            session_id: 会话ID
+
+        Returns:
+            会话信息
+        """
+        conn = self.db_manager.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT session_id, title, total_tokens, checkpoint_json, created_at, updated_at
+            FROM sessions
+            WHERE session_id = ?
+        """, (session_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return None
+
+        session_id, title, total_tokens, checkpoint_json, created_at, updated_at = row
+
+        task_list = self.task_manager.get_tasks_by_session_for_frontend(session_id)
+
+        return {
+            "sessionId": session_id,
+            "title": title,
+            "taskCount": len(task_list),
+            "tasks": task_list,
+            "totalTokens": total_tokens,
+            "createdAt": created_at,
+            "updatedAt": updated_at,
+            "hasCheckpoint": checkpoint_json is not None
+        }
+
 
     def rename_session(self, session_id: str, new_title: str) -> bool:
         """重命名会话
@@ -409,8 +445,6 @@ class SessionManager:
                 self.logger.debug(f"会话已关联到工作目录：{session_id} -> {workspace_path}")
             else:
                 self.logger.warning(f"会话关联工作目录失败：{session_id} -> {workspace_path}")
-        # 注入 SOUL 到会话
-        self.context_manager._build_soul_and_memory(session_id);
 
         self.logger.debug(f"会话已创建，session_id: {session_id}, user_name: {user_name}")
         return session_id

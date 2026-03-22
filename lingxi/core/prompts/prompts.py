@@ -9,6 +9,8 @@ import platform
 import os
 from typing import Dict, List, Any, Optional
 
+from lingxi.core.context.task_context import TaskContext
+
 
 class PromptTemplates:
     """提示词模板类，集中管理所有提示词模板（单例模式）"""
@@ -211,14 +213,12 @@ class PromptTemplates:
 
     @staticmethod
     def build_react_messages_with_cache(
-        user_input: str,
-        task_info: Dict[str, Any],
+        context: TaskContext,
         history_context: str,
         skills_list: str,
-        steps: List[Dict[str, str]],
+        #steps: List[Dict[str, str]],
         system_info: Optional[Dict[str, str]] = None,
         task_plan: str = None,
-        soul_prompt: str = ""
     ) -> List[Dict[str, Any]]:
         """构建ReAct模式消息列表（支持上下文缓存）
 
@@ -232,7 +232,7 @@ class PromptTemplates:
             task_info: 任务信息
             history_context: 历史上下文
             skills_list: 可用技能列表
-            steps: 已执行步骤
+            #steps: 已执行步骤
             system_info: 系统信息（可选）
 
         Returns:
@@ -241,7 +241,7 @@ class PromptTemplates:
         if system_info is None:
             system_info = PromptTemplates.get_system_info()
 
-        executed_steps = PromptTemplates.format_executed_steps(steps, include_thought=False, max_prev_length=5000)
+        #executed_steps = PromptTemplates.format_executed_steps(steps, include_thought=False, max_prev_length=5000)
 
         system_prompt = f"""你是灵犀智能助手
 
@@ -290,7 +290,8 @@ read_skill : 用于读取技能的详细使用说明
 finish(answer) - 完成任务并返回答案
 
 ## 记忆
-无
+{context.memory or ""}
+
 ## 模型
 qwen3.5-plus
 
@@ -326,7 +327,7 @@ Action Input: {{"file_path": "test.txt"}}
 - 当任务已经完成时，必须使用finish行动结束任务
 - finish的action_input应该是对用户的最终回答（字符串）
 - 不要在任务完成后继续执行其他行动
-- 必须返回有效的JSON格式，不要包含任何其他文字或说明
+- 必须返回有效的JSON格式，返回的字符串中如果包含双引号，大括号，方括号，请使用转义后的字符如(\")包裹字符串，避免使用未转义的特殊字符
 - action_input是参数对象，不是字符串
 - action_type是tool或者skill，必填
 - 参数值如果是字符串，必须用双引号包裹
@@ -341,16 +342,18 @@ Action Input: {{"file_path": "test.txt"}}
   - 确保生成的代码里面使用的所有路径都是绝对路径，例如：当前工作目录/1.txt
 
 ## SOUL
-{soul_prompt}
+{context.soul_prompt or ""}
 
-## 历史上下文:
-{history_context}
-## 用户输入:
-{user_input}
+## 当前用户输入:
+{context.user_input}
+
+## 当前任务计划:
+{task_plan or "无"}
+
 """
 
-        steps_part = f"""## 已执行步骤:
-{executed_steps}
+        steps_part = f"""## 历史上下文:
+{history_context}
 现在请输出下一步:"""
 
         messages = [
@@ -373,9 +376,7 @@ Action Input: {{"file_path": "test.txt"}}
         task: str,
         history_context: str,
         skills_list: str,
-        system_info: Optional[Dict[str, str]] = None,
-        max_plan_steps: int = 8,
-        soul_system_prompt: str = ""
+        context: TaskContext
     ) -> List[Dict[str, Any]]:
         """构建任务分析消息列表（支持上下文缓存）
 
@@ -390,13 +391,12 @@ Action Input: {{"file_path": "test.txt"}}
             skills_list: 可用技能列表
             system_info: 系统信息（可选）
             max_plan_steps: 最大计划步骤数
-            soul_system_prompt: SOUL 系统提示词（可选）
+            context: 任务上下文
 
         Returns:
             消息列表，支持 cache_control 标记
         """
-        if system_info is None:
-            system_info = PromptTemplates.get_system_info()
+        system_info = PromptTemplates.get_system_info()
 
         # 构建基础系统提示词
         base_system_prompt = f"""你是灵犀智能助手
@@ -411,8 +411,9 @@ read_skill : 用于读取技能的详细使用说明
 
 
 ## 记忆
+{context.memory or ""}
 
-## 模型
+#### 模型
 qwen3.5-plus
 
 ## workspace        
@@ -454,7 +455,7 @@ qwen3.5-plus
 - 如果是 complex 任务，请合理的规划plan，每个步骤描述要精炼
 - 必须严格返回JSON格式，不要返回多余的其它内容
 
-{soul_system_prompt}
+{context.soul_prompt or ""}
 
 """
     

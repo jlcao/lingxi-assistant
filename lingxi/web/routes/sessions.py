@@ -106,8 +106,8 @@ async def create_session(request: CreateSessionRequest) -> Dict[str, Any]:
         assistant.session_manager.create_session_by_id(session_id, user_name, workspace_path=workspace_path)
         
         return {
-            "session_id": session_id,
-            "first_message": user_name
+            "sessionId": session_id,
+            "firstMessage": user_name
         }
     except Exception as e:
         logger.error(f"创建会话失败：{e}", exc_info=True)
@@ -129,13 +129,15 @@ async def get_session(session_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
-        info = assistant.session_manager.get_session_info(session_id)
+        info = assistant.session_manager.get_session_info_for_frontend(session_id)
         if not info:
             raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
         return info
     except HTTPException:
+        logger.error(f"获取会话详情失败：{session_id}", exc_info=True)
         raise
     except Exception as e:
+        logger.error(f"获取会话详情失败：{session_id}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取会话详情失败：{str(e)}")
 
 
@@ -155,7 +157,7 @@ async def get_session_history(session_id: str, max_turns: int = 20) -> Dict[str,
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
-        history = assistant.session_manager.get_history(session_id, max_turns)
+        history = assistant.session_manager.get_history(session_id)
         if history is None:
             raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
 
@@ -164,8 +166,10 @@ async def get_session_history(session_id: str, max_turns: int = 20) -> Dict[str,
             "history": history
         }
     except HTTPException:
+        logger.error(f"获取会话历史失败：{session_id}", exc_info=True)
         raise
     except Exception as e:
+        logger.error(f"获取会话历史失败：{session_id}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取会话历史失败：{str(e)}")
 
 

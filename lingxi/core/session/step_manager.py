@@ -29,6 +29,7 @@ def step_to_dict(step: Step) -> dict:
 def dict_to_step(step_dict: dict) -> Step:
     """将字典转换为 Step 对象"""
     step = Step(
+        session_id=step_dict.get("session_id", ""),
         step_id=step_dict.get("step_id", ""),
         task_id=step_dict.get("task_id", ""),
         step_index=step_dict.get("step_index", 0),
@@ -100,7 +101,7 @@ class StepManager:
 
         self.logger.debug(f"步骤已添加，session_id: {session_id}, task_id: {task_id}, step_index: {step_index}")
 
-    def get_steps(self, task_id: str) -> List[Dict[str, Any]]:
+    def get_steps(self, task_id: str) -> List[Step]:
         """获取任务的所有步骤
 
         Args:
@@ -124,9 +125,9 @@ class StepManager:
         rows = cursor.fetchall()
         conn.close()
 
-        steps = []
+        steps: List[Step] = []
         for row in rows:
-            steps.append({
+            steps.append(dict_to_step({
                 "step_id": row[0],
                 "task_id": row[1],
                 "step_index": row[2],
@@ -138,9 +139,33 @@ class StepManager:
                 "status": row[8],
                 "result_description": row[9],
                 "created_at": row[10]
-            })
+            }))
 
         return steps
+    def get_steps_for_frontend(self, task_id: str) -> List[Dict[str, Any]]:
+        """获取任务的所有步骤（前端用）
+
+        Returns:
+            步骤列表
+        """
+        steps = self.get_steps(task_id)
+        tmp_steps = []
+        for step in steps:
+            tmp_steps.append({
+                "stepId": step.step_id,
+                "taskId": step.task_id,
+                "stepIndex": step.step_index,
+                "stepType": step.step_type,
+                "description": step.description,
+                "thought": step.thought,
+                "result": step.result,
+                "skillCall": step.skill_call,
+                "status": step.status,
+                "resultDescription": step.result_description,
+                "createdAt": step.created_at
+            })
+
+        return tmp_steps
 
     def get_completed_steps(self, task_id: str, current_idx: int) -> List[Dict[str, Any]]:
         """获取已完成的步骤

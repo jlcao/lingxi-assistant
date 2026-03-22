@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
+from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional, List, Any, Dict
 from lingxi.utils.config import get_config
@@ -25,13 +26,26 @@ class DatabaseManager:
             logger: 日志记录器
         """
         self.config = get_config()
-        self.db_path = self.config.get("session", {}).get("db_path", "data/assistant.db")
+        # 获取数据库路径，优先使用 session.db_path，否则使用 database.lingxi_db
+        self.db_path = self.config.get("session", {}).get("db_path") or self.config.get("database", {}).get("lingxi_db", "data/assistant.db")
+        # 确保路径是绝对路径，相对于用户目录
+        from pathlib import Path
+        if not Path(self.db_path).is_absolute():
+            from lingxi.utils.config import GLOBAL_LINGXI_DIR
+            self.db_path = str(GLOBAL_LINGXI_DIR / self.db_path)
         self.logger = logging.getLogger(__name__)
         self._init_db()
         self._initialized = True
 
     def _init_db(self):
         """初始化SQLite数据库"""
+        # 确保数据库文件的父目录存在
+        db_file = Path(self.db_path)
+        db_dir = db_file.parent
+        if not db_dir.exists():
+            db_dir.mkdir(parents=True, exist_ok=True)
+            self.logger.debug(f"数据库目录已创建：{db_dir}")
+        
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
 
@@ -110,47 +124,59 @@ class DatabaseManager:
 
     def _migrate_sessions_table(self, cursor: sqlite3.Cursor):
         """迁移 sessions 表结构"""
-        cursor.execute("PRAGMA table_info(sessions)")
-        columns = {row[1]: row[2] for row in cursor.fetchall()}
+        try:
+            cursor.execute("PRAGMA table_info(sessions)")
+            columns = {row[1]: row[2] for row in cursor.fetchall()}
 
-        migrations = [
-            ('title', "ALTER TABLE sessions ADD COLUMN title TEXT NOT NULL DEFAULT '新会话'"),
-            ('current_task_id', "ALTER TABLE sessions ADD COLUMN current_task_id TEXT"),
-            ('total_tokens', "ALTER TABLE sessions ADD COLUMN total_tokens INTEGER NOT NULL DEFAULT 0"),
-            ('checkpoint_json', "ALTER TABLE sessions ADD COLUMN checkpoint_json TEXT")
-        ]
+            migrations = [
+                ('title', "ALTER TABLE sessions ADD COLUMN title TEXT NOT NULL DEFAULT '新会话'"),
+                ('current_task_id', "ALTER TABLE sessions ADD COLUMN current_task_id TEXT"),
+                ('total_tokens', "ALTER TABLE sessions ADD COLUMN total_tokens INTEGER NOT NULL DEFAULT 0"),
+                ('checkpoint_json', "ALTER TABLE sessions ADD COLUMN checkpoint_json TEXT")
+            ]
 
-        for column, sql in migrations:
-            if columns and column not in columns:
-                cursor.execute(sql)
+            for column, sql in migrations:
+                if columns and column not in columns:
+                    cursor.execute(sql)
+        except sqlite3.OperationalError:
+            # 表不存在，跳过迁移，后续会创建表
+            pass
 
     def _migrate_tasks_table(self, cursor: sqlite3.Cursor):
         """迁移 tasks 表结构"""
-        cursor.execute("PRAGMA table_info(tasks)")
-        task_columns = {row[1]: row[2] for row in cursor.fetchall()}
+        try:
+            cursor.execute("PRAGMA table_info(tasks)")
+            task_columns = {row[1]: row[2] for row in cursor.fetchall()}
 
-        migrations = [
-            ('input_tokens', "ALTER TABLE tasks ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0"),
-            ('output_tokens', "ALTER TABLE tasks ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0"),
-            ('task_level', "ALTER TABLE tasks ADD COLUMN task_level TEXT NOT NULL DEFAULT 'none'")
-        ]
+            migrations = [
+                ('input_tokens', "ALTER TABLE tasks ADD COLUMN input_tokens INTEGER NOT NULL DEFAULT 0"),
+                ('output_tokens', "ALTER TABLE tasks ADD COLUMN output_tokens INTEGER NOT NULL DEFAULT 0"),
+                ('task_level', "ALTER TABLE tasks ADD COLUMN task_level TEXT NOT NULL DEFAULT 'none'")
+            ]
 
-        for column, sql in migrations:
-            if task_columns and column not in task_columns:
-                cursor.execute(sql)
+            for column, sql in migrations:
+                if task_columns and column not in task_columns:
+                    cursor.execute(sql)
+        except sqlite3.OperationalError:
+            # 表不存在，跳过迁移，后续会创建表
+            pass
 
     def _migrate_steps_table(self, cursor: sqlite3.Cursor):
         """迁移 steps 表结构"""
-        cursor.execute("PRAGMA table_info(steps)")
-        step_columns = {row[1]: row[2] for row in cursor.fetchall()}
+        try:
+            cursor.execute("PRAGMA table_info(steps)")
+            step_columns = {row[1]: row[2] for row in cursor.fetchall()}
 
-        migrations = [
-            ('result_description', "ALTER TABLE steps ADD COLUMN result_description TEXT")
-        ]
+            migrations = [
+                ('result_description', "ALTER TABLE steps ADD COLUMN result_description TEXT")
+            ]
 
-        for column, sql in migrations:
-            if step_columns and column not in step_columns:
-                cursor.execute(sql)
+            for column, sql in migrations:
+                if step_columns and column not in step_columns:
+                    cursor.execute(sql)
+        except sqlite3.OperationalError:
+            # 表不存在，跳过迁移，后续会创建表
+            pass
 
     def _create_indexes(self, cursor: sqlite3.Cursor):
         """创建数据库索引"""

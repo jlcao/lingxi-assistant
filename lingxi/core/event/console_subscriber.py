@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Dict, Any
+from lingxi.core.context.task_context import TaskContext
 from lingxi.core.event import global_event_publisher
 
 
@@ -53,28 +54,28 @@ class ConsoleSubscriber:
         global_event_publisher.unsubscribe('task_start', self.handle_task_start)
         global_event_publisher.unsubscribe('task_end', self.handle_task_end)
 
-    def handle_task_start(self, session_id: str, execution_id: str, **kwargs):
+    def handle_task_start(self, context: TaskContext, **kwargs):
         self._print("\n🚀 任务开始处理...")
 
-    def handle_think_start(self, session_id: str, execution_id: str, **kwargs):
+    def handle_think_start(self, context: TaskContext, step_index: int, **kwargs):
         self._print("💭 思考中...")
 
-    def handle_think_stream(self, session_id: str, execution_id: str, content: str, **kwargs):
+    def handle_think_stream(self, context: TaskContext, step_index: int, content: str, **kwargs):
         self._print(f"{content}", end="", flush=True)
 
-    def handle_think_final(self, session_id: str, execution_id: str, content: str, **kwargs):
+    def handle_think_final(self, context: TaskContext, content: str, **kwargs):
         self._print()
 
-    def handle_plan_start(self, session_id: str, execution_id: str, **kwargs):
+    def handle_plan_start(self, context: TaskContext, **kwargs):
         pass
 
-    def handle_plan_final(self, session_id: str, execution_id: str, plan: list, **kwargs):
+    def handle_plan_final(self, context: TaskContext, plan: list, **kwargs):
         self._print("\n📋 任务规划:")
         for i, step in enumerate(plan, 1):
             desc = step if isinstance(step, str) else step.get('description', str(step))
             self._print(f"   {i}. {desc}")
 
-    def handle_step_start(self, session_id: str, execution_id: str, step_index: int, **kwargs):
+    def handle_step_start(self, context: TaskContext, step_index: int, **kwargs):
         # description 可能包含换行符
         description = kwargs.get('description', '')
         if description:
@@ -83,7 +84,13 @@ class ConsoleSubscriber:
         else:
             self._print(f"\n📍 执行步骤 {step_index + 1}...")
 
-    def handle_step_end(self, session_id: str, execution_id: str, step_index: int, result: str, **kwargs):
+    def handle_step_end(self, context: TaskContext, step_index: int, result: str = None, **kwargs):
+        # 尝试从 context 中获取 result
+        if result is None and hasattr(context, 'steps') and context.steps:
+            last_step = context.steps[-1]
+            if hasattr(last_step, 'result'):
+                result = last_step.result
+        
         # result 可能是字符串或字典
         if result:
             # 格式化输出，处理换行符和 Markdown 格式
@@ -119,7 +126,7 @@ class ConsoleSubscriber:
         # 重新组合
         return '\n'.join(formatted_lines)
 
-    def handle_task_end(self, session_id: str, execution_id: str, result: str, **kwargs):
+    def handle_task_end(self, context: TaskContext, result: str, **kwargs):
         self._final_result = result if isinstance(result, str) else str(result)
         # 格式化输出，处理换行符和 Markdown 格式
         formatted_result = self._format_console_output(result)

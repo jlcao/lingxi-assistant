@@ -16,7 +16,7 @@ from lingxi.core.skill_caller import SkillCaller
 from lingxi.core.event.console_subscriber import ConsoleSubscriber
 from lingxi.core.context.task_context import TaskContext
 from lingxi.core.context.context_manager import ContextManager
-
+from lingxi.core.event.ContextAddMsg_subscriber import ContextAddMsgSubscriber
 if TYPE_CHECKING:
     from lingxi.core.session import SessionManager
     from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
@@ -62,6 +62,8 @@ class BaseAssistant(ABC):
         self.skill_caller = SkillCaller(self.config)
         self.console_subscriber = ConsoleSubscriber()
         
+        #
+        
         # 延迟初始化 SessionStoreSubscriber，避免循环依赖
         self._session_store_subscriber = None
         
@@ -87,7 +89,8 @@ class BaseAssistant(ABC):
         if self._session_store_subscriber is None:
             from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
             self._session_store_subscriber = SessionStoreSubscriber(self.session_manager)
-            self.logger.debug("SessionStoreSubscriber 已初始化")
+            self.context_add_msg_subscriber = ContextAddMsgSubscriber()
+            self.logger.debug("SessionStoreSubscriber 和 ContextAddMsgSubscriber 已初始化")
     
     @property
     def session_store_subscriber(self) -> 'SessionStoreSubscriber':

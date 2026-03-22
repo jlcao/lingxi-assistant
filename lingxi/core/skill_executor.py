@@ -82,7 +82,7 @@ class SkillExecutor:
             if result is not None and "错误" in result:
                 error_msg = f"技能执行返回错误：{skill_name} - {result}"
                 self.logger.warning(error_msg)
-                return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败"}
+                return {"success": False, "result": error_msg, "result_description": f"执行技能 {skill_name} 失败"}
             elif result is not None:    
                 return {"success": True, "result": result, "result_description": f"执行技能 {skill_name} 成功"}
             else:

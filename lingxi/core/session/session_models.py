@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import List
 
 
 @dataclass
 class Step:
     """任务步骤实体类（使用 dataclass）"""
+    session_id: str
     step_id: str
     task_id: str  # 任务ID
     step_index: int = 0  # 步骤索引
-    step_type: str = "thinking"
+    step_type: str = "call"  # call 或 finish
     description: str = ""  # 步骤描述
-    status: str = "completed"  # 步骤状态 completed 或 thinking
+    status: str = "running"  # 步骤状态 completed 或 running 或 failed
     thought: str = ""  # 思考内容 
     result: str = ""  # 步骤结果
     skill_call: str = ""  # 调用的技能
@@ -38,6 +40,7 @@ class Task:
     error_info: str = ""  # 错误信息
     input_tokens: int = 0  # 输入token数
     output_tokens: int = 0  # 输出token数
+    steps: List[Step] = field(default_factory=list)  # 任务步骤列表
     created_at: datetime = datetime.now()
     updated_at: datetime = datetime.now()
 
@@ -50,6 +53,7 @@ class Session:
     title: str = "新会话"  
     current_task_id: str = ""  # 当前任务 ID
     total_tokens: int = 0  # 总token数
+    tasks: List[Task] = field(default_factory=list)  # 任务列表
     created_at: datetime = datetime.now()  # 创建时间
     updated_at: datetime = datetime.now()  # 更新时间
     

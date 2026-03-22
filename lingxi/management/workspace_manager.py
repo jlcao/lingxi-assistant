@@ -477,6 +477,17 @@ class WorkspaceManager:
         db_status = "已存在" if lingxi_db.exists() else "新建"
         self.logger.info(f"全局数据库：{db_status} - {lingxi_db}")
         
+        # 验证数据库文件是否可写
+        try:
+            # 尝试创建并关闭一个临时文件，验证目录是否可写
+            test_file = lingxi_db.parent / f".test_{lingxi_db.name}.tmp"
+            test_file.write_text("test")
+            test_file.unlink()
+            self.logger.debug(f"数据库目录可写：{lingxi_db.parent}")
+        except Exception as e:
+            self.logger.error(f"数据库目录不可写：{e}")
+            raise
+        
         # 使用 SessionManager 的 update_db_path 方法更新数据库路径
         # 这样可以确保 DatabaseManager 的 db_path 也被正确更新
         if hasattr(self.session_store, 'update_db_path'):

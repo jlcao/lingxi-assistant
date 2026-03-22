@@ -5,12 +5,14 @@
 
 import time
 import uuid
+import json
 import logging
 from typing import Dict, List, Any, Union, Optional
 from collections.abc import AsyncGenerator
 from lingxi.core.context.task_context import TaskContext
 from lingxi.core.engine.async_react_core import AsyncReActCore
 from lingxi.core.prompts.prompts import PromptTemplates
+from lingxi.utils.config import get_config
 
 class AsyncPlanReActEngine(AsyncReActCore):
     """异步 Plan+ReAct 引擎
@@ -18,7 +20,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
     继承自 AsyncReActCore，实现完全异步的执行流程
     """
 
-    def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager=None, websocket_manager=None):
+    def __init__(self, skill_caller=None, session_manager=None, websocket_manager=None):
         """初始化异步 Plan+ReAct 引擎
 
         Args:
@@ -27,8 +29,9 @@ class AsyncPlanReActEngine(AsyncReActCore):
             session_manager: 会话管理器
             websocket_manager: WebSocket 管理器
         """
-        super().__init__(config, skill_caller, session_manager, websocket_manager)
-
+        super().__init__(skill_caller, session_manager, websocket_manager)
+        
+        config = get_config()
         complex_config = config.get("execution_mode", {}).get("complex", {})
         self.max_plan_steps = int(complex_config.get("max_plan_steps", 8))
         self.max_replan_count = int(complex_config.get("max_replan_count", 2))
@@ -56,41 +59,11 @@ class AsyncPlanReActEngine(AsyncReActCore):
         Yields:
             流式响应块
         """
-        task = context.user_input
-        task_info = context.task_info
-        history = context.session_history
-        session_id = context.session_id
-        execution_id = context.execution_id
         stream = context.stream
-        thinking_mode = context.thinking_mode
-        task_id = context.task_id
-        
         try:
-            session_history = self.session_manager.get_history(session_id) if self.session_manager else history
+           
 
-            enhanced_task_info = {
-                **task_info,
-                "level": "complex",
-                "description": task,
-                "plan": plan,
-                "plan_formatted": self._format_plan_for_prompt(plan),
-                "reason": task_info.get("reason", "复杂任务，需要多步骤执行")
-            }
-
-            parent_context = TaskContext(
-                user_input=task,
-                task_info=enhanced_task_info,
-                session_id=session_id,
-                session_history=session_history,
-                stream=stream,
-                task_id=task_id,
-                execution_id=execution_id,
-                workspace_path=context.workspace_path,
-                thinking_mode=context.thinking_mode,
-                session_context=context.session_context
-            )
-
-            async for chunk in super()._execute_task_stream(parent_context):
+            async for chunk in super()._execute_task_stream(context):
                 if stream:
                     yield chunk
 
@@ -115,56 +88,49 @@ class AsyncPlanReActEngine(AsyncReActCore):
         """
         task = context.user_input
         task_info = context.task_info
-        history = context.session_history
-        session_id = context.session_id
-        execution_id = context.execution_id
-        stream = context.stream
-        thinking_mode = context.thinking_mode
-        task_id = context.task_id
         plan_descriptions = []
         
-        task_level = task_info.get("level", "simple")
-        history_context = self._build_history_context(history)
+        task_level = task_info.task_type
+        self._publish_task_start(context)
 
+        # 分析任务
+        plan_info = await self._analyze_task_and_plan(context)
         self.logger.debug(f"异步 Plan+ReAct 引擎处理任务：level={task_level}, task={task}")
-    
-        self._publish_task_start(session_id, execution_id, task, task_info, task_id)
-        
-        analysis = await self._analyze_task_and_plan(context, history_context)
-        
-        if not analysis:
+        if not plan_info:
             self.logger.warning("任务分析失败，降级为父类执行")
             async for chunk in super()._execute_task_stream(context):
                 yield chunk
             return
         
-        analyzed_level = analysis.get("level", "simple")
-        summary = analysis.get("summary", "")
-        self._publish_plan_start(session_id, execution_id, task_id, analyzed_level, summary)
-        context.task_info["level"] = analyzed_level
-        next_action = analysis.get("next_action")
-        plan = analysis.get("plan", [])
+        task_level = plan_info.get("level", "simple")
+        context.task_info.task_type = task_level
+        context.description = plan_info.get("summary", "")
+
+        self._publish_plan_start(context)
+        next_action = plan_info.get("next_action")
+        plan = plan_info.get("plan", [])
         plan_descriptions = []
         if plan:
             plan_descriptions = [step.get("description", str(step)) for step in plan]
-        self._publish_plan_events(session_id, execution_id, plan_descriptions, task_id)
-        self.logger.debug(f"分析结果：level={analyzed_level}, has_next_action={next_action is not None}, plan_steps={len(plan)}")
-        
-        if analyzed_level == "simple" and analysis.get("direct_answer", "") not in ["", None]:
+
+        context.task_info.plan = json.dumps(plan_descriptions)
+        self._publish_plan_events(context,plan_descriptions)
+        self.logger.debug(f"分析结果：level={plan_info.get('level', '')}, has_next_action={next_action is not None}, plan_steps={len(plan)}")
+        direct_answer = plan_info.get("direct_answer", "")
+        if task_level == "simple" and direct_answer not in ["", None]:
             self.logger.debug("直接回答任务，执行 next_action")
-            async for chunk in self._execute_direct_action(analysis.get("direct_answer", ""), context):
+            async for chunk in self._execute_direct_action(direct_answer, context):
                 yield chunk
-        elif analyzed_level == "simple":
+        elif task_level == "simple":
              self.logger.warning("简单任务分析未提供 next_action，降级为父类执行")
              async for chunk in super()._execute_task_stream(context):
                 yield chunk
-        elif analyzed_level == "direct":
+        elif task_level == "direct":
             self.logger.debug("直接回答任务，执行 next_action")
-            async for chunk in self._execute_direct_action(analysis.get("direct_answer", ""), context):
+            async for chunk in self._execute_direct_action(direct_answer, context):
                 yield chunk
         elif plan:
             self.logger.debug("复杂任务，执行计划")
-            plan_descriptions = [step.get("description", str(step)) for step in plan]
             async for chunk in self._execute_plan_steps(plan_descriptions, context):
                 yield chunk
         else:
@@ -188,8 +154,9 @@ class AsyncPlanReActEngine(AsyncReActCore):
             流式响应块
         """
         stream = context.stream
+        context.task_info.result = direct_answer
         self.logger.debug(f"直接执行行动：action=finish, thought={direct_answer[:50]}...")
-        self._publish_task_end(direct_answer, context)
+        self._publish_task_end(direct_answer,context)
         
         if stream:
             yield {"type": "task_finish", "result": direct_answer}
@@ -198,44 +165,32 @@ class AsyncPlanReActEngine(AsyncReActCore):
     async def _analyze_task_and_plan(
         self,
         context: TaskContext,
-        history_context: str,
     ) -> Optional[Dict[str, Any]]:
         """分析任务并生成计划（异步）
 
         Args:
             task: 任务内容
             task_info: 任务信息
-            history_context: 历史上下文
-            session_id: 会话 ID
-            execution_id: 执行 ID
 
         Returns:
             分析结果
         """
-        session_id = context.session_id
-        execution_id = context.execution_id
-        task = context.user_input
         task_info = context.task_info
         available_skills = self.skill_caller.list_available_skills(enabled_only=True) if self.skill_caller else []
-        skills_list = PromptTemplates.format_skills_list(available_skills)
-        system_info = PromptTemplates.get_system_info()
-        soul_prompt = context.session_context.soul_prompt
-        thinking_mode = context.thinking_mode
+        history_context = context.session_context.get_history_context()
         
         messages = PromptTemplates.build_task_analysis_messages_with_cache(
-            task=task,
+            task=context.user_input,
             history_context=history_context,
-            skills_list=skills_list,
-            system_info=system_info,
-            max_plan_steps=self.max_plan_steps,
-            soul_system_prompt=soul_prompt
+            skills_list=PromptTemplates.format_skills_list(available_skills),
+            context=context
         )
         self.logger.debug(f"发往 LLM 的任务计划消息：{messages}")
         last_thought = ""
         try:
             full_response = ""
-            self._publish_think_start(session_id, execution_id, -1, "")
-            async for chunk in self.async_llm_client.stream_chat(messages, task_info.get("level", "simple"), enable_thinking=thinking_mode):
+            self._publish_think_start(context, 0, "")
+            async for chunk in self.async_llm_client.stream_chat(messages, task_info.task_type, enable_thinking=context.thinking_mode):
                 choices = chunk.get("choices", [])
                 if choices:
                     delta = choices[0].get("delta", {})
@@ -250,18 +205,17 @@ class AsyncPlanReActEngine(AsyncReActCore):
                                 # 只输出增量的thought内容
                                 incremental_thought = thought[len(last_thought):] if last_thought else thought
                                 last_thought = thought
-                                self._publish_think_stream(session_id, execution_id, -1, incremental_thought)
+                                self._publish_think_stream(context, 0, incremental_thought)
 
             self.logger.debug(f"原始 LLM 响应：{full_response}")
-            self._publish_think_end(session_id, execution_id, 0, last_thought)
+            self._publish_think_end(context, 0, last_thought)
             
             from lingxi.core.engine.utils import parse_json_with_escape_cleaning
             return parse_json_with_escape_cleaning(full_response, self.logger)
         except Exception as e:
             self.logger.error(f"任务分析失败：{e}", exc_info=True)
+            self._publish_task_failed(context,error=str(e))
             raise e
-        
-        return None
 
     async def process(
         self,
@@ -274,6 +228,6 @@ class AsyncPlanReActEngine(AsyncReActCore):
         Returns:
             系统响应或异步生成器
         """
-        self.logger.debug(f"异步 Plan+ReAct 处理任务：{context.get_task_level()} (stream={context.stream})")
+        self.logger.debug(f"异步 Plan+ReAct 处理任务：{context.task_info.task_type} (stream={context.stream})")
 
         return self._execute_task_stream(context)

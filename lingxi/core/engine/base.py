@@ -289,60 +289,54 @@ class BaseEngine:
 
 
 
-    def _publish_think_stream(self, session_id: str, execution_id: str, step: int, content: str):
+    def _publish_think_stream(self, context: TaskContext, step: int, content: str):
         """发布思考流式事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             step: 步骤索引
             content: 思考内容
         """
         global_event_publisher.publish(
             'think_stream',
-            session_id=session_id,
-            execution_id=execution_id,
+            context=context,
             step_index=step,
             content=content,
             body={"reasoning_content": content},
             is_partial=True
         )
 
-    def _publish_think_start(self, session_id: str, execution_id: str, step: int, content: str):
+    def _publish_think_start(self, context: TaskContext, step: int, content: str):
         """发布思考开始事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             step: 步骤索引
             content: 初始思考内容
         """
         global_event_publisher.publish(
             'think_start',
-            session_id=session_id,
-            execution_id=execution_id,
+            context=context,
             step_index=step,
             content=content
         )
 
-    def _publish_think_end(self, session_id: str, execution_id: str, step: int, content: str):
+    def _publish_think_end(self, context: TaskContext, step: int, content: str):
         """发布思考结束事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             step: 步骤索引
             content: 最终思考内容
         """
         global_event_publisher.publish(
-            'think_end',
-            session_id=session_id,
-            execution_id=execution_id,
+            'think_final',
+            context=context,
             step_index=step,
             content=content
         )
 
-    def _publish_step_start(self, session_id: str, execution_id: str, step_idx: int, total_steps: int):
+    def _publish_step_start(self, context: TaskContext, step_idx: int, total_steps: int):
         """发布步骤开始事件
 
         Args:
@@ -353,18 +347,16 @@ class BaseEngine:
         """
         global_event_publisher.publish(
             'step_start',
-            session_id=session_id,
-            execution_id=execution_id,
+            context=context,
             step_index=step_idx,
             total_steps=total_steps
         )
 
-    def _publish_step_end(self, session_id: str, execution_id: str, step_idx: int, status: str, error: str = None, result: str = "", thought: str = "",description:str="", task_id: str = None,result_description:str=""):
+    def _publish_step_end(self, context: TaskContext, step_idx: int):
         """发布步骤结束事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             step_idx: 步骤索引
             status: 状态
             error: 错误信息
@@ -373,16 +365,8 @@ class BaseEngine:
         """
         global_event_publisher.publish(
             'step_end',
-            session_id=session_id,
-            execution_id=execution_id,
-            task_id=task_id,
-            step_index=step_idx,
-            status=status,
-            error=error,
-            result=result,
-            thought=thought,
-            description=description,
-            result_description=result_description
+            context=context,
+            step_index=step_idx
         )
 
     def _publish_task_end(self, result: str, context: TaskContext):
@@ -392,14 +376,11 @@ class BaseEngine:
             result: 结果
             context: 任务上下文
         """
+        context.task_info.result = result
         global_event_publisher.publish(
             'task_end',
-            session_id=context.session_id,
-            execution_id=context.execution_id,
-            task_id=context.task_id,
-            task_input=context.user_input,
+            context=context,
             result=result,
-            task_level=context.get_task_level(),
             input_tokens=context.input_tokens,
             output_tokens=context.output_tokens
         )
@@ -408,56 +389,45 @@ class BaseEngine:
             "type": "task_end",
             "result": result
         }
-    def _publish_task_failed(self, session_id: str, execution_id: str, error: str, task_id: str = None):
+    def _publish_task_failed(self, context: TaskContext, error: str):
         """发布任务失败事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             error: 错误信息
             task_id: 任务 ID
         """
         global_event_publisher.publish(
             'task_failed',
-            session_id=session_id,
-            execution_id=execution_id,
-            task_id=task_id,
+            context=context,
             error=error
         )
 
-    def _publish_plan_start(self, session_id: str, execution_id: str, task_id: str = None, task_level: str = "none", summary: str = None):
+    def _publish_plan_start(self, context: TaskContext, summary: str = None):    
         """发布计划开始事件
 
         Args:
-            session_id: 会话 ID
-            execution_id: 执行 ID
+            context: 任务上下文
             task_id: 任务 ID
             task_level: 任务级别
             summary: 任务摘要
         """
         global_event_publisher.publish(
             'plan_start',
-            session_id=session_id,
-            execution_id=execution_id,
-            task_id=task_id,
-            task_level=task_level,
+            context=context,
             summary=summary
         )
 
-    def _publish_plan_events(self, session_id: str, execution_id: str, plan: List[str], task_id: str = None):
+    def _publish_plan_events(self, context: TaskContext, plan: List[str]):
         """发布计划相关事件
 
         Args:
-            session_id: 会话ID
-            execution_id: 执行ID
+            context: 任务上下文
             plan: 计划步骤列表
-            task_id: 任务ID
         """
         global_event_publisher.publish(
             'plan_final',
-            session_id=session_id,
-            execution_id=execution_id,
-            task_id=task_id,
+            context=context,
             plan=[{"step": i+1, "description": step} for i, step in enumerate(plan)]
         )
 
@@ -567,7 +537,7 @@ class BaseEngine:
         """
         raise NotImplementedError("子类必须实现 _execute_task_stream 方法")
 
-    def _publish_task_start(self, session_id: str, execution_id: str, task: str, task_info: Dict[str, Any], task_id: str = None):
+    def _publish_task_start(self, context: TaskContext):
         """发布任务开始事件
 
         Args:
@@ -578,11 +548,6 @@ class BaseEngine:
             task_id: 任务ID
         """
         global_event_publisher.publish(
-                'task_start',
-                session_id=session_id,
-                execution_id=execution_id,
-                task_id=task_id,
-                task_info=task_info,
-                user_input=task,
-                task_level=task_info.get("level", "none")
+            'task_start',
+            context=context
         )

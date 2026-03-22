@@ -3,7 +3,8 @@ import sqlite3
 import json
 import time
 import re
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
+from lingxi.core.session.session_models import Task,Step
 from dataclasses import dataclass, field
 from enum import Enum
 from lingxi.utils.config import get_config
@@ -24,13 +25,13 @@ class ContextMessage:
     """上下文消息单元"""
     id: str
     role: str
-    content: str
+    content: str #原始内容
     content_type: ContentType
     token_count: int
     task_id: Optional[str] = None
     timestamp: float = field(default_factory=time.time)
-    is_compressed: bool = False
-    summary: Optional[str] = None
+    is_compressed: bool = False   #是否压缩
+    summary: Optional[str] = None  #压缩后的内容
     metadata: Dict = field(default_factory=dict)
 
 
@@ -92,7 +93,27 @@ class SessionContext:
         self.logger.debug(f"初始化上下文管理器，会话ID: {session_id}")
 
    
-     
+    def add_history(self,history:List[Task]):
+        """添加历史会话到上下文管理器
+
+        Args:
+            history: 历史会话消息列表
+        """
+        
+        for task in history:
+            # 添加用户输入
+            self.add_message("assistant", f"** 历史对话 task_id:{task.task_id}开始 ** ========分隔符", ContentType.SYSTEM_MESSAGE, task.task_id)
+            self.add_message("user", task.user_input, ContentType.USER_INPUT, task.task_id)
+            self.add_message("assistant", "执行步骤:", ContentType.SYSTEM_MESSAGE, task.task_id)
+            #for step in task.steps:
+               # if step.skill_call != "" and step.status == "completed":
+                    #self.add_message("assistant", step.thought, ContentType.THINKING, step.step_index)
+                    #self.add_message("assistant",f"调用工具:{step.skill_call}", ContentType.TOOL_CALL, step.step_index)
+                    #self.add_message("assistant",f"step {step.step_index}, 工具调用:{step.skill_call},结果:{step.result}", ContentType.TOOL_RESULT, step.step_index)
+            # 添加助手最终回复
+            self.add_message("assistant", f"最终回复：{task.result}",  ContentType.ASSISTANT_RESPONSE, task.task_id)
+            self.add_message("assistant", "** 历史对话 task_id:{task.task_id}结束 ** ========分隔符", ContentType.SYSTEM_MESSAGE, task.task_id)
+            
 
     def add_context_item(self,role:str,content:str):
         """添加上下文项
@@ -102,13 +123,8 @@ class SessionContext:
             content: 内容
         """
         self.add_message(role, content, ContentType.SYSTEM_MESSAGE)
-    def set_soul(self,soul_prompt:str):
-        """设置SOUL提示词
-
-        Args:
-            soul_prompt: SOUL提示词
-        """
-        self.soul_prompt=soul_prompt
+    
+    
 
     def add_message(self, role: str, content: str,
                    content_type: ContentType = None,
@@ -126,7 +142,7 @@ class SessionContext:
         Returns:
             创建的上下文消息
         """
-        if not isinstance(content, str):
+        if not isinstance(content, Dict):
             content = str(content)
         
         token_count = len(content) // 4
@@ -360,15 +376,49 @@ class SessionContext:
             if msg.is_compressed and msg.summary:
                 context.append({
                     "role": msg.role,
+                    "content_type": msg.content_type,
                     "content": msg.summary
                 })
             else:
                 context.append({
                     "role": msg.role,
+                    "content_type": msg.content_type,
                     "content": msg.content
                 })
 
         return context
+
+    def get_history_context(self) -> str:
+        """构建历史上下文
+        """
+        #获取会话的历史会话
+        history =  self.get_context_for_llm()
+
+        if not history:
+            return ""
+
+        context_lines = []
+        for msg in history:
+            content_type = msg.get('content_type', '')
+            if content_type == ContentType.THINKING:
+                #context_lines.append(f"思考：{msg.get('content', '')}")
+                continue
+            elif content_type == ContentType.SYSTEM_MESSAGE:
+                continue
+            elif content_type == ContentType.TOOL_CALL:
+                context_lines.append(f"工具调用：{msg.get('content', '')}")
+                continue
+            elif content_type == ContentType.TOOL_RESULT:
+                context_lines.append(f"工具调用结果：{msg.get('content', '')}")
+                continue
+            elif content_type == ContentType.USER_INPUT:
+                context_lines.append(f"用户输入：{msg.get('content', '')}")
+                continue
+            elif content_type == ContentType.ASSISTANT_RESPONSE:
+                context_lines.append(f"助手回复：{msg.get('content', '')}")
+                continue
+        
+        return "\n".join(context_lines)
 
     def _infer_content_type(self, role: str, content: str) -> ContentType:
         """推断内容类型"""

@@ -2,23 +2,30 @@
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from lingxi.core.context.session_context import SessionContext
+from lingxi.core.session.session_models import Step, Task
 
 @dataclass
 class TaskContext:
     """任务上下文对象，封装任务执行所需的所有上下文信息"""
     
-    user_input: str
-    task_info: Dict[str, Any]
-    session_id: str = "default"
-    session_history: Optional[List[Dict[str, str]]] = None
-    stream: bool = False
-    task_id: Optional[str] = None
-    execution_id: Optional[str] = None
-    input_tokens: int = 0
-    output_tokens: int = 0
-    workspace_path: Optional[str] = None
-    thinking_mode: bool = False
-    session_context: Optional[SessionContext] = None
+    user_input: str           #用户输入
+    task_info: Task = None        #任务信息
+    session_id: str = "default"     #会话ID
+    session_history: Optional[List[Dict[str, str]]] = None  #历史会话
+    stream: bool = False          #流式模式开关
+    task_id: Optional[str] = None     #任务Id
+    execution_id: Optional[str] = None   
+    input_tokens: int = 0         #输入token数
+    output_tokens: int = 0     #输出token数
+    workspace_path: Optional[str] = None   #工作目录
+    thinking_mode: bool = False     #深度思考模式开关
+    session_context: Optional[SessionContext] = None  #会话上下文
+    steps:List[Step]=field(default_factory=list)  #当前任务已经执行步骤
+    soul_prompt: Optional[str] = None  #SOUL提示词
+    rule: Optional[str] = None  #规则
+    memory: Optional[str] = None  #长短期记忆
+    description: Optional[str] = None  #任务描述
+    
     
     def __post_init__(self):
         if self.session_history is None:
@@ -26,6 +33,7 @@ class TaskContext:
         if self.task_id is None:
             import uuid
             self.task_id = f"task_{self.session_id}_{uuid.uuid4().hex[:8]}"
+            self.task_info = Task(task_id=self.task_id,session_id=self.session_id,user_input=self.user_input)
         if self.execution_id is None:
             import time
             self.execution_id = f"exec_{int(time.time())}"
