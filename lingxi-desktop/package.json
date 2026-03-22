@@ -1,6 +1,6 @@
 {
   "name": "lingxi-desktop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Lingxi Agent 终端助手 - V2.0 纯客户端架构",
   "main": "dist-electron/main/index.js",
   "author": "Lingxi Team",

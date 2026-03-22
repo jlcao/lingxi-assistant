@@ -101,7 +101,20 @@ def get_workspace_path() -> Optional[str]:
     """获取当前工作目录路径"""
     global _workspace_path
     if not _workspace_path:
-        _workspace_path = get_config()["workspace"]["last_workspace"]
+        # 首先从全局配置中获取
+        _workspace_path = get_config().get("workspace", {}).get("last_workspace")
+        # 如果全局配置中没有，尝试从用户目录配置中获取
+        if not _workspace_path:
+            user_home = Path.home()
+            user_config_path = user_home / ".lingxi" / "conf" / "config.yml"
+            if user_config_path.exists():
+                try:
+                    with open(user_config_path, 'r', encoding='utf-8') as f:
+                        user_config = yaml.safe_load(f)
+                    if user_config and 'workspace' in user_config:
+                        _workspace_path = user_config['workspace'].get('last_workspace')
+                except Exception as e:
+                    logger.error(f"读取用户配置文件失败：{e}")
     if not _workspace_path:
         _workspace_path = './'
     return _workspace_path
@@ -116,9 +129,9 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
     
     配置加载优先级（从高到低）：
     1. 环境变量
-    2. 工作目录配置 (.lingxi/conf/config.yaml)
-    3. 用户目录配置 (~/.lingxi/conf/config.yaml)
-    4. 项目配置文件 (config.yaml)
+    2. 工作目录配置 (.lingxi/conf/config.yml)
+    3. 用户目录配置 (~/.lingxi/conf/config.yml)
+    4. 项目配置文件 (config.yml)
     5. 默认配置 (DEFAULT_CONFIG)
     
     Args:
@@ -141,9 +154,9 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
     if not config_path:
         # 尝试从默认位置加载
         default_paths = [
-            "config.yaml",
-            "lingxi/config.yaml",
-            "../config.yaml"
+            "config.yml",
+            "lingxi/config.yml",
+            "../config.yml"
         ]
         
         for path in default_paths:
@@ -163,8 +176,9 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
     else:
         logger.warning("未找到项目配置文件")
     
-    # 2. 加载用户目录配置 (~/.lingxi/conf/config.yaml)
-    user_config_path = GLOBAL_LINGXI_DIR / "conf" / "config.yaml"
+    # 2. 加载用户目录配置 (~/.lingxi/conf/config.yml)
+    user_config_path = GLOBAL_LINGXI_DIR / "conf" / "config.yml"
+    
     if user_config_path.exists():
         logger.info(f"加载用户目录配置：{user_config_path}")
         try:
@@ -175,7 +189,7 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
         except Exception as e:
             logger.error(f"加载用户目录配置失败：{e}")
     else:
-        # 用户目录配置不存在，初始化默认配置
+        # 用户目录配置不存在，初始化默认配置到 .yml
         logger.info(f"用户目录配置不存在，初始化默认配置到：{user_config_path}")
         try:
             with open(user_config_path, "w", encoding="utf-8") as f:
@@ -184,8 +198,9 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
         except Exception as e:
             logger.error(f"初始化用户目录配置失败：{e}")
     
-    # 3. 加载工作目录配置 (.lingxi/conf/config.yaml)
-    workspace_config_path = Path.cwd() / ".lingxi" / "conf" / "config.yaml"
+    # 3. 加载工作目录配置 (.lingxi/conf/config.yml)
+    workspace_config_path = Path.cwd() / ".lingxi" / "conf" / "config.yml"
+    
     if workspace_config_path.exists():
         logger.info(f"加载工作目录配置：{workspace_config_path}")
         try:

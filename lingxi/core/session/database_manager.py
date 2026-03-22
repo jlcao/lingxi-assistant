@@ -25,14 +25,14 @@ class DatabaseManager:
             db_path: 数据库文件路径
             logger: 日志记录器
         """
-        self.config = get_config()
-        # 获取数据库路径，优先使用 session.db_path，否则使用 database.lingxi_db
-        self.db_path = self.config.get("session", {}).get("db_path") or self.config.get("database", {}).get("lingxi_db", "data/assistant.db")
-        # 确保路径是绝对路径，相对于用户目录
+        # 防止重复初始化
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
+        # 直接使用用户目录下面的 .lingxi/data/lingxi.db
         from pathlib import Path
-        if not Path(self.db_path).is_absolute():
-            from lingxi.utils.config import GLOBAL_LINGXI_DIR
-            self.db_path = str(GLOBAL_LINGXI_DIR / self.db_path)
+        user_home = Path.home()
+        self.db_path = str(user_home / ".lingxi" / "data" / "lingxi.db")
         self.logger = logging.getLogger(__name__)
         self._init_db()
         self._initialized = True

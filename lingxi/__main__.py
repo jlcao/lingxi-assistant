@@ -6,7 +6,7 @@ import argparse
 from typing import Optional, Union, Any, Dict, List
 from lingxi.core.assistant.assistant_base import BaseAssistant
 from lingxi.core.context.task_context import TaskContext
-from lingxi.utils.config import load_config
+from lingxi.utils.config import load_config, get_workspace_path
 
 
 class LingxiAssistant(BaseAssistant):
@@ -40,7 +40,7 @@ class LingxiAssistant(BaseAssistant):
 
             engine = self.mode_selector.get_engine(mode="plan_react", session_manager=self.session_manager)
 
-            workspace_path = str(self.workspace_manager.current_workspace) if self.workspace_manager.current_workspace else None
+            workspace_path = get_workspace_path()
 
             context = TaskContext(
                 user_input=user_input,

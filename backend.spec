@@ -18,6 +18,8 @@ analysis = Analysis(
         ('config.yaml', '.'),
         # 包含技能目录
         ('lingxi/skills', 'lingxi/skills'),
+        # 明确包含内置技能目录
+        ('lingxi/skills/builtin', 'lingxi/skills/builtin'),
         # 包含其他必要的资源文件
     ],
     hiddenimports=[

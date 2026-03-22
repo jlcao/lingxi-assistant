@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Optional, List, Set
 from lingxi.utils.config import get_config
-
+from lingxi.utils.config import get_workspace_path
 
 
 class SecurityError(Exception):

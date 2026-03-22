@@ -77,9 +77,10 @@ class BaseAssistant(ABC):
         self.workspace_manager.set_resources(
             sandbox=self.skill_caller.sandbox,
             skill_caller=self.skill_caller,
+            skill_system=self.skill_caller.skill_system,
             session_store=self.session_manager
         )
-        self.logger.debug("workspace_manager 资源引用已设置（sandbox、skill_caller、session_store）")
+        self.logger.debug("workspace_manager 资源引用已设置（sandbox、skill_caller、skill_system、session_store）")
         
         # 为子代理调度器设置 SessionManager
         self.skill_caller.set_session_manager_for_subagents(self.session_manager)

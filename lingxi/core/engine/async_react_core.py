@@ -15,6 +15,7 @@ from lingxi.core.context.task_context import TaskContext
 from lingxi.core.llm.async_llm_client import AsyncLLMClient
 from lingxi.core.session.session_models import Step
 from .base import BaseEngine
+from lingxi.utils.config import get_workspace_path
 
 
 class AsyncReActCore(BaseEngine):
@@ -65,7 +66,7 @@ class AsyncReActCore(BaseEngine):
         skills_list = PromptTemplates.format_skills_list(available_skills)
 
         # 获取系统信息
-        system_info = PromptTemplates.get_system_info(context.workspace_path)
+        system_info = PromptTemplates.get_system_info(get_workspace_path())
         
         # 格式化任务计划
         task_plan = context.task_info.plan

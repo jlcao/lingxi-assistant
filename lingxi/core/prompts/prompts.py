@@ -10,6 +10,7 @@ import os
 from typing import Dict, List, Any, Optional
 
 from lingxi.core.context.task_context import TaskContext
+from lingxi.utils.config import get_workspace_path
 
 
 class PromptTemplates:
@@ -296,7 +297,7 @@ finish(answer) - 完成任务并返回答案
 qwen3.5-plus
 
 ## workspace        
-当前工作目录:{system_info['current_dir']}
+当前工作目录:{get_workspace_path()}
 
 ## 系统环境
 {system_info['os_info']}
@@ -416,7 +417,7 @@ read_skill : 用于读取技能的详细使用说明
 qwen3.5-plus
 
 ## workspace        
-{system_info['current_dir']}
+{get_workspace_path()}
 
 ## 系统环境
 {system_info['os_info']}

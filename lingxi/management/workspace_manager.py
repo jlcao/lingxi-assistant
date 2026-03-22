@@ -149,17 +149,24 @@ class WorkspaceManager:
         # 4. 设置当前工作目录
         self.current_workspace = workspace_path
         
-        # 5. 更新 sandbox 的工作目录
+        # 5. 更新全局工作目录路径
+        from lingxi.utils.config import set_workspace_path
+        set_workspace_path(str(workspace_path))
+        
+        # 6. 持久化配置
+        self._persist_workspace_path(workspace_path)
+        
+        # 7. 更新 sandbox 的工作目录
         if self.sandbox:
             self.sandbox.update_workspace(workspace_path)
             self.logger.debug(f"SecuritySandbox 工作目录已更新：{workspace_path}")
         
-        # 6. 初始化数据库（如果 session_store 已设置）
+        # 8. 初始化数据库（如果 session_store 已设置）
         if self.session_store:
             self.logger.info(f"开始初始化数据库，数据目录：{lingxi_dir / 'data'}")
             self._initialize_database(lingxi_dir / "data")
         
-        # 7. 发布事件
+        # 9. 发布事件
         if self.event_publisher:
             self.event_publisher.publish("workspace_initialized", 
                 workspace=str(workspace_path),
@@ -207,11 +214,15 @@ class WorkspaceManager:
         
         # 7. 更新当前工作目录
         self.current_workspace = workspace_path
+
+        # 8. 更新全局工作目录路径
+        from lingxi.utils.config import set_workspace_path
+        set_workspace_path(str(workspace_path))
         
-        # 8. 持久化配置
+        # 9. 持久化配置
         self._persist_workspace_path(workspace_path)
         
-        # 9. 发布事件
+        # 10. 发布事件
         if self.event_publisher:
             self.event_publisher.publish("workspace_switched",
                 previous_workspace=str(self.previous_workspace),
@@ -220,7 +231,7 @@ class WorkspaceManager:
                 switched_at=datetime.now().isoformat()
             )
         
-        # 10. 更新 SkillSystem 的工作目录
+        # 11. 更新 SkillSystem 的工作目录
         if self.skill_system:
             self.skill_system.update_workspace(str(workspace_path))
             self.logger.debug(f"SkillSystem 工作目录已更新为：{workspace_path}")
@@ -446,12 +457,12 @@ class WorkspaceManager:
         """初始化数据库连接
         
         行为说明：
-        - 使用全局配置中的数据库路径，不再使用工作目录下的数据库
+        - 使用固定的数据库路径：用户目录下面的 .lingxi/data/lingxi.db
         - 如果数据库不存在：SessionManager 会自动创建新数据库并初始化表结构
         - 如果数据库已存在：保留所有历史会话数据，不做任何清空
         
         Args:
-            data_dir: 数据目录（已废弃，使用全局配置中的路径）
+            data_dir: 数据目录（已废弃，使用固定的用户目录路径）
         """
         self.logger.info(f"_initialize_database 方法被调用，session_store: {self.session_store is not None}")
         
@@ -459,13 +470,10 @@ class WorkspaceManager:
             self.logger.warning("session_store 为 None，跳过数据库初始化")
             return
         
-        # 从全局配置中获取数据库路径
-        from lingxi.utils.config import get_config
-        config = get_config()
-        
-        # 使用全局配置中的数据库路径
-        lingxi_db = Path(config['database']['lingxi_db'])
-        skills_db = Path(config['database']['skills_db'])
+        # 使用固定的数据库路径：用户目录下面的 .lingxi/data/lingxi.db
+        from pathlib import Path
+        user_home = Path.home()
+        lingxi_db = user_home / ".lingxi" / "data" / "lingxi.db"
         
         # 确保全局数据目录存在
         global_data_dir = lingxi_db.parent
@@ -543,35 +551,32 @@ class WorkspaceManager:
         Args:
             workspace_path: 工作目录路径
         """
-        # 尝试找到配置文件
-        config_paths = [
-            Path(__file__).parent.parent / "config.yaml",
-            Path.cwd() / "config.yaml"
-        ]
+        # 持久化到用户目录下面的 .lingxi/conf/config.yml
+        user_home = Path.home()
+        config_file = user_home / ".lingxi" / "conf" / "config.yml"
         
-        config_file = None
-        for path in config_paths:
-            if path.exists():
-                config_file = path
-                break
-        
-        if not config_file:
-            self.logger.warning("未找到配置文件，跳过持久化")
-            return
+        # 确保目录存在
+        config_file.parent.mkdir(parents=True, exist_ok=True)
         
         try:
-            with open(config_file, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
+            # 读取配置文件
+            if config_file.exists():
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+            else:
+                # 如果文件不存在，创建一个新的配置
+                config = {}
             
             if 'workspace' not in config:
                 config['workspace'] = {}
             
             config['workspace']['last_workspace'] = str(workspace_path)
             
+            # 写入配置文件
             with open(config_file, 'w', encoding='utf-8') as f:
                 yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
             
-            self.logger.debug(f"工作目录已持久化：{workspace_path}")
+            self.logger.debug(f"工作目录已持久化到用户配置：{workspace_path}")
         except Exception as e:
             self.logger.error(f"持久化配置失败：{e}")
     

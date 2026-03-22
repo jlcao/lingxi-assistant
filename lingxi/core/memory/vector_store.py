@@ -8,20 +8,33 @@ import hashlib
 
 logger = logging.getLogger(__name__)
 
-try:
-    import chromadb
-    from chromadb.config import Settings
-    CHROMADB_AVAILABLE = True
-except ImportError:
-    CHROMADB_AVAILABLE = False
-    logger.warning("ChromaDB 未安装，向量搜索功能不可用")
+# 延迟导入大型依赖
+CHROMADB_AVAILABLE = False
+SENTENCE_TRANSFORMERS_AVAILABLE = False
 
-try:
-    from sentence_transformers import SentenceTransformer
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-    logger.warning("SentenceTransformers 未安装，向量搜索功能不可用")
+# 仅在需要时导入
+def _check_chromadb():
+    global CHROMADB_AVAILABLE
+    if not CHROMADB_AVAILABLE:
+        try:
+            import chromadb
+            from chromadb.config import Settings
+            CHROMADB_AVAILABLE = True
+        except ImportError:
+            CHROMADB_AVAILABLE = False
+            logger.warning("ChromaDB 未安装，向量搜索功能不可用")
+    return CHROMADB_AVAILABLE
+
+def _check_sentence_transformers():
+    global SENTENCE_TRANSFORMERS_AVAILABLE
+    if not SENTENCE_TRANSFORMERS_AVAILABLE:
+        try:
+            from sentence_transformers import SentenceTransformer
+            SENTENCE_TRANSFORMERS_AVAILABLE = True
+        except ImportError:
+            SENTENCE_TRANSFORMERS_AVAILABLE = False
+            logger.warning("SentenceTransformers 未安装，向量搜索功能不可用")
+    return SENTENCE_TRANSFORMERS_AVAILABLE
 
 
 class VectorStore:
@@ -39,31 +52,43 @@ class VectorStore:
         self.collection = None
         self.embedding_model = None
         
-        if CHROMADB_AVAILABLE:
+        if _check_chromadb():
             self._init_chromadb()
         
-        if SENTENCE_TRANSFORMERS_AVAILABLE:
+        if _check_sentence_transformers():
             self._init_embedding_model()
     
     def _init_chromadb(self):
         """初始化 ChromaDB"""
-        # 确保持久化目录存在
-        os.makedirs(self.persist_directory, exist_ok=True)
-        
-        # 创建客户端
-        self.client = chromadb.PersistentClient(path=self.persist_directory)
-        
-        # 获取或创建集合
-        self.collection = self.client.get_or_create_collection(
-            name="memories",
-            metadata={"description": "Long-term memory storage"}
-        )
-        
-        logger.info(f"ChromaDB 已初始化：{self.persist_directory}")
+        try:
+            # 导入 chromadb
+            import chromadb
+            from chromadb.config import Settings
+            
+            # 确保持久化目录存在
+            os.makedirs(self.persist_directory, exist_ok=True)
+            
+            # 创建客户端
+            self.client = chromadb.PersistentClient(path=self.persist_directory)
+            
+            # 获取或创建集合
+            self.collection = self.client.get_or_create_collection(
+                name="memories",
+                metadata={"description": "Long-term memory storage"}
+            )
+            
+            logger.info(f"ChromaDB 已初始化：{self.persist_directory}")
+        except Exception as e:
+            logger.error(f"初始化 ChromaDB 失败：{e}")
+            self.client = None
+            self.collection = None
     
     def _init_embedding_model(self):
         """初始化嵌入模型"""
         try:
+            # 导入 SentenceTransformer
+            from sentence_transformers import SentenceTransformer
+            
             # 使用轻量级中文模型
             self.embedding_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
             logger.info("SentenceTransformers 嵌入模型已加载")

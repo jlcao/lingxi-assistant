@@ -45,11 +45,9 @@ class MemoryManager:
             return
         
         self.config = get_config()
-        self.workspace_path = get_workspace_path()
         
         # 记忆存储
         self.memories: Dict[str, Memory] = {}  # 内存缓存
-        self.memory_file = os.path.join(self.workspace_path, "MEMORY.md")
         
         # 数据库支持
         db_enabled = self.config.get("memory", {}).get("db_enabled", False)
@@ -83,7 +81,12 @@ class MemoryManager:
             self.hybrid_search = None
         
         self._initialized = True
-        logger.info(f"记忆管理器已初始化，工作目录：{self.workspace_path}")
+        logger.info(f"记忆管理器已初始化")
+    
+    def get_memory_file(self) -> str:
+        """获取 MEMORY.md 文件路径"""
+        workspace_path = get_workspace_path()
+        return os.path.join(workspace_path, "MEMORY.md")
     
     def load_memory(self, workspace_path: str = None) -> int:
         """
@@ -95,20 +98,17 @@ class MemoryManager:
         Returns:
             加载的记忆数量
         """
-        if workspace_path:
-            self.workspace_path = workspace_path
-        else:
-            self.workspace_path = get_workspace_path()
-        self.memory_file = os.path.join(self.workspace_path, "MEMORY.md")
+        target_workspace_path = workspace_path or get_workspace_path()
+        memory_file = os.path.join(target_workspace_path, "MEMORY.md")
         
-        if not os.path.exists(self.memory_file):
-            logger.debug(f"MEMORY.md 不存在：{self.memory_file}")
+        if not os.path.exists(memory_file):
+            logger.debug(f"MEMORY.md 不存在：{memory_file}")
             return 0
         
         try:
             from .memory_parser import MemoryParser
             
-            with open(self.memory_file, 'r', encoding='utf-8') as f:
+            with open(memory_file, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             parser = MemoryParser()
@@ -117,7 +117,7 @@ class MemoryManager:
             # 加载到内存
             count = 0
             for memory in memories:
-                memory.workspace_path = self.workspace_path
+                memory.workspace_path = target_workspace_path
                 self.memories[memory.id] = memory
                 count += 1
             
@@ -175,11 +175,12 @@ class MemoryManager:
         # 降级到关键词搜索
         # 优先从数据库搜索
         if self.db:
+            workspace_path = get_workspace_path()
             db_results = self.db.search_memories(
                 query=query,
                 category=category,
                 tags=tags,
-                workspace_path=self.workspace_path,
+                workspace_path=workspace_path,
                 limit=top_k * 2  # 多取一些用于评分
             )
             
@@ -289,6 +290,7 @@ class MemoryManager:
             return self.memories[memory_id]
         
         # 创建新记忆
+        workspace_path = get_workspace_path()
         memory = Memory(
             id=memory_id,
             content=content,
@@ -298,7 +300,7 @@ class MemoryManager:
             created_at=datetime.now().timestamp(),
             updated_at=datetime.now().timestamp(),
             access_count=0,
-            workspace_path=self.workspace_path,
+            workspace_path=workspace_path,
             metadata=metadata or {}
         )
         
@@ -346,15 +348,16 @@ class MemoryManager:
     
     def get_memory_stats(self) -> dict:
         """获取记忆统计信息"""
+        workspace_path = get_workspace_path()
         if self.db:
-            return self.db.get_stats(self.workspace_path)
+            return self.db.get_stats(workspace_path)
         
         # 降级到内存统计
         stats = {
             "total": len(self.memories),
             "by_category": {},
             "by_importance": {i: 0 for i in range(1, 6)},
-            "workspace_path": self.workspace_path
+            "workspace_path": workspace_path
         }
         
         for memory in self.memories.values():
@@ -405,10 +408,11 @@ class MemoryManager:
                 lines.append("")
             
             # 写入文件
-            with open(self.memory_file, 'w', encoding='utf-8') as f:
+            memory_file = self.get_memory_file()
+            with open(memory_file, 'w', encoding='utf-8') as f:
                 f.write("\n".join(lines))
             
-            logger.info(f"记忆已保存到：{self.memory_file}")
+            logger.info(f"记忆已保存到：{memory_file}")
             
         except Exception as e:
             logger.error(f"保存 MEMORY.md 失败：{e}")

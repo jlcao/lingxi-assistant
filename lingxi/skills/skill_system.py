@@ -89,6 +89,11 @@ class SkillSystem:
         
         self.logger.debug(f"SecuritySandbox 工作目录已更新为：{self.sandbox.get_workspace_root()}")
         
+        # 更新 SkillLoader 的用户技能目录
+        if self.loader:
+            self.loader.user_skills_dir = str(Path(workspace_path) / ".lingxi" / "skills")
+            self.logger.debug(f"SkillLoader 用户技能目录已更新为：{self.loader.user_skills_dir}")
+        
         # 清除旧技能缓存并重新加载新工作目录的技能
         self._reload_skills(reload_builtin=False)
     

@@ -2,8 +2,7 @@
 """混合搜索引擎 - 结合关键词搜索和向量语义搜索"""
 
 import logging
-from typing import List, Dict, Any
-from .vector_store import VectorStore
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 class HybridSearch:
     """混合搜索引擎"""
     
-    def __init__(self, memory_manager, vector_store: VectorStore = None):
+    def __init__(self, memory_manager, vector_store: Optional[Any] = None):
         """
         初始化混合搜索引擎
         

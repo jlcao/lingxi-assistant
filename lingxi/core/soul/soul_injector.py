@@ -22,14 +22,17 @@ class SoulInjector:
         return cls._instance
     
     def __init__(self):
-        self.workspace_path = get_workspace_path()
-        self.soul_path = os.path.join(self.workspace_path, "SOUL.md")
         self.parser = SoulParser()
         self.cache = SoulCache()
         self.soul_content: Optional[str] = None
         self.soul_data: Optional[dict] = None
         import logging
         self.logger = logging.getLogger(__name__)
+    
+    def get_soul_path(self) -> str:
+        """获取 SOUL.md 文件路径"""
+        workspace_path = get_workspace_path()
+        return os.path.join(workspace_path, "SOUL.md")
     
     def load(self, fallback_to_user_dir: bool = True) -> bool:
         """
@@ -47,10 +50,11 @@ class SoulInjector:
         Returns:
             bool: 加载是否成功
         """
+        soul_path = self.get_soul_path()
         # 优先检查工作区路径
-        if os.path.exists(self.soul_path):
-            soul_path_to_load = self.soul_path
-            self.logger.info(f"[SoulInjector] 从工作区加载 SOUL.md: {self.soul_path}")
+        if os.path.exists(soul_path):
+            soul_path_to_load = soul_path
+            self.logger.info(f"[SoulInjector] 从工作区加载 SOUL.md: {soul_path}")
         elif fallback_to_user_dir:
             # 回退到用户目录 ~/.lingxi/conf/SOUL.md
             user_home = Path.home()
@@ -295,7 +299,8 @@ class SoulInjector:
             bool: 重新加载是否成功
         """
         # 清除缓存
-        self.cache.invalidate(self.workspace_path)
+        workspace_path = get_workspace_path()
+        self.cache.invalidate(workspace_path)
         
         # 重置状态
         self.soul_content = None
@@ -332,17 +337,15 @@ class SoulInjector:
         
         return " | ".join(parts)
     
-    def get_soul_path(self) -> str:
-        """获取 SOUL.md 文件路径"""
-        return self.soul_path
-    
     def has_soul(self) -> bool:
         """检查是否存在 SOUL.md 文件"""
-        return os.path.exists(self.soul_path)
+        soul_path = self.get_soul_path()
+        return os.path.exists(soul_path)
     
     def get_cache_status(self) -> dict:
         """获取缓存状态（用于调试）"""
-        cache_info = self.cache.get_cache_info(self.workspace_path)
+        workspace_path = get_workspace_path()
+        cache_info = self.cache.get_cache_info(workspace_path)
         if cache_info:
             return {
                 "cached": True,

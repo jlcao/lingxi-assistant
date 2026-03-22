@@ -16,7 +16,7 @@ from lingxi.core.session.session_models import Task
 from lingxi.core.session.workspace_registry import WorkspaceRegistry
 from lingxi.core.soul import SoulInjector
 from lingxi.core.memory import MemoryManager, MemoryExtractor, UserMemoryManager
-from lingxi.utils.config import get_config,set_workspace_path
+from lingxi.utils.config import get_config,set_workspace_path, get_workspace_path
 
 
 def session_to_dict(session: Session) -> dict:
@@ -66,20 +66,16 @@ class SessionManager:
         
         self.config = get_config()
         
-        # 处理数据库路径：如果是相对路径，转换为相对于用户目录的绝对路径
-      
-        self.db_path = self.config.get("session", {}).get("db_path") or self.config.get("database", {}).get("lingxi_db", "data/assistant.db")
-        # 确保路径是绝对路径，相对于用户目录
+        # 使用固定的数据库路径：用户目录下面的 .lingxi/data/lingxi.db
         from pathlib import Path
-        if not Path(self.db_path).is_absolute():
-            from lingxi.utils.config import GLOBAL_LINGXI_DIR
-            self.db_path = str(GLOBAL_LINGXI_DIR / self.db_path)
+        user_home = Path.home()
+        self.db_path = str(user_home / ".lingxi" / "data" / "lingxi.db")
         
         self.max_history_turns = self.config.get("session", {}).get("max_history_turns", 50)
         self.memory_cache = {}
 
         self.logger = logging.getLogger(__name__)
-        self.logger.debug(f"初始化会话管理器，数据库: {self.db_path}")
+        self.logger.info(f"初始化会话管理器，数据库: {self.db_path}")
 
         self.db_manager = DatabaseManager()
         self.step_manager = StepManager()
@@ -89,10 +85,10 @@ class SessionManager:
         self.workspace_registry = WorkspaceRegistry()
         
         # 初始化 SOUL 注入器和记忆管理器
-        self.workspace_path = self.config.get("workspace", {}).get("last_workspace", "./workspace")
         self.soul_injector = SoulInjector()
         self.soul_injector.load()
-        self.logger.debug(f"SOUL 注入器已初始化，工作目录：{self.workspace_path}")
+        workspace_path = get_workspace_path()
+        self.logger.debug(f"SOUL 注入器已初始化，工作目录：{workspace_path}")
         
         self.session_context_cache = {}
     
@@ -105,24 +101,27 @@ class SessionManager:
         Args:
             new_db_path: 新的数据库路径
         """
-        self.db_path = new_db_path
-        self.config['session'] = self.config.get('session', {})
-        self.config['session']['db_path'] = new_db_path
+        # 使用固定的数据库路径：用户目录下面的 .lingxi/data/lingxi.db
+        from pathlib import Path
+        user_home = Path.home()
+        fixed_db_path = str(user_home / ".lingxi" / "data" / "lingxi.db")
+        
+        self.db_path = fixed_db_path
         
         # 调用 DatabaseManager 的 update_db_path 方法
         if hasattr(self.db_manager, 'update_db_path'):
-            self.db_manager.update_db_path(new_db_path)
+            self.db_manager.update_db_path(fixed_db_path)
         else:
             # 备用方案：直接更新 db_path 并重新初始化
-            self.db_manager.db_path = new_db_path
+            self.db_manager.db_path = fixed_db_path
             self.db_manager._init_db()
         
         # 更新工作目录注册表的数据库路径
-        self.workspace_registry.db_path = new_db_path
+        self.workspace_registry.db_path = fixed_db_path
         self.workspace_registry._connection_cache = None
         self.workspace_registry._migrate_database()
         
-        self.logger.info(f"数据库路径已更新：{new_db_path}")
+        self.logger.info(f"数据库路径已更新为固定路径：{fixed_db_path}")
 
     def switch_workspace(self, workspace_path: str):
         """切换工作目录并重新加载 SOUL
@@ -130,8 +129,8 @@ class SessionManager:
         Args:
             workspace_path: 新的工作目录路径
         """
-        self.workspace_path = workspace_path
-        self.soul_injector = SoulInjector(workspace_path)
+        from lingxi.core.soul import SoulInjector
+        self.soul_injector = SoulInjector()
         self.soul_injector.load()
         set_workspace_path(workspace_path) #更新公共的工作目录路径
         self.logger.info(f"工作目录已切换到：{workspace_path}，SOUL 已重新加载")
@@ -216,9 +215,10 @@ class SessionManager:
         Returns:
             会话列表，包含session_id、创建时间、更新时间、消息数量等信息
         """
-        if workspace_path:
+        target_workspace_path = workspace_path or get_workspace_path()
+        if target_workspace_path:
             # 从工作目录注册表中获取该工作目录关联的会话
-            workspace_sessions = self.workspace_registry.get_sessions_by_workspace_path(workspace_path)
+            workspace_sessions = self.workspace_registry.get_sessions_by_workspace_path(target_workspace_path)
             
             # 构建会话ID列表
             session_ids = [s['session_id'] for s in workspace_sessions]
@@ -430,12 +430,13 @@ class SessionManager:
         self.db_manager.execute_sql(sql, (session_id, user_name))
 
         # 如果指定了工作目录，关联会话和工作目录
-        if workspace_path:
-            success = self.workspace_registry.associate_session_with_workspace(session_id, workspace_path)
+        target_workspace_path = workspace_path or get_workspace_path()
+        if target_workspace_path:
+            success = self.workspace_registry.associate_session_with_workspace(session_id, target_workspace_path)
             if success:
-                self.logger.debug(f"会话已关联到工作目录：{session_id} -> {workspace_path}")
+                self.logger.debug(f"会话已关联到工作目录：{session_id} -> {target_workspace_path}")
             else:
-                self.logger.warning(f"会话关联工作目录失败：{session_id} -> {workspace_path}")
+                self.logger.warning(f"会话关联工作目录失败：{session_id} -> {target_workspace_path}")
 
         self.logger.debug(f"会话已创建，session_id: {session_id}, user_name: {user_name}")
         return session_id

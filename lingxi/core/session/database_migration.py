@@ -22,6 +22,7 @@ def migrate_database(db_path: str) -> bool:
     Returns:
         迁移是否成功
     """
+    conn = None
     try:
         conn = sqlite3.connect(db_path, check_same_thread=False)
         cursor = conn.cursor()
@@ -50,7 +51,8 @@ def migrate_database(db_path: str) -> bool:
         return False
 
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def _create_workspaces_table(cursor: sqlite3.Cursor):

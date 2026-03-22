@@ -1,4 +1,16 @@
-## 2026-03-22 - Task: 修复 spawn_subagent 技能及 WebSocket 事件错误
+## 2026-03-22 - 任务：统一数据库路径到用户目录
 
 ### What was done:
-- 修复了 spawn_subagent 技能的 SKILL.md 格式问题，将错误的 delimiters (***
+- 修改了 `lingxi/core/session/session_manager.py` 的 `__init__` 方法，直接使用固定的数据库路径 C:\Users\Administrator\.lingxi\data\lingxi.db
+- 确保所有组件都使用相同的固定数据库路径，消除了同时使用两个数据库文件的问题
+- 验证了服务器日志显示所有组件都已经使用了正确的数据库路径
+
+### Testing:
+- 服务器启动时显示所有组件都使用了正确的数据库路径
+- 数据库迁移成功，使用的是固定的数据库路径
+- 会话管理功能正常工作
+
+### Notes:
+- 现在所有组件都统一使用 C:\Users\Administrator\.lingxi\data\lingxi.db 作为数据库路径
+- 消除了之前同时使用 assistant.db 和 lingxi.db 两个数据库文件的问题
+- 数据库路径已经硬编码到各个组件中，确保一致性

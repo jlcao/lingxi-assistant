@@ -86,6 +86,7 @@ class SkillCaller:
             workspace_manager.set_resources(
                 sandbox=self.sandbox,
                 skill_caller=self,
+                skill_system=self.skill_system,
                 session_store=None,  # 由外部设置
                 event_publisher=None  # 由外部设置
             )

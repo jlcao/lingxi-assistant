@@ -44,8 +44,10 @@ class WorkspaceRegistry:
         Args:
             db_path: 数据库文件路径
         """
-        self.config = get_config()
-        self.db_path = self.config.get("session", {}).get("db_path", "data/assistant.db")
+        # 使用固定的数据库路径：用户目录下面的 .lingxi/data/lingxi.db
+        from pathlib import Path
+        user_home = Path.home()
+        self.db_path = str(user_home / ".lingxi" / "data" / "lingxi.db")
         # 规范化路径
         normalized_path = str(Path(self.db_path).resolve())
         
@@ -54,6 +56,10 @@ class WorkspaceRegistry:
             return
 
         self.db_path = normalized_path
+        # 确保数据库目录存在
+        db_dir = Path(self.db_path).parent
+        db_dir.mkdir(parents=True, exist_ok=True)
+        
         self._connection_cache: Optional[sqlite3.Connection] = None
 
         # 执行数据库迁移
@@ -78,11 +84,55 @@ class WorkspaceRegistry:
     def _migrate_database(self):
         """执行数据库迁移"""
         try:
-            success = migrate_database(self.db_path)
-            if success:
-                logger.info(f"数据库迁移成功：{self.db_path}")
+            # 检查数据库文件是否存在
+            db_file = Path(self.db_path)
+            if not db_file.exists():
+                # 新数据库，直接创建表结构，跳过迁移
+                logger.info(f"新数据库，直接创建表结构：{self.db_path}")
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                
+                # 启用外键支持
+                cursor.execute("PRAGMA foreign_keys = ON;")
+                
+                # 创建 workspaces 表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS workspaces (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        workspace_path TEXT NOT NULL UNIQUE,
+                        name TEXT,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # 创建 sessions 表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        session_id TEXT PRIMARY KEY,
+                        user_name TEXT NOT NULL DEFAULT 'user',
+                        title TEXT NOT NULL DEFAULT '新会话',
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        total_tokens INTEGER NOT NULL DEFAULT 0,
+                        workspace_id INTEGER
+                    )
+                """)
+                
+                # 创建索引
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_workspace_id ON sessions(workspace_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_workspaces_path ON workspaces(workspace_path)")
+                
+                conn.commit()
+                conn.close()
+                logger.info(f"数据库表结构创建完成：{self.db_path}")
             else:
-                logger.error(f"数据库迁移失败：{self.db_path}")
+                # 现有数据库，执行迁移
+                success = migrate_database(self.db_path)
+                if success:
+                    logger.info(f"数据库迁移成功：{self.db_path}")
+                else:
+                    logger.error(f"数据库迁移失败：{self.db_path}")
         except Exception as e:
             logger.error(f"数据库迁移异常：{e}")
 
