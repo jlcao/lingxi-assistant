@@ -20,7 +20,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
     继承自 AsyncReActCore，实现完全异步的执行流程
     """
 
-    def __init__(self, skill_caller=None, session_manager=None, websocket_manager=None):
+    def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager=None, websocket_manager=None):
         """初始化异步 Plan+ReAct 引擎
 
         Args:
@@ -29,7 +29,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
             session_manager: 会话管理器
             websocket_manager: WebSocket 管理器
         """
-        super().__init__(skill_caller, session_manager, websocket_manager)
+        super().__init__(config, skill_caller, session_manager, websocket_manager)
         
         config = get_config()
         complex_config = config.get("execution_mode", {}).get("complex", {})
@@ -117,17 +117,25 @@ class AsyncPlanReActEngine(AsyncReActCore):
         self._publish_plan_events(context,plan_descriptions)
         self.logger.debug(f"分析结果：level={plan_info.get('level', '')}, has_next_action={next_action is not None}, plan_steps={len(plan)}")
         direct_answer = plan_info.get("direct_answer", "")
-        if task_level == "simple" and direct_answer not in ["", None]:
+        # 检查用户是否明确要求使用某个技能
+        user_input_lower = context.user_input.lower()
+        skill_mentioned = any(skill in user_input_lower for skill in ["spawn_subagent", "子代理"])
+        
+        if task_level == "simple" and direct_answer not in ["", None] and not skill_mentioned:
             self.logger.debug("直接回答任务，执行 next_action")
             async for chunk in self._execute_direct_action(direct_answer, context):
                 yield chunk
         elif task_level == "simple":
-             self.logger.warning("简单任务分析未提供 next_action，降级为父类执行")
+             self.logger.warning("简单任务分析未提供 next_action 或用户明确要求使用技能，降级为父类执行")
              async for chunk in super()._execute_task_stream(context):
                 yield chunk
-        elif task_level == "direct":
+        elif task_level == "direct" and not skill_mentioned:
             self.logger.debug("直接回答任务，执行 next_action")
             async for chunk in self._execute_direct_action(direct_answer, context):
+                yield chunk
+        elif task_level == "direct":
+            self.logger.debug("用户明确要求使用技能，降级为父类执行")
+            async for chunk in super()._execute_task_stream(context):
                 yield chunk
         elif plan:
             self.logger.debug("复杂任务，执行计划")
@@ -231,4 +239,12 @@ class AsyncPlanReActEngine(AsyncReActCore):
         """
         self.logger.debug(f"异步 Plan+ReAct 处理任务：{context.task_info.task_type} (stream={context.stream})")
 
-        return self._execute_task_stream(context)
+        if context.stream:
+            return self._execute_task_stream(context)
+        else:
+            # 非流式模式：收集所有结果
+            result = None
+            async for chunk in self._execute_task_stream(context):
+                if chunk.get("type") == "task_finish":
+                    result = chunk.get("result", "")
+            return result

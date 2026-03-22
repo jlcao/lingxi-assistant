@@ -42,11 +42,17 @@ class TaskContext:
     
     def get_task_level(self) -> str:
         """获取任务级别"""
-        return self.task_info.get("level", "simple")
+        if hasattr(self.task_info, 'get'):
+            return self.task_info.get("level", "simple")
+        else:
+            return getattr(self.task_info, "level", "simple")
     
     def get_task_type(self) -> str:
         """获取任务类型"""
-        return self.task_info.get("task_type", "unknown")
+        if hasattr(self.task_info, 'get'):
+            return self.task_info.get("task_type", "unknown")
+        else:
+            return getattr(self.task_info, "task_type", "unknown")
     
     def add_tokens(self, input_tokens: int, output_tokens: int) -> None:
         """累加 token 使用量

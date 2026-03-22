@@ -18,7 +18,7 @@ class SkillCaller:
     
     _instance = None  # 单例实例
     
-    def __init__(self, config: Dict[str, Any]):
+    def __new__(cls, config: Dict[str, Any]):
         """单例模式：确保只创建一个实例"""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -30,12 +30,17 @@ class SkillCaller:
         Args:
             config: 系统配置
         """
+        # 防止重复初始化
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
         self.config = config
         self.logger = logging.getLogger(__name__)
         skill_call_config = config.get("skill_call", {})
         self.default_timeout = skill_call_config.get("default_timeout", 30)
         self.retry_count = skill_call_config.get("retry_count", 1)
         self.verify_ssl = skill_call_config.get("verify_ssl", True)
+        self._initialized = True
         
         # 初始化技能管理器（包含技能注册表）
         # 使用统一的 SkillSystem

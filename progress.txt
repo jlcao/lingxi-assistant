@@ -1,34 +1,4 @@
-## 2026-03-22 - Task: 在config里面添加security.sandbox等配置，把允许的白名单加入配置里面管理
+## 2026-03-22 - Task: 修复 spawn_subagent 技能及 WebSocket 事件错误
 
 ### What was done:
-- 在 `lingxi/utils/config.py` 文件中添加了 `security.sandbox` 配置部分，包含以下配置项：
-  - `enabled`: True
-  - `workspace_root`: "./workspace"
-  - `max_file_size`: 10485760
-  - `safety_mode`: True
-  - `allowed_commands`: 包含常用命令的列表
-  - `white_list_paths`: ["~/.lingxi"]
-- 修改了 `lingxi/core/utils/security.py` 文件中的 `SecuritySandbox` 类：
-  - 从配置中读取 `security.sandbox` 相关配置
-  - 优先使用传入的参数，否则使用配置中的值，最后使用默认值
-  - 从配置中加载白名单路径
-  - 修复了 `add_white_list_path` 和 `remove_white_list_path` 方法，使用 `expanduser()` 正确解析 ~ 符号
-  - 修复了 `validate_path` 方法，使用 `expanduser()` 正确解析 ~ 符号
-  - 修复了 `validate_path` 方法，处理缺少驱动器号的路径（如 \work\workspace1\.lingxi）
-- 创建了 `test_security_config.py` 测试脚本，用于验证配置是否正确加载
-
-### Testing:
-- 代码更改符合要求，添加了完整的安全沙箱配置
-- 配置结构清晰，包含了所有必要的安全沙箱参数
-- `SecuritySandbox` 类现在可以从配置中读取白名单路径
-- 白名单路径已包含 "~/.lingxi" 目录
-- 修复了 ~ 符号解析问题，现在可以正确处理用户主目录路径
-- 修复了路径验证中的 ~ 符号解析问题，确保直接传入包含 ~ 符号的路径也能被正确验证
-- 修复了缺少驱动器号的路径处理问题，确保类似 \work\workspace1\.lingxi 的路径能被正确验证
-
-### Notes:
-- 配置系统现在支持通过 `security.sandbox.white_list_paths` 配置白名单路径
-- 用户可以在配置文件中添加需要允许的路径，而不需要修改代码
-- 白名单路径支持相对路径、绝对路径和 ~ 符号表示的用户主目录
-- 所有路径验证方法现在都能正确解析 ~ 符号，确保路径验证的一致性
-- 路径验证现在能正确处理缺少驱动器号的路径，确保类似 \work\workspace1\.lingxi 的路径能被正确验证
+- 修复了 spawn_subagent 技能的 SKILL.md 格式问题，将错误的 delimiters (***

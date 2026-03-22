@@ -112,10 +112,12 @@ class SubAgentScheduler:
         
         # 创建独立会话（复用现有 SessionManager）
         try:
-            session = self.session_manager.create_session(
+            session_id = self.session_manager.create_session_by_id(
                 session_id=task_id,
                 workspace_path=workspace_path
             )
+            # 创建会话对象
+            session = type('Session', (), {'id': session_id})()
             logger.debug(f"创建子代理会话：{session.id}")
         except Exception as e:
             logger.error(f"创建会话失败：{e}")
@@ -157,30 +159,70 @@ class SubAgentScheduler:
             sub_task.status = "running"
             sub_task.started_at = time.time()
             
+            # 创建任务上下文对象
+            from lingxi.core.context.task_context import TaskContext
+            from lingxi.core.context.session_context import SessionContext
+            
+            # 构建任务信息
+            task_info = type('TaskInfo', (), {
+                'task_id': task_id,
+                'session_id': session.id,
+                'task_type': 'simple',
+                'plan': '[]',
+                'user_input': task,
+                'result': '',
+                'status': 'running',
+                'current_step_idx': 0,
+                'replan_count': 0,
+                'error_info': '',
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'steps': [],
+                'created_at': datetime.now(),
+                'updated_at': datetime.now()
+            })()
+            
+            # 构建会话上下文
+            session_context = SessionContext(session.id)
+            
+            # 构建任务上下文
+            task_context = TaskContext(
+                user_input=task,
+                task_info=task_info,
+                session_id=session.id,
+                session_history=[],
+                stream=False,
+                task_id=task_id,
+                execution_id=task_id,
+                input_tokens=0,
+                output_tokens=0,
+                workspace_path=sub_task.workspace_path,
+                thinking_mode=False,
+                session_context=session_context,
+                steps=[],
+                soul_prompt='',
+                rule=None,
+                userMemory='',
+                projectMemory=None,
+                description=''
+            )
+            
             # 发布任务开始事件
             self.event_publisher.publish(
                 "task_start",
-                task_id=task_id,
-                session_id=session.id,
-                task=task,
-                workspace_path=sub_task.workspace_path,
-                timestamp=sub_task.started_at
+                context=task_context
             )
             
             # 获取或创建引擎（复用现有）
-            from lingxi.core.engine.direct import DirectEngine
+            from lingxi.core.engine import AsyncReActCore
             
-            engine = DirectEngine(
+            engine = AsyncReActCore(
                 config=self.config
             )
             
             # 执行任务（引擎会自动发布步骤事件）
             result = await asyncio.wait_for(
-                engine.execute_task(
-                    task=task,
-                    session_id=session.id,
-                    context=context
-                ),
+                engine.process(task_context),
                 timeout=timeout
             )
             
@@ -189,15 +231,15 @@ class SubAgentScheduler:
             sub_task.result = result
             sub_task.ended_at = time.time()
             sub_task.duration = sub_task.ended_at - sub_task.started_at
+            task_context.task_info.result = result
             
             # 发布任务完成事件
             self.event_publisher.publish(
                 "task_end",
-                task_id=task_id,
-                session_id=session.id,
+                context=task_context,
                 result=result,
-                duration=sub_task.duration,
-                timestamp=sub_task.ended_at
+                input_tokens=0,
+                output_tokens=0
             )
             
             logger.info(f"子代理完成：{task_id} (耗时：{sub_task.duration:.2f}s)")
@@ -209,13 +251,12 @@ class SubAgentScheduler:
             sub_task.duration = sub_task.ended_at - sub_task.started_at
             
             # 发布超时事件
-            self.event_publisher.publish(
-                "task_timeout",
-                task_id=task_id,
-                session_id=session.id,
-                timeout=timeout,
-                timestamp=sub_task.ended_at
-            )
+            if 'task_context' in locals():
+                self.event_publisher.publish(
+                    "task_failed",
+                    context=task_context,
+                    error="任务超时"
+                )
             
             logger.warning(f"子代理超时：{task_id}")
         
@@ -227,13 +268,13 @@ class SubAgentScheduler:
             sub_task.duration = sub_task.ended_at - sub_task.started_at
             
             # 发布失败事件
-            self.event_publisher.publish(
-                "task_failed",
-                task_id=task_id,
-                session_id=session.id,
-                error=str(e),
-                timestamp=sub_task.ended_at
-            )
+            if 'task_context' in locals():
+                task_context.task_info.error_info = str(e)
+                self.event_publisher.publish(
+                    "task_failed",
+                    context=task_context,
+                    error=str(e)
+                )
             
             logger.error(f"子代理失败：{task_id} - {e}")
         

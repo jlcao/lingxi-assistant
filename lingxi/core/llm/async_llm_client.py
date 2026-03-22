@@ -44,7 +44,7 @@ class AsyncLLMClient:
         self.timeout = self.llm_config.get("timeout", 30)
 
         self.models_config = self.llm_config.get("models", {})
-        self.default_model = self.llm_config.get("default_model", "qwen-plus")
+        self.default_model = self.llm_config.get("default_model", "qwen3.5-plus")
         self.retry_count = self.llm_config.get("retry_count", 2)
         self.retry_delay = self.llm_config.get("retry_delay", 1)
 
