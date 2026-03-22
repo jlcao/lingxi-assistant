@@ -265,10 +265,10 @@ class AsyncReActCore(BaseEngine):
                             self.logger.error(f"激进清理后仍然失败：{aggressive_error}")
                             raise e
         except Exception as e:
-            self.logger.error(f"JSON 格式解析失败：{e}，尝试文本格式")
+            self.logger.error(f"JSON 格式解析失败：{e}，尝试文本格式",e, exc_info=True)
             return {"status": "error", "message": str(e)}
 
-    async def _execute_step(
+    async def _execute_step(    
         self,
         step_index: int,
         messages: List[Dict[str, Any]],
@@ -330,7 +330,14 @@ class AsyncReActCore(BaseEngine):
         parsed = self._parse_response(full_response)
         self._publish_think_end(context, step_index, parsed.get("thought", "") if parsed else "")
 
-        if parsed.get("status") == "error":
+        if not parsed:
+            step.status = "failed"
+            step.error = "解析响应失败"
+            step.result = "解析响应失败"
+            step.description = "解析响应失败"
+            self._publish_step_end(context, step_index)
+            yield {"parsed": parsed, "usage": None}
+        elif parsed.get("status") == "error":
             step.status = "failed"
             step.error =  parsed.get("message", "")
             step.result = parsed.get("message", "")
