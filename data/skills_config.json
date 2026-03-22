@@ -1,60 +1,41 @@
 {
   "skills": {
-    "memory_list": {
-      "skill_id": "memory_list",
-      "skill_name": "memory_list",
+    "memory": {
+      "skill_id": "memory",
+      "skill_name": "memory",
       "version": "1.0.0",
       "type": "local",
-      "description": "列出所有记忆或按分类列出记忆。用于查看已保存的记忆内容。",
+      "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
       "author": "Lingxi Team",
       "enabled": true,
       "config": {
-        "name": "memory_list",
-        "description": "列出所有记忆或按分类列出记忆。用于查看已保存的记忆内容。",
+        "name": "memory",
+        "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
         "version": "1.0.0",
-        "trigger_conditions": "用户要求查看、列出记忆时使用",
-        "execution_guidelines": "1. 支持分类过滤\\n2. 支持数量限制\\n3. 显示统计信息",
+        "trigger_conditions": "用户要求查看、列出、管理记忆时触发",
+        "execution_guidelines": "1. 支持分类过滤 2. 支持数量限制 3. 显示统计信息",
         "author": "Lingxi Team",
         "license": "MIT",
-        "skill_id": "memory_list"
+        "depend": "内置file工具（read/search/write/delete）",
+        "storage_path": "user_dir/.lingxi/memory/MEMORY.md",
+        "skill_id": "memory"
       }
     },
-    "memory_save": {
-      "skill_id": "memory_save",
-      "skill_name": "memory_save",
+    "spawn_subagent": {
+      "skill_id": "spawn_subagent",
+      "skill_name": "spawn_subagent",
       "version": "1.0.0",
       "type": "local",
-      "description": "保存新的记忆。当用户告诉你需要记住行为规则，或者用户的偏好时，用户明确要求你记住这某些信息时使用此技能。",
+      "description": "创建子代理来执行任务",
       "author": "Lingxi Team",
       "enabled": true,
       "config": {
-        "name": "memory_save",
-        "description": "保存新的记忆。当用户告诉你需要记住行为规则，或者用户的偏好时，用户明确要求你记住这某些信息时使用此技能。",
+        "name": "spawn_subagent",
+        "description": "创建子代理来执行任务",
         "version": "1.0.0",
-        "trigger_conditions": "用户要求记住、记录、保存某些信息时触发",
-        "execution_guidelines": "1. 验证 content 参数\\n2. 支持分类选择\\n3. 支持标签和重要性设置",
         "author": "Lingxi Team",
         "license": "MIT",
-        "skill_id": "memory_save"
-      }
-    },
-    "memory_search": {
-      "skill_id": "memory_search",
-      "skill_name": "memory_search",
-      "version": "1.0.0",
-      "type": "local",
-      "description": "搜索记忆。当用户询问之前提到的内容、偏好、习惯或历史决策时使用此技能。",
-      "author": "Lingxi Team",
-      "enabled": true,
-      "config": {
-        "name": "memory_search",
-        "description": "搜索记忆。当用户询问之前提到的内容、偏好、习惯或历史决策时使用此技能。",
-        "version": "1.0.0",
-        "trigger_conditions": "用户询问记忆、历史、偏好、习惯时触发",
-        "execution_guidelines": "1. 验证 query 参数\\n2. 支持分类过滤\\n3. 支持标签过滤\\n4. 返回格式化的搜索结果",
-        "author": "Lingxi Team",
-        "license": "MIT",
-        "skill_id": "memory_search"
+        "skill_id": "spawn_subagent"
       }
     },
     "docx": {

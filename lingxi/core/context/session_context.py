@@ -70,24 +70,8 @@ class SessionContext:
         self.enable_llm_summary = compression_config.get("enable_llm_summary", True)
         self.preserve_entities = compression_config.get("preserve_entities", True)
 
-        long_term_config = context_config.get("long_term_memory", {})
-        self.enable_long_term_memory = long_term_config.get("enabled", True)
-
-        if self.enable_long_term_memory:
-            from lingxi.core.context.long_term_memory import LongTermMemory
-            from pathlib import Path
-            
-            # 处理数据库路径：如果是相对路径，转换为相对于用户目录的绝对路径
-            db_path = long_term_config.get("db_path", "data/long_term_memory.db")
-            if not Path(db_path).is_absolute():
-                # 相对路径，转换为用户目录下的绝对路径
-                user_lingxi_dir = Path.home() / ".lingxi"
-                db_path = str(user_lingxi_dir / db_path)
-            
-            self.long_term_memory = LongTermMemory(
-                db_path=db_path,
-                vector_dim=long_term_config.get("vector_dim", 384)
-            )
+        # 移除长期记忆功能
+        self.enable_long_term_memory = False
 
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"初始化上下文管理器，会话ID: {session_id}")
@@ -264,22 +248,11 @@ class SessionContext:
         archived_count = 0
         tokens_freed = 0
 
-        if not self.task_boundary_archive or not self.enable_long_term_memory:
-            return {"tasks_archived": 0, "tokens_freed": 0}
-
+        # 长期记忆功能已移除
         current_task_msgs = [m for m in self.messages if m.task_id == self.current_task_id]
         old_task_msgs = [m for m in self.messages if m.task_id and m.task_id != self.current_task_id]
 
         if old_task_msgs:
-            task_summary = self._generate_task_summary(old_task_msgs)
-
-            self.long_term_memory.store(
-                task_id=old_task_msgs[0].task_id,
-                summary=task_summary,
-                messages=old_task_msgs,
-                session_id=self.session_id
-            )
-
             archived_count = len(old_task_msgs)
             tokens_freed = sum(m.token_count for m in old_task_msgs)
             self.messages = current_task_msgs + [m for m in self.messages if not m.task_id]
@@ -457,19 +430,6 @@ class SessionContext:
         self.current_task_id = task_id
         self.logger.debug(f"设置当前任务ID: {task_id}")
 
-    def retrieve_relevant_history(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """检索相关历史记忆
 
-        Args:
-            query: 查询文本
-            top_k: 返回数量
-
-        Returns:
-            相关历史记录
-        """
-        if not self.enable_long_term_memory:
-            return []
-
-        return self.long_term_memory.retrieve(query, top_k)
 
 # 添加 compress_context 方法到 ContextManager 类

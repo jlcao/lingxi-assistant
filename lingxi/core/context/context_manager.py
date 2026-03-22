@@ -3,10 +3,10 @@ from typing import Dict
 
 from lingxi.core.context.task_context import TaskContext
 from lingxi.core.soul import SoulInjector
-from lingxi.core.memory import MemoryManager, MemoryExtractor
+from lingxi.core.memory import MemoryManager, MemoryExtractor, UserMemoryManager
 from lingxi.core.context.session_context import SessionContext
-
-
+from lingxi.utils.config import get_workspace_path
+from lingxi.core.memory import save_all_memories,save_memory_with_context,search_combined_memory
 
 class ContextManager:
     """上下文管理器，负责管理会话上下文（单例模式）"""
@@ -26,29 +26,36 @@ class ContextManager:
         self.session_contexts: Dict[str, SessionContext] = {}
         self.logger = logging.getLogger(__name__)
         self.soul_injector = SoulInjector()
-        self.memory_manager = MemoryManager()
-        
+          # 记忆管理器
+        self.user_memory_manager = UserMemoryManager()
         self._initialized = True
     
     def _build_soul_and_memory(self,context:TaskContext):
         self.soul_injector.reload()
+         # 加载用户记忆
+        count = self.user_memory_manager.load_all_memories()
+        self.logger.info(f"加载了 {count} 条用户记忆")
         if self.soul_injector.soul_data:
             final_system_prompt = self.soul_injector.soul_content
             
             # 注入记忆到系统提示词
-            if self.memory_manager.memories:
-                memory_context = self._build_memory_context()
-                if memory_context:
-                    final_system_prompt += "\n\n# 用户记忆\n\n" + memory_context
-                    self.logger.debug(f"已注入 {len(self.memory_manager.memories)} 条记忆到系统提示词")
             context.soul_prompt=final_system_prompt
             # 将会话的系统提示词存储到上下文管理器
             self.logger.debug(f"SOUL 已注入到会话：{context.session_id}")
         
-    def _build_memory_context(self,context:TaskContext):
+    def _build_memory_context(self,context:TaskContext) -> str:
         """构建记忆上下文"""
-        #TODO: 实现记忆上下文构建逻辑
-        context.memory_prompt=''
+        # 实现记忆上下文构建逻辑
+        memory_context = ''
+        if hasattr(self.user_memory_manager, 'memory_manager') and hasattr(self.user_memory_manager.memory_manager, 'memories'):
+            memories = self.user_memory_manager.memory_manager.memories.values()
+            if memories:
+                memory_items = []
+                for memory in memories:
+                    memory_items.append(f"- {memory.content} (分类: {memory.category})")
+                memory_context = '\n'.join(memory_items)
+                context.userMemory = memory_context
+        return memory_context
 
     def get_session_context(self,session_id:str) -> SessionContext:
         """获取当前会话的上下文管理器"""

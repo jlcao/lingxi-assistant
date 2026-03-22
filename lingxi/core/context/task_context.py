@@ -23,7 +23,8 @@ class TaskContext:
     steps:List[Step]=field(default_factory=list)  #当前任务已经执行步骤
     soul_prompt: Optional[str] = None  #SOUL提示词
     rule: Optional[str] = None  #规则
-    memory: Optional[str] = None  #长短期记忆
+    userMemory: Optional[str] = None  #用户记忆
+    projectMemory: Optional[str] = None  #项目记忆
     description: Optional[str] = None  #任务描述
     
     
@@ -37,6 +38,7 @@ class TaskContext:
         if self.execution_id is None:
             import time
             self.execution_id = f"exec_{int(time.time())}"
+        
     
     def get_task_level(self) -> str:
         """获取任务级别"""

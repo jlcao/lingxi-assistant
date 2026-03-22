@@ -145,11 +145,7 @@ context_management:
     use_llm: false             # 是否使用 LLM 智能摘要（默认关闭）
     llm_threshold: 50          # 超过多少轮才启用 LLM 压缩
 
-  long_term_memory:
-    enabled: true
-    storage: "sqlite"
-    vector_dim: 384
-    retrieval_top_k: 5
+
 
 engine:
   default: react

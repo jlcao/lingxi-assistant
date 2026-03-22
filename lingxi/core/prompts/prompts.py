@@ -290,7 +290,7 @@ read_skill : 用于读取技能的详细使用说明
 finish(answer) - 完成任务并返回答案
 
 ## 记忆
-{context.memory or ""}
+{context.userMemory or ""}
 
 ## 模型
 qwen3.5-plus
@@ -343,6 +343,9 @@ Action Input: {{"file_path": "test.txt"}}
 
 ## SOUL
 {context.soul_prompt or ""}
+
+## MEMORY
+{context.userMemory or ""}
 
 ## 当前用户输入:
 {context.user_input}
@@ -409,10 +412,6 @@ read_skill : 用于读取技能的详细使用说明
 ## 技能:
 {skills_list}
 
-
-## 记忆
-{context.memory or ""}
-
 #### 模型
 qwen3.5-plus
 
@@ -456,6 +455,11 @@ qwen3.5-plus
 - 必须严格返回JSON格式，不要返回多余的其它内容
 
 {context.soul_prompt or ""}
+
+# 记忆
+这些记忆是你对这个世界的认知，你需要运用memory技能好好的维护这些记忆
+
+{context.userMemory or ""}
 
 """
     

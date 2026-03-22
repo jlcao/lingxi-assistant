@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict, field
 from datetime import datetime
 import hashlib
+from lingxi.utils.config import get_workspace_path, get_config
 
 logger = logging.getLogger(__name__)
 
@@ -37,21 +38,14 @@ class Memory:
 
 
 class MemoryManager:
-    """记忆管理器（单例模式）"""
+    """记忆管理器"""
     
-    _instance = None
-    
-    def __new__(cls, config: Dict[str, Any] = None):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-    
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self):
         if hasattr(self, '_initialized'):
             return
         
-        self.config = config or {}
-        self.workspace_path = self.config.get("workspace", {}).get("default_path", "./workspace")
+        self.config = get_config()
+        self.workspace_path = get_workspace_path()
         
         # 记忆存储
         self.memories: Dict[str, Memory] = {}  # 内存缓存
@@ -103,7 +97,9 @@ class MemoryManager:
         """
         if workspace_path:
             self.workspace_path = workspace_path
-            self.memory_file = os.path.join(self.workspace_path, "MEMORY.md")
+        else:
+            self.workspace_path = get_workspace_path()
+        self.memory_file = os.path.join(self.workspace_path, "MEMORY.md")
         
         if not os.path.exists(self.memory_file):
             logger.debug(f"MEMORY.md 不存在：{self.memory_file}")

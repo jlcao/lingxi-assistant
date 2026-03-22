@@ -70,6 +70,19 @@ DEFAULT_CONFIG = {
         "default": "react",
         "max_steps": 50,
         "timeout": 60
+    },
+    "security": {
+        "sandbox": {
+            "enabled": True,
+            "workspace_root": "./workspace",
+            "max_file_size": 10485760,
+            "safety_mode": True,
+            "allowed_commands": [
+                "ls", "pwd", "git", "cat", "grep", "find",
+                "dir", "cd", "echo", "type", "where"
+            ],
+            "white_list_paths": ["~/.lingxi"]
+        }
     }
 }
 

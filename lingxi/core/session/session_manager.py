@@ -15,7 +15,7 @@ from lingxi.core.session.step_manager import StepManager, step_to_dict, dict_to_
 from lingxi.core.session.session_models import Task
 from lingxi.core.session.workspace_registry import WorkspaceRegistry
 from lingxi.core.soul import SoulInjector
-from lingxi.core.memory import MemoryManager, MemoryExtractor
+from lingxi.core.memory import MemoryManager, MemoryExtractor, UserMemoryManager
 from lingxi.utils.config import get_config,set_workspace_path
 
 
@@ -93,15 +93,6 @@ class SessionManager:
         self.soul_injector = SoulInjector()
         self.soul_injector.load()
         self.logger.debug(f"SOUL 注入器已初始化，工作目录：{self.workspace_path}")
-        
-        # 记忆管理器
-        self.memory_manager = MemoryManager(self.config)
-        self.memory_extractor = MemoryExtractor(self.memory_manager)
-        
-        # 自动加载 MEMORY.md
-        if self.workspace_path:
-            count = self.memory_manager.load_memory(self.workspace_path)
-            self.logger.info(f"加载了 {count} 条记忆")
         
         self.session_context_cache = {}
     

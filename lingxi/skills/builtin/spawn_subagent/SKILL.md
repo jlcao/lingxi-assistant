@@ -1,3 +1,10 @@
+---
+name: spawn_subagent
+description: 创建子代理来执行任务
+version: 1.0.0
+author: Lingxi Team
+license: MIT
+---
 # Spawn Subagent - 创建子代理技能
 
 ## 功能描述

@@ -68,7 +68,7 @@ class ContextAddMsgSubscriber:
         task_id = context.task_id
         user_input = context.user_input
         #context.session_context.add_message(role='assistant', content=f"当前对话 task_id:{task_id} 开始",content_type=ContentType.USER_INPUT,task_id=task_id)
-        context.session_context.add_message(role='user', content=user_input,content_type=ContentType.USER_INPUT,task_id=task_id)
+        #context.session_context.add_message(role='user', content=user_input,content_type=ContentType.USER_INPUT,task_id=task_id)
 
     def handle_plan_final(self, context: TaskContext, **kwargs):
         """处理任务规划开始事件

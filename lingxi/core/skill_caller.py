@@ -197,19 +197,19 @@ class SkillCaller:
             self.sandbox.check_security_parameters(skill_name, action_type, parameters)
         except SecurityError as e:
             self.logger.error(f"安全检查失败: {e}")
-            return {"success": False, "error": f"该任务无法完成，只能操作工作空间内的文件或目录: {str(e)}"}
+            return {"success": False, "result": f"该任务无法完成，只能操作工作空间内的文件或目录: {str(e)}"}
 
         if action_type not in ["tool", "skill"]:
             error_msg = f"无效的行动类型: {action_type}"
             self.logger.warning(error_msg)
-            return {"success": False, "error": error_msg}
+            return {"success": False, "result": error_msg}
         if action_type == "tool" :
             tool_res = self.tool.execute_tool(skill_name, **parameters)
             tool_status = tool_res.get('status')
             if tool_status == 'F':
                 error_msg = f"工具执行失败: {skill_name} : {tool_res.get('error')}"
                 self.logger.warning(error_msg)
-                return {"success": False, "error": error_msg, "result_description": tool_res.get('result_description')}
+                return {"success": False, "result": error_msg, "result_description": tool_res.get('result_description')}
             elif tool_status == 'S':
                 return {"success": True, "result": str(tool_res), "result_description": tool_res.get('result_description')}
         else :
