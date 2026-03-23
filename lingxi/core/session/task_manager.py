@@ -51,13 +51,9 @@ def dict_to_task(task_dict: dict) -> Task:
 
 class TaskManager:
     """任务管理器，负责任务的增删改查和状态管理"""
-    _instance = None  # 单例实例
-
     def __new__(cls, db_manager, step_manager, logger: logging.Logger):
-        """单例模式：确保只创建一个实例"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        """创建新实例"""
+        return super().__new__(cls)
 
     def __init__(self, db_manager, step_manager, logger: logging.Logger):
         """初始化任务管理器
@@ -375,6 +371,20 @@ class TaskManager:
 
         tasks = []
         for row in rows:
+            # 确保时间戳格式正确
+            created_at = row[13]
+            updated_at = row[14]
+            
+            if isinstance(created_at, datetime):
+                created_at_str = created_at.isoformat()
+            else:
+                created_at_str = created_at
+            
+            if isinstance(updated_at, datetime):
+                updated_at_str = updated_at.isoformat()
+            else:
+                updated_at_str = updated_at
+                
             task_dict = {
                 "task_id": row[0],
                 "session_id": row[1],
@@ -389,8 +399,8 @@ class TaskManager:
                 "error_info": row[10],
                 "input_tokens": row[11],
                 "output_tokens": row[12],
-                "created_at": row[13],
-                "updated_at": row[14]
+                "created_at": created_at_str,
+                "updated_at": updated_at_str
             }
 
             task_dict["steps"] = self.step_manager.get_steps(row[0])

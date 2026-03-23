@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -45,13 +46,9 @@ def dict_to_session(session_dict: dict) -> Session:
 class SessionManager:
     """会话管理器，实现会话管理、检查点功能和上下文管理"""
 
-    _instance = None
-
     def __new__(cls, config: Dict[str, Any], session_id: str = "default"):
-        """单例模式：确保只创建一个实例"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        """创建新实例"""
+        return super().__new__(cls)
 
     def __init__(self, config: Dict[str, Any], session_id: str = "default"):
         """初始化会话管理器
@@ -86,7 +83,9 @@ class SessionManager:
         # 记忆管理器
         self.memory_manager = MemoryManager(config)
         self.memory_extractor = MemoryExtractor(self.memory_manager)
-        self.session_context_cache = {}
+        self.session_context_cache = {}  # 每个实例独立的缓存
+        self.session_cache_expiry = 3600  # 缓存过期时间（秒）
+        self.session_cache_max_size = 100  # 缓存最大大小
         
         # 自动加载 MEMORY.md
         if self.workspace_path:
@@ -97,12 +96,26 @@ class SessionManager:
 
     def get_session_context(self,session_id:str) -> ContextManager:
         """获取当前会话的上下文管理器"""
+        # 清理过期缓存
+        self._clean_expired_cache()
+        
+        # 检查缓存大小限制
+        if len(self.session_context_cache) >= self.session_cache_max_size:
+            self._evict_oldest_cache()
+        
         session_context = self.session_context_cache.get(session_id)
         if session_context is None:
             session_context = ContextManager(self.config, session_id)
-            self.session_context_cache[session_id] = session_context
+            self.session_context_cache[session_id] = {
+                'context': session_context,
+                'timestamp': time.time()
+            }
             self._build_soul_and_memory(session_id);
-        return session_context
+        else:
+            # 更新缓存时间戳
+            self.session_context_cache[session_id]['timestamp'] = time.time()
+        
+        return self.session_context_cache[session_id]['context']
     
 
     def update_db_path(self, new_db_path: str):
@@ -688,13 +701,55 @@ class SessionManager:
                 first_message = first_message_row[0][:50] if first_message_row and first_message_row[0] else ""
                 cursor.close()
 
+                # 确保时间戳格式正确并转换为本地时间
+                if isinstance(created_at, datetime):
+                    # 转换为本地时间
+                    import pytz
+                    local_tz = pytz.timezone('Asia/Shanghai')
+                    if created_at.tzinfo is None:
+                        # 假设存储的是UTC时间，转换为本地时间
+                        created_at = pytz.utc.localize(created_at).astimezone(local_tz)
+                    created_at_str = created_at.isoformat()
+                else:
+                    # 如果是字符串，先解析为datetime，再转换为本地时间
+                    import pytz
+                    local_tz = pytz.timezone('Asia/Shanghai')
+                    try:
+                        created_at_dt = datetime.fromisoformat(created_at)
+                        if created_at_dt.tzinfo is None:
+                            created_at_dt = pytz.utc.localize(created_at_dt).astimezone(local_tz)
+                        created_at_str = created_at_dt.isoformat()
+                    except:
+                        created_at_str = created_at
+                
+                if isinstance(updated_at, datetime):
+                    # 转换为本地时间
+                    import pytz
+                    local_tz = pytz.timezone('Asia/Shanghai')
+                    if updated_at.tzinfo is None:
+                        # 假设存储的是UTC时间，转换为本地时间
+                        updated_at = pytz.utc.localize(updated_at).astimezone(local_tz)
+                    updated_at_str = updated_at.isoformat()
+                else:
+                    # 如果是字符串，先解析为datetime，再转换为本地时间
+                    import pytz
+                    local_tz = pytz.timezone('Asia/Shanghai')
+                    try:
+                        updated_at_dt = datetime.fromisoformat(updated_at)
+                        if updated_at_dt.tzinfo is None:
+                            updated_at_dt = pytz.utc.localize(updated_at_dt).astimezone(local_tz)
+                        updated_at_str = updated_at_dt.isoformat()
+                    except:
+                        updated_at_str = updated_at
+
                 sessions.append({
                     "session_id": session_id,
                     "title": title,
+                    "name": title,  # 同时返回name字段，确保前端兼容性
                     "message_count": task_count,
                     "first_message": first_message,
-                    "created_at": created_at,
-                    "updated_at": updated_at,
+                    "created_at": created_at_str,
+                    "updated_at": updated_at_str,
                     "has_checkpoint": False
                 })
             except Exception as e:
@@ -728,14 +783,25 @@ class SessionManager:
 
         task_list = self.task_manager.get_tasks_by_session(session_id)
 
+        # 确保时间戳格式正确
+        if isinstance(created_at, datetime):
+            created_at_str = created_at.isoformat()
+        else:
+            created_at_str = created_at
+        
+        if isinstance(updated_at, datetime):
+            updated_at_str = updated_at.isoformat()
+        else:
+            updated_at_str = updated_at
+
         return {
             "session_id": session_id,
             "title": title,
             "task_count": len(task_list),
             "task_list": task_list,
             "total_tokens": total_tokens,
-            "created_at": created_at,
-            "updated_at": updated_at,
+            "created_at": created_at_str,
+            "updated_at": updated_at_str,
             "has_checkpoint": checkpoint_json is not None
         }
 
@@ -805,11 +871,20 @@ class SessionManager:
         Returns:
             会话 ID
         """
+        # 生成递增的会话名称
+        conn = self.db_manager.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM sessions")
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        session_title = f"会话{count + 1}"
+        
         sql = """
             INSERT INTO sessions (session_id, user_name, title, total_tokens, created_at, updated_at)
-            VALUES (?, ?, '新会话', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         """
-        self.db_manager.execute_sql(sql, (session_id, user_name))
+        self.db_manager.execute_sql(sql, (session_id, user_name, session_title))
 
         # 如果指定了工作目录，关联会话和工作目录
         if workspace_path:
@@ -836,9 +911,44 @@ class SessionManager:
                     self.logger.debug(f"已注入 {len(self.memory_manager.memories)} 条记忆到系统提示词")
             
             # 将会话的系统提示词存储到上下文管理器
-            self.get_session_context(session_id).add_context_item("system", final_system_prompt)
-            self.get_session_context(session_id).set_soul(final_system_prompt)
+            # 直接访问缓存，避免递归调用
+            if session_id not in self.session_context_cache:
+                context = ContextManager(self.config, session_id)
+                self.session_context_cache[session_id] = {
+                    'context': context,
+                    'timestamp': time.time()
+                }
+            
+            context = self.session_context_cache[session_id]['context']
+            context.add_context_item("system", final_system_prompt)
+            context.set_soul(final_system_prompt)
             self.logger.debug(f"SOUL 已注入到会话：{session_id}")    
+    
+    def _clean_expired_cache(self):
+        """清理过期的会话缓存"""
+        current_time = time.time()
+        expired_sessions = []
+        
+        for session_id, cache_data in self.session_context_cache.items():
+            if current_time - cache_data['timestamp'] > self.session_cache_expiry:
+                expired_sessions.append(session_id)
+        
+        for session_id in expired_sessions:
+            del self.session_context_cache[session_id]
+            self.logger.debug(f"清理过期缓存：{session_id}")
+    
+    def _evict_oldest_cache(self):
+        """当缓存达到上限时，移除最旧的缓存"""
+        if not self.session_context_cache:
+            return
+        
+        oldest_session = min(
+            self.session_context_cache.items(),
+            key=lambda x: x[1]['timestamp']
+        )[0]
+        
+        del self.session_context_cache[oldest_session]
+        self.logger.debug(f"缓存达到上限，移除最旧缓存：{oldest_session}")
 
     def _build_memory_context(self) -> str:
         """构建记忆上下文"""

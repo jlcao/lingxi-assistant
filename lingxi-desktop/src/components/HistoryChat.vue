@@ -116,7 +116,7 @@ async function handleSelectWorkspace() {
             id: session.session_id || session.id,
             name: session.title || session.name || '新会话',
             createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
-            updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
+            updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : (session.created_at ? new Date(session.created_at).getTime() : Date.now())
           }))
           
           appStore.setSessions(formattedSessions)
@@ -158,10 +158,44 @@ function formatSessionTime(timestamp?: number): string {
 
 async function handleNewSession() {
   try {
-    const sessionData = await window.electronAPI.api.createSession()
-      const session = {
-      id: sessionData.session_id,
-      name: sessionData.first_message || '新会话',
+    let sessionId: string
+    
+    // 检查 Electron 环境是否可用
+    if (!window.electronAPI || !window.electronAPI.api) {
+      console.warn('Electron API is not available, running in browser mode')
+      // 在浏览器模式下，生成一个本地会话ID
+      sessionId = `local_${Date.now()}`
+    } else {
+      const sessionData = await window.electronAPI.api.createSession()
+      sessionId = sessionData.session_id
+      // 重新加载会话列表以获取后端生成的正确会话名称和时间戳
+      const currentWorkspace = workspaceStore.currentWorkspace
+      let sessionsResult
+      if (currentWorkspace?.workspace) {
+        sessionsResult = await window.electronAPI.api.getWorkspaceSessions(currentWorkspace.workspace)
+      } else {
+        sessionsResult = await window.electronAPI.api.getSessions()
+      }
+      const allSessions = sessionsResult.sessions || []
+      const newSession = allSessions.find(s => s.session_id === sessionId)
+      if (newSession) {
+        const session = {
+          id: newSession.session_id,
+          name: newSession.title || newSession.name || '新会话',
+          createdAt: newSession.created_at ? new Date(newSession.created_at).getTime() : Date.now(),
+          updatedAt: newSession.updated_at ? new Date(newSession.updated_at).getTime() : Date.now()
+        }
+        appStore.setSessions([...sessions.value, session])
+        await handleSelectSession(session.id)
+        return
+      }
+    }
+    
+    // 生成有意义的会话名称，比如会话1、会话2等
+    const sessionCount = sessions.value.length + 1
+    const session = {
+      id: sessionId,
+      name: `会话${sessionCount}`,
       createdAt: Date.now(),
       updatedAt: Date.now()
     }
@@ -169,6 +203,21 @@ async function handleNewSession() {
     await handleSelectSession(session.id)
   } catch (error) {
     console.error('Failed to create session:', error)
+    // 在浏览器模式下，即使API调用失败也创建本地会话
+    if (!window.electronAPI || !window.electronAPI.api) {
+      const sessionId = `local_${Date.now()}`
+      const sessionCount = sessions.value.length + 1
+      const session = {
+        id: sessionId,
+        name: `会话${sessionCount}`,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+      appStore.setSessions([...sessions.value, session])
+      await handleSelectSession(session.id)
+    } else {
+      alert('创建会话失败：' + (error as Error).message)
+    }
   }
 }
 
@@ -176,12 +225,19 @@ async function handleSelectSession(sessionId: string) {
   console.log('handleSelectSession called with sessionId:', sessionId)  
   if (!sessionId) {
     console.error('Invalid sessionId')
-    appStore.setTurns([])
     return
   }
   
   appStore.setCurrentSession(sessionId)  
   try {
+    // 检查 Electron 环境是否可用
+    if (!window.electronAPI || !window.electronAPI.api) {
+      console.warn('Electron API is not available, running in browser mode')
+      // 在浏览器模式下，使用空的消息列表
+      appStore.setTurns(sessionId, [])
+      return
+    }
+    
     console.log('Calling getSessionInfo for sessionId:', sessionId)
     const sessionInfo = await window.electronAPI.api.getSessionInfo(sessionId)
     console.log('Received sessionInfo:', sessionInfo)
@@ -191,22 +247,24 @@ async function handleSelectSession(sessionId: string) {
       sessionInfo.task_list.forEach((task: any, taskIndex: number) => {
         // 添加用户消息
         if (task.user_input) {
+          const userTime = task.created_at ? new Date(task.created_at).getTime() : Date.now()
           turns.push({
             id: `${sessionId}_${taskIndex}_user`,
             role: 'user',
             content: task.user_input,
-            time: task.created_at || Date.now(),
-            timestamp: task.created_at || Date.now()
+            time: userTime,
+            timestamp: userTime
           })
         }
         
         // 添加助手消息
+        const assistantTime = task.updated_at ? new Date(task.updated_at).getTime() : Date.now()
         turns.push({
           id: `${sessionId}_${taskIndex}_assistant`,
           role: 'assistant',
           content: task.result || '',
-          time: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
-          timestamp: task.updated_at ? new Date(task.updated_at).getTime() : Date.now(),
+          time: assistantTime,
+          timestamp: assistantTime,
           steps: task.steps || [],
           plan: task.plan || null,
           executionId: task.task_id || null,
@@ -215,10 +273,14 @@ async function handleSelectSession(sessionId: string) {
         })
       })
     }
-    appStore.setTurns(turns)
+    
+    appStore.setTurns(sessionId, turns)
   } catch (error: any) {
     console.error('Failed to load session info:', error)
-    if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
+    // 在浏览器模式下，即使API调用失败也设置空的消息列表
+    if (!window.electronAPI || !window.electronAPI.api) {
+      appStore.setTurns(sessionId, [])
+    } else if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
       console.log('Session does not exist, removing from list')
       const updatedSessions = sessions.value.filter(s => s.id !== sessionId)
       appStore.setSessions(updatedSessions)
@@ -228,9 +290,6 @@ async function handleSelectSession(sessionId: string) {
       } else {
         appStore.setCurrentSession(null)
       }
-      appStore.setTurns([])
-    } else {
-      appStore.setTurns([])
     }
   }
 }

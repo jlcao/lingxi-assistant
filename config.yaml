@@ -33,23 +33,23 @@ execution_mode:
     max_tokens: 1000
     name: direct
 llm:
-  api_key: your-dashscope-api-key-here
-  base_url: https://coding.dashscope.aliyuncs.com/v1
-  default_model: kimi-k2.5
+  api_key: sk-aac37ac4e36f4596816779ceffbf1d1a
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  default_model: qwen3.5-plus
   max_tokens: 32000
   model: qwen3.5-plus
   models:
     complex:
       max_tokens: 32000
-      model: kimi-k2.5
+      model: qwen3.5-plus
       temperature: 0.7
     simple:
       max_tokens: 32000
-      model: kimi-k2.5
+      model: qwen3.5-plus
       temperature: 0.7
     trivial:
       max_tokens: 32000
-      model: kimi-k2.5
+      model: qwen3.5-plus
       temperature: 0.7
   provider: openai
   temperature: 0.7
@@ -63,7 +63,7 @@ logging:
       level: INFO
       message: WebSocket连接断开
   format: '%(asctime)s - %(levelname)s - %(message)s'
-  level: INFO
+  level: DEBUG
   max_file_size_mb: 10
 session:
   checkpoint_ttl_hours: 24
@@ -115,4 +115,4 @@ web:
     ping_interval: 20
     ping_timeout: 30
 workspace:
-  last_workspace: D:\workspace\work2
+  last_workspace: C:\Users\85440\Documents\trae_projects\lingxi-assistant\lingxi-desktop\test-workspace-2

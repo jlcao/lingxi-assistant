@@ -9,13 +9,9 @@ from typing import Optional, List, Any, Dict
 
 class DatabaseManager:
     """数据库管理器，负责数据库连接、事务管理和初始化"""
-    _instance = None  # 单例实例
-
     def __new__(cls, db_path: str, logger: logging.Logger):
-        """单例模式：确保只创建一个实例"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        """创建新实例"""
+        return super().__new__(cls)
 
     def __init__(self, db_path: str, logger: logging.Logger):
         """初始化数据库管理器

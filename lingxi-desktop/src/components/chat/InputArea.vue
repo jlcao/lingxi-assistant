@@ -66,7 +66,8 @@ async function handleSend() {
   const executionId = `temp_${timestamp}`
 
   // 一次性添加用户消息和临时助手消息
-  const newTurns = [...appStore.turns]
+  const currentTurns = appStore.getTurns(currentSessionId.value || '')
+  const newTurns = [...currentTurns]
   
   // 添加用户消息
   newTurns.push({
@@ -92,11 +93,22 @@ async function handleSend() {
   })
 
   // 一次性更新状态
-  appStore.setTurns(newTurns)
+  appStore.setTurns(currentSessionId.value || '', newTurns)
   // 设置loading状态为true，禁用发送按钮
   appStore.setLoading(true)
 
   try {
+    // 检查 Electron 环境是否可用
+    if (!window.electronAPI || !window.electronAPI.api) {
+      console.warn('Electron API is not available, running in browser mode')
+      // 在浏览器模式下，模拟API调用成功
+      setTimeout(() => {
+        inputText.value = ''
+        appStore.setLoading(false)
+      }, 500)
+      return
+    }
+    
     const result = await window.electronAPI.api.executeTask(
       userMessage,
       currentSessionId.value
@@ -105,6 +117,8 @@ async function handleSend() {
     inputText.value = ''
   } catch (error) {
     console.error('Failed to execute task:', error)
+    // 即使API调用失败，也清空输入框
+    inputText.value = ''
   } finally {
     // 无论成功还是失败，都设置loading状态为false
     appStore.setLoading(false)

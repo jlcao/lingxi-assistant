@@ -78,6 +78,10 @@ class ContextManager:
                 vector_dim=long_term_config.get("vector_dim", 384)
             )
 
+        # LLM压缩缓存
+        self.summary_cache = {}  # 缓存LLM摘要结果
+        self.cache_ttl = 3600  # 缓存过期时间（秒）
+
         self.logger = logging.getLogger(__name__)
         self.logger.debug(f"初始化上下文管理器，会话ID: {session_id}")
     def add_context_item(self,role:str,content:str):
@@ -291,6 +295,20 @@ class ContextManager:
 
     def _summarize_with_llm(self, content: str) -> str:
         """使用LLM智能摘要"""
+        # 生成缓存键
+        import hashlib
+        content_hash = hashlib.md5(content.encode()).hexdigest()
+        cache_key = f"{content_hash}_{self.summary_ratio}_{self.preserve_entities}"
+        
+        # 检查缓存
+        current_time = time.time()
+        if cache_key in self.summary_cache:
+            cached_data = self.summary_cache[cache_key]
+            if current_time - cached_data['timestamp'] < self.cache_ttl:
+                self.logger.debug(f"LLM摘要缓存命中")
+                return cached_data['summary']
+        
+        # 缓存未命中，生成摘要
         max_length = int(len(content) * self.summary_ratio)
         if max_length < 50:
             max_length = 50
@@ -298,9 +316,42 @@ class ContextManager:
         if self.preserve_entities:
             entities = self._extract_entities(content)
             entity_str = ", ".join(entities) if entities else ""
-            return f"[摘要] {content[:max_length]}... 关键实体: {entity_str}"
-
-        return f"[摘要] {content[:max_length]}..."
+            summary = f"[摘要] {content[:max_length]}... 关键实体: {entity_str}"
+        else:
+            summary = f"[摘要] {content[:max_length]}..."
+        
+        # 缓存结果
+        self.summary_cache[cache_key] = {
+            'summary': summary,
+            'timestamp': current_time
+        }
+        
+        # 清理过期缓存
+        self._clean_summary_cache()
+        
+        return summary
+    
+    def _clean_summary_cache(self):
+        """清理过期的摘要缓存"""
+        current_time = time.time()
+        expired_keys = []
+        
+        for key, cache_data in self.summary_cache.items():
+            if current_time - cache_data['timestamp'] > self.cache_ttl:
+                expired_keys.append(key)
+        
+        for key in expired_keys:
+            del self.summary_cache[key]
+        
+        # 限制缓存大小
+        if len(self.summary_cache) > 1000:
+            # 保留最近使用的缓存
+            sorted_items = sorted(
+                self.summary_cache.items(),
+                key=lambda x: x[1]['timestamp'],
+                reverse=True
+            )[:500]
+            self.summary_cache = dict(sorted_items)
 
     def _truncate_summary(self, content: str, max_length: int = 200) -> str:
         """截断摘要"""

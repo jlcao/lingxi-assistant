@@ -193,7 +193,9 @@ async function handleClearHistory() {
       await window.electronAPI.api.clearSessionHistory(appStore.currentSessionId)
     }
     // 清空前端历史记录
-    appStore.setTurns([])
+    if (appStore.currentSessionId) {
+      appStore.setTurns(appStore.currentSessionId, [])
+    }
   } catch {
     console.log('Clear cancelled')
   }
@@ -276,28 +278,32 @@ async function handleSend() {
     }
 
     // 添加用户消息到聊天区
-    appStore.setTurns([...appStore.turns, {
-      id: `user-${timestamp}`,
-      role: 'user',
-      content: userMessage,
-      time: timestamp
-    }])
+    if (appStore.currentSessionId) {
+      const currentTurns = appStore.getTurns(appStore.currentSessionId)
+      appStore.setTurns(appStore.currentSessionId, [...currentTurns, {
+        id: `user-${timestamp}`,
+        role: 'user',
+        content: userMessage,
+        time: timestamp
+      }])
 
-    // 创建一个临时的助手消息，用于接收流式响应
-    const tempAssistantMessage = {
-      id: `assistant-${timestamp}`,
-      role: 'assistant',
-      content: '',
-      time: timestamp + 100,
-      executionId: `temp_${timestamp}`,
-      status: 'running',
-      isStreaming: true,
-      isThinking: false,
-      thought: '',
-      steps: [],
-      plan: null
+      // 创建一个临时的助手消息，用于接收流式响应
+      const tempAssistantMessage = {
+        id: `assistant-${timestamp}`,
+        role: 'assistant',
+        content: '',
+        time: timestamp + 100,
+        executionId: `temp_${timestamp}`,
+        status: 'running',
+        isStreaming: true,
+        isThinking: false,
+        thought: '',
+        steps: [],
+        plan: null
+      }
+      const updatedTurns = appStore.getTurns(appStore.currentSessionId)
+      appStore.setTurns(appStore.currentSessionId, [...updatedTurns, tempAssistantMessage])
     }
-    appStore.setTurns([...appStore.turns, tempAssistantMessage])
 
     inputText.value = ''
 
@@ -312,16 +318,18 @@ async function handleSend() {
       } catch (error) {
         console.error('Failed to send message:', error)
         // 更新助手消息为失败状态
-        const updatedTurns = [...appStore.turns]
-        const targetIndex = updatedTurns.findIndex(turn => turn.executionId === `temp_${timestamp}`)
-        if (targetIndex !== -1) {
-          updatedTurns[targetIndex] = {
-            ...updatedTurns[targetIndex],
-            status: 'failed',
-            error: '发送消息失败',
-            isStreaming: false
+        if (appStore.currentSessionId) {
+          const updatedTurns = appStore.getTurns(appStore.currentSessionId)
+          const targetIndex = updatedTurns.findIndex(turn => turn.executionId === `temp_${timestamp}`)
+          if (targetIndex !== -1) {
+            updatedTurns[targetIndex] = {
+              ...updatedTurns[targetIndex],
+              status: 'failed',
+              error: '发送消息失败',
+              isStreaming: false
+            }
+            appStore.setTurns(appStore.currentSessionId, updatedTurns)
           }
-          appStore.setTurns(updatedTurns)
         }
       }
     }

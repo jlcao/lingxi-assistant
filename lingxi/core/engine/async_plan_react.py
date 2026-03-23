@@ -359,6 +359,13 @@ class AsyncPlanReActEngine(AsyncReActCore):
         soul_prompt = context.session_context.soul_prompt
         thinking_mode = context.thinking_mode
         
+        # 确保历史上下文不为空
+        if not history_context:
+            # 直接从会话管理器获取历史记录
+            if self.session_manager:
+                history = self.session_manager.get_history(session_id)
+                history_context = self._build_history_context(history)
+        
         messages = PromptTemplates.build_task_analysis_messages_with_cache(
             task=task,
             history_context=history_context,

@@ -121,9 +121,16 @@ class AsyncLLMClient:
         for attempt in range(self.retry_count + 1):
             try:
                 url = self._get_api_url()
+                self.logger.debug(f"LLM API 请求: URL={url}, Model={model}, API Key Length={len(self.api_key)}")
+                self.logger.debug(f"请求消息数量: {len(messages)}")
+                
                 async with client.stream('POST', url, json=payload) as response:
+                    self.logger.debug(f"API 响应状态码: {response.status_code}")
+                    self.logger.debug(f"响应头: {dict(response.headers)}")
+                    
                     if response.status_code != 200:
                         error_text = await response.aread()
+                        self.logger.error(f"API 错误响应: {error_text.decode()}")
                         raise Exception(f"API 错误：{response.status_code} - {error_text.decode()}")
 
                     async for line in response.aiter_lines():

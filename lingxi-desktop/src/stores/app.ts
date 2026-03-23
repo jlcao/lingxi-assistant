@@ -29,7 +29,7 @@ export const useAppStore = defineStore('app', {
     currentSessionId: null as string | null,
     sessions: [] as Session[],
     selectedSessions: [] as string[],
-    turns: [] as any[],
+    turns: {} as Record<string, any[]>, // 改为按会话ID存储消息
     checkpoints: [] as Checkpoint[],
     activeCheckpoints: [] as Checkpoint[],
     wsConnected: false,
@@ -48,8 +48,19 @@ export const useAppStore = defineStore('app', {
     setSessions(sessions: Session[]) {
       this.sessions = sessions
     },
-    setTurns(turns: any[]) {
-      this.turns = turns
+    setTurns(sessionId: string, turns: any[]) {
+      this.turns[sessionId] = turns
+    },
+    
+    getTurns(sessionId: string): any[] {
+      return this.turns[sessionId] || []
+    },
+    
+    addTurn(sessionId: string, turn: any) {
+      if (!this.turns[sessionId]) {
+        this.turns[sessionId] = []
+      }
+      this.turns[sessionId].push(turn)
     },
     setCheckpoints(checkpoints: Checkpoint[]) {
       this.checkpoints = checkpoints

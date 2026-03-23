@@ -47,10 +47,16 @@ class AsyncReActCore(BaseEngine):
             return ""
         
         context_lines = []
-        for msg in history[-10:]:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            context_lines.append(f"{role}: {content}")
+        # 历史记录是按创建时间降序排列的，所以取前10条就是最新的10条
+        for msg in history[:10]:
+            # 处理从 task_manager 中获取的任务格式
+            if "user_input" in msg and msg["user_input"]:
+                context_lines.append(f"user: {msg['user_input']}")
+            if "result" in msg and msg["result"]:
+                context_lines.append(f"assistant: {msg['result']}")
+            # 处理其他格式
+            elif "role" in msg and "content" in msg:
+                context_lines.append(f"{msg['role']}: {msg['content']}")
         
         return "\n".join(context_lines)
 

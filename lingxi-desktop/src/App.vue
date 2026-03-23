@@ -88,7 +88,7 @@ async function initializeApp() {
         id: session.session_id || session.id,
         name: session.title || session.name || '新会话',
         createdAt: session.created_at ? new Date(session.created_at).getTime() : Date.now(),
-        updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : Date.now()
+        updatedAt: session.updated_at ? new Date(session.updated_at).getTime() : (session.created_at ? new Date(session.created_at).getTime() : Date.now())
       }))
 
       appStore.setSessions(formattedSessions)
