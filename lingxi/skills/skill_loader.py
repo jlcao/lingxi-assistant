@@ -233,6 +233,14 @@ class SkillLoader:
                         self.logger.debug(f"SKILL.md 内容已缓存：{skill_id}")
                 except Exception as e:
                     self.logger.warning(f"读取 SKILL.md 内容失败：{e}")
+                
+                # 缓存技能目录下的所有文件
+                if self.cache:
+                    try:
+                        cached_count = self.cache.cache_skill_files(skill_id, skill_dir)
+                        self.logger.debug(f"技能文件已缓存：{skill_id} ({cached_count} 个文件)")
+                    except Exception as e:
+                        self.logger.warning(f"缓存技能文件失败：{e}")
             
             return config
         

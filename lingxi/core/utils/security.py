@@ -120,6 +120,9 @@ class SecuritySandbox:
         """
         if not params:
             return True
+        if skill_name == "read_skill":
+            self.logger.info(f"读取技能说明文件,跳过沙箱检查: {params.get('file_path', 'SKILL.md')}")
+            return True
         
         path_keywords = ['path', 'file', 'dir', 'directory', 'folder', 'filepath', 'dirpath']
         

@@ -60,7 +60,7 @@ class BaseAssistant(ABC):
         # self.mode_selector = ExecutionModeSelector(self.config, self.skill_caller)
         self.mode_selector = None  # 保留字段避免引用错误
         self.skill_caller = SkillCaller(self.config)
-        self.console_subscriber = ConsoleSubscriber()
+        #self.console_subscriber = ConsoleSubscriber()
         
         #
         

@@ -97,8 +97,8 @@
               </div>
             </div>
           </div>
-          <StepInterventionCard v-if="hasFailedSteps(task)" :steps="task.steps || []" @skip="handleSkip"
-            @retry="handleRetry" @batch-retry="handleBatchRetry" @submit="handleSubmit" />
+          <!--<StepInterventionCard v-if="hasFailedSteps(task)" :steps="task.steps || []" @skip="handleSkip"
+            @retry="handleRetry" @batch-retry="handleBatchRetry" @submit="handleSubmit" />-->
         </div>
       </div>
     </div>
@@ -110,9 +110,8 @@ import { ChatDotRound, Loading, User } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import { storeToRefs } from 'pinia'
-import { nextTick, ref, watch, computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
-import StepInterventionCard from './StepInterventionCard.vue'
 // 配置marked库
 marked.setOptions({
   breaks: true,

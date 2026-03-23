@@ -223,7 +223,7 @@ class App {
             this.isBackendStarted = false // 重置状态
             resolve(false)
           }
-        }, 10000)
+        }, 30000)
 
       } catch (error) {
         console.error('[App] 启动后端服务时出错:', error)

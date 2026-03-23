@@ -348,7 +348,7 @@ def _ensure_directories(config: Dict[str, Any]):
     if getattr(sys, 'frozen', False):
         # 打包后的应用，技能目录在 resources/app.asar.unpacked/lingxi/skills/builtin
         try:
-            bundled_skills_dir = Path(sys.executable).parent / "resources" / "app.asar.unpacked" / "lingxi" / "skills" / "builtin"
+            bundled_skills_dir = Path(sys.executable).parent / "resources" / "backend" / "_internal" / "lingxi" / "skills" / "builtin"
             if not bundled_skills_dir.exists():
                 # 尝试另一个可能的路径
                 bundled_skills_dir = Path(sys.executable).parent / "resources" / "app.asar" / "lingxi" / "skills" / "builtin"

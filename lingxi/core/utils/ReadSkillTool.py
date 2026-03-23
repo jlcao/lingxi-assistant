@@ -47,6 +47,7 @@ class ReadSkillTool(ToolBase):
         Args:
             parameters: 工具参数，包含:
                 - skill_name: 技能名称（必填）
+                - file_path: 文件相对路径（可填，为 None 时默认读SKILL.md）
             
         Returns:
             执行结果字典，格式：
@@ -56,7 +57,8 @@ class ReadSkillTool(ToolBase):
                 "error": ""  # 错误信息（成功时为空）
             }
         """
-        skill_name = parameters.get("skill_name")
+        skill_name = parameters.get("skill_name") #技能名称
+        file_path = parameters.get("file_path") #文件相对路径
         
         result = {
             "status": "F",
@@ -69,16 +71,16 @@ class ReadSkillTool(ToolBase):
             result["error"] = "缺少必要参数: skill_name"
             return result
         
-        if not self.skill_system:
-            result["error"] = "SkillSystem 未设置，无法读取技能"
-            return result
+        if file_path is None:
+            file_path = f"SKILL.md"
+            
         
         # 从 SkillSystem 的缓存中读取 SKILL.md 内容
         skill_cache = self.skill_system.cache
         self.logger.debug(f"尝试读取 SKILL.md，skill_name={skill_name}, skill_system={self.skill_system}, cache={skill_cache}")
         if skill_cache:
-            cached_content = skill_cache.get_md_content(skill_name)
-            self.logger.debug(f"get_md_content 返回结果：{cached_content}")
+            cached_content = skill_cache.get_file_content(skill_name, file_path)
+            self.logger.debug(f"get_file_content 返回结果：{cached_content}")
             if cached_content:
                 self.logger.info(f"从缓存读取 SKILL.md：{skill_name}")
                 result["status"] = "S"
