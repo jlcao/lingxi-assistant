@@ -98,14 +98,31 @@ class SkillLoader:
                 self.logger.error(f"技能配置缺少 name 字段：{skill_dir}")
                 return False
             
-            # 调用 registry 的注册方法
-            if hasattr(registry, 'register_skill_from_dir'):
-                registry.register_skill_from_dir(skill_dir)
+            # 检查是否有 main.py 文件
+            has_main_py = os.path.exists(os.path.join(skill_dir, "main.py"))
+            
+            # 根据是否有 main.py 文件选择注册方法
+            if has_main_py and hasattr(registry, 'register_skill_from_dir'):
+                registry.register_skill_from_dir(Path(skill_dir))
                 self.logger.info(f"注册技能成功：{skill_id}")
             elif hasattr(registry, 'register_skill'):
-                # 使用原始调用方式：只传 config
-                registry.register_skill(skill_config)
-                self.logger.info(f"注册技能成功：{skill_id}")
+                # 兼容两种 registry 实现：
+                # 1. registry.py: register_skill(name, description, author, version, parameters)
+                # 2. registry_memory.py: register_skill(skill_config)
+                try:
+                    # 尝试使用分开参数的方式（registry.py）
+                    registry.register_skill(
+                        name=skill_config.get('name', skill_id),
+                        description=skill_config.get('description', ''),
+                        author=skill_config.get('author', ''),
+                        version=skill_config.get('version', '1.0.0'),
+                        parameters=skill_config.get('parameters')
+                    )
+                    self.logger.info(f"注册技能成功：{skill_id}")
+                except TypeError:
+                    # 如果失败，使用字典方式（registry_memory.py）
+                    registry.register_skill(skill_config)
+                    self.logger.info(f"注册技能成功：{skill_id}")
             else:
                 self.logger.error(f"Registry 对象没有 register_skill 方法")
                 return False

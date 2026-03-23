@@ -1,5 +1,15 @@
 {
   "skills": {
+    "docx": {
+      "name": "docx",
+      "skill_id": "docx",
+      "description": "技能：docx",
+      "source": "global",
+      "path": "lingxi\\skills\\builtin\\docx",
+      "enabled": true,
+      "version": "1.0.0",
+      "author": ""
+    },
     "memory": {
       "skill_id": "memory",
       "skill_name": "memory",
@@ -19,23 +29,6 @@
         "depend": "内置file工具（read/search/write/delete）",
         "storage_path": "user_dir/.lingxi/memory/MEMORY.md",
         "skill_id": "memory"
-      }
-    },
-    "spawn_subagent": {
-      "skill_id": "spawn_subagent",
-      "skill_name": "spawn_subagent",
-      "version": "1.0.0",
-      "type": "local",
-      "description": "创建子代理来执行任务，当你的任务特别复杂的时候，你可以创建一个子代理来执行任务",
-      "author": "Lingxi Team",
-      "enabled": true,
-      "config": {
-        "name": "spawn_subagent",
-        "description": "创建子代理来执行任务，当你的任务特别复杂的时候，你可以创建一个子代理来执行任务",
-        "version": "1.0.0",
-        "author": "Lingxi Team",
-        "license": "MIT",
-        "skill_id": "spawn_subagent"
       }
     }
   }
