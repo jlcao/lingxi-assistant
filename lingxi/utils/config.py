@@ -77,6 +77,24 @@ DEFAULT_CONFIG = {
         "max_steps": 50,
         "timeout": 60
     },
+    "context_management": {
+        "token_budget": {
+            "max_tokens": 8000,
+            "compression_trigger": 0.7,
+            "critical_threshold": 0.9
+        },
+        "retention": {
+            "user_input_keep_turns": 10,
+            "tool_result_keep_turns": 5,
+            "task_boundary_archive": True
+        },
+        "compression": {
+            "strategy": "hybrid",
+            "summary_ratio": 0.3,
+            "enable_llm_summary": True,
+            "preserve_entities": True
+        }
+    },
     "security": {
         "sandbox": {
             "enabled": True,

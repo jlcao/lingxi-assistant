@@ -94,17 +94,19 @@ class AsyncPlanReActEngine(AsyncReActCore):
         self._publish_task_start(context)
 
         # 分析任务
-        plan_info = await self._analyze_task_and_plan(context)
-        self.logger.debug(f"异步 Plan+ReAct 引擎处理任务：level={task_level}, task={task}")
-        if not plan_info:
-            self.logger.warning("任务分析失败，降级为父类执行")
-            async for chunk in super()._execute_task_stream(context):
-                yield chunk
-            return
+        plan_info={}
+        if(get_config().get("engine", {}).get("enable_plan")):
+            plan_info = await self._analyze_task_and_plan(context)
+            self.logger.debug(f"异步 Plan+ReAct 引擎处理任务：level={task_level}, task={task}")
+            if not plan_info:
+                self.logger.warning("任务分析失败，降级为父类执行")
+                async for chunk in super()._execute_task_stream(context):
+                   yield chunk
+                return
         
-        task_level = plan_info.get("level", "simple")
+        task_level = plan_info.get("level", "complex")
         context.task_info.task_type = task_level
-        context.description = plan_info.get("summary", "")
+        context.description = plan_info.get("summary", context.user_input)
 
         self._publish_plan_start(context)
         next_action = plan_info.get("next_action")

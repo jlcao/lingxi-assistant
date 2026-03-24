@@ -5,30 +5,34 @@
       "skill_id": "docx",
       "description": "技能：docx",
       "source": "global",
-      "path": "lingxi\\skills\\builtin\\docx",
+      "path": "C:\\Users\\caojl\\.lingxi\\skills\\docx",
       "enabled": true,
       "version": "1.0.0",
       "author": ""
     },
-    "memory": {
-      "skill_id": "memory",
-      "skill_name": "memory",
+    "pdf": {
+      "name": "pdf",
+      "skill_id": "pdf",
+      "description": "技能：pdf",
+      "source": "global",
+      "path": "C:\\Users\\caojl\\.lingxi\\skills\\pdf",
+      "enabled": true,
+      "version": "1.0.0",
+      "author": ""
+    },
+    "xlsx": {
+      "skill_id": "xlsx",
+      "skill_name": "xlsx",
       "version": "1.0.0",
       "type": "local",
-      "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
-      "author": "Lingxi Team",
+      "description": "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \\\"the xlsx in my downloads\\\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved.",
+      "author": "",
       "enabled": true,
       "config": {
-        "name": "memory",
-        "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
-        "version": "1.0.0",
-        "trigger_conditions": "用户要求查看、列出、管理记忆时触发",
-        "execution_guidelines": "1. 支持分类过滤 2. 支持数量限制 3. 显示统计信息",
-        "author": "Lingxi Team",
-        "license": "MIT",
-        "depend": "内置file工具（read/search/write/delete）",
-        "storage_path": "user_dir/.lingxi/memory/MEMORY.md",
-        "skill_id": "memory"
+        "name": "xlsx",
+        "description": "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \\\"the xlsx in my downloads\\\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved.",
+        "license": "Proprietary. LICENSE.txt has complete terms",
+        "skill_id": "xlsx"
       }
     }
   }

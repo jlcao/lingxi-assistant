@@ -81,7 +81,7 @@ class EventPublisher:
         """
         # 记录事件发布日志，无论是否有订阅者
         if event_type != "think_stream":
-            self.logger.debug(f"发布事件: {event_type}，参数: {kwargs}")
+            self.logger.debug(f"发布事件: {event_type}")
 
         if event_type in self._subscribers:
             failed_callbacks = []

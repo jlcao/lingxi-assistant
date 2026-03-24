@@ -1,24 +1,28 @@
 ---
 name: xlsx
-description: "Comprehensive spreadsheet operations including read, analyze, merge, create, edit, and sort. Supports Excel files (.xlsx, .xlsm) and CSV files (.csv, .tsv)."
+description: "全面的电子表格操作，用户请求读取操、分析、读取Excel表格时触发。"
 version: "2.1.0"
-trigger_conditions: "用户请求读取Excel文件、分析数据、合并表格、创建新表格、编辑表格或排序表格时触发"
+trigger_conditions: "用户请求读取操、分析、读取Excel表格时触发"
 execution_guidelines: "1. 根据operation参数执行相应操作\n2. 返回操作结果或错误信息\n3. 支持多种Excel操作：读取、分析、合并、创建、编辑、排序"
 author: "Lingxi Team"
 license: MIT
 ---
 
-# XLSX Skill Documentation
+# XLSX 技能文档
 
 ## Overview
 
-This skill provides comprehensive Excel file operations including reading, analyzing, merging, creating, and editing Excel files.
+全面的电子表格操作，用户请求读取操、分析、查询Excel表格时触发。
 
 ## Operations
 
-### 1. Read (读取Excel文件)
+### 使用说明
 
-Read an Excel file and return its structure and content.
+**Parameters:**
+
+- operation: 操作参数类型。必填参数，可选值为 query|append|create|edit_row|delete_row
+- file_path: Excel文件路径。必填参数
+- condition: 条件参数。可选参数，用于查询操作时指定查询条件。例如："age>20"。
 
 **Parameters:**
 

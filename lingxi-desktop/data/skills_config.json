@@ -1,0 +1,35 @@
+{
+  "skills": {
+    "docx": {
+      "name": "docx",
+      "skill_id": "docx",
+      "description": "技能：docx",
+      "source": "global",
+      "path": "D:\\resources\\lingxi-assistant\\lingxi-desktop\\electron\\main\\backend\\_internal\\lingxi\\skills\\builtin\\docx",
+      "enabled": true,
+      "version": "1.0.0",
+      "author": ""
+    },
+    "memory": {
+      "skill_id": "memory",
+      "skill_name": "memory",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
+      "author": "Lingxi Team",
+      "enabled": true,
+      "config": {
+        "name": "memory",
+        "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
+        "version": "1.0.0",
+        "trigger_conditions": "用户要求查看、列出、管理记忆时触发",
+        "execution_guidelines": "1. 支持分类过滤 2. 支持数量限制 3. 显示统计信息",
+        "author": "Lingxi Team",
+        "license": "MIT",
+        "depend": "内置file工具（read/search/write/delete）",
+        "storage_path": "user_dir/.lingxi/memory/MEMORY.md",
+        "skill_id": "memory"
+      }
+    }
+  }
+}

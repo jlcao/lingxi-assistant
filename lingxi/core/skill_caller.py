@@ -197,7 +197,8 @@ class SkillCaller:
         self.logger.debug(f"调用技能（安全检查）: {skill_name} - {parameters}")
 
         # 规范化 parameters 中所有包含 "path" 的参数为绝对路径
-        parameters = self._normalize_paths_in_parameters(parameters)
+        if skill_name not in ['read_skill']:
+            parameters = self._normalize_paths_in_parameters(parameters)
 
         try:
             self.sandbox.check_security_parameters(skill_name, action_type, parameters)

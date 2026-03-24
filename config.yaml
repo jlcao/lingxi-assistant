@@ -13,24 +13,10 @@ context_management:
     critical_threshold: 0.9
     max_tokens: 8000
 engine:
+  enable_plan: true
   default: react
   max_steps: 50
   timeout: 60
-execution_mode:
-  complex:
-    enable_replanning: true
-    max_loop_per_step: 5
-    max_plan_steps: 8
-    max_replan_count: 2
-    max_step_retries: 3
-    name: plan_react
-  simple:
-    max_loop_per_step: 3
-    max_plan_steps: 3
-    name: plan_react
-  trivial:
-    max_tokens: 1000
-    name: direct
 llm:
   api_key: your-dashscope-api-key-here
   base_url: https://coding.dashscope.aliyuncs.com/v1

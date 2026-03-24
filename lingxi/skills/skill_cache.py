@@ -286,15 +286,18 @@ class SkillCache:
         skill_cache = self._file_cache[skill_id]
         entry = skill_cache.get_file(relative_path)
         
+        
         if entry is None:
+            
             return None
         
         if entry.is_expired(self._ttl):
-            self.logger.debug(f"文件缓存过期: {skill_id}/{relative_path}")
-            del skill_cache.files[relative_path]
-            return None
+            self.logger.debug(f"文件缓存过期: {skill_id}/{relative_path},重新加载")
+            self.cache_skill_files(skill_id, skill_cache.skill_dir)
+
+        str = entry.content.replace('skill_dir', skill_cache.skill_dir)
         
-        return entry.content
+        return str
     
     def list_cached_files(self, skill_id: str) -> List[str]:
         """列出技能已缓存的所有文件
