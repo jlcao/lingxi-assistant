@@ -23,19 +23,19 @@ DEFAULT_CONFIG = {
         "base_url": "https://coding.dashscope.aliyuncs.com/v1",
         "model": "qwen3.5-plus",
         "temperature": 0.7,
-        "max_tokens": 2048,
+        "max_tokens": 10000,
         "timeout": 30,
         "provider": "openai" ,
         "temperature": 0.7,
         "timeout": 300,
         "models": {
             "complex": {
-                "max_tokens": 32000 ,  
+                "max_tokens": 10000 ,  
                 "model": "qwen3.5-plus",
                 "temperature": 0.7
             },
             "simple": {
-                "max_tokens": 32000,
+                "max_tokens": 10000,
                 "model": "qwen3.5-plus",
                 "temperature": 0.7
             }
@@ -79,7 +79,7 @@ DEFAULT_CONFIG = {
     },
     "context_management": {
         "token_budget": {
-            "max_tokens": 8000,
+            "max_tokens": 100000,
             "compression_trigger": 0.7,
             "critical_threshold": 0.9
         },

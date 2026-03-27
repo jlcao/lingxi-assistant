@@ -4,12 +4,16 @@
 import logging
 import locale
 import os
+import sys
 import platform
 import subprocess
 import tempfile
 import re
+import importlib.util
 from typing import Dict, Any, Optional
+from lingxi.core.utils import utils
 from lingxi.core.utils.Tool import ToolBase
+from lingxi.utils.config import get_config
 
 
 class CommandTool(ToolBase):
@@ -18,6 +22,8 @@ class CommandTool(ToolBase):
     def __init__(self):
         super().__init__("execute", "系统命令执行工具，支持powershell、bash等多种shell类型")
         self.temp_files = []  # 跟踪临时文件，确保清理
+        config = get_config()
+        self.python_interpreter = config.get('python_interpreter', 'python')
     
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """执行系统命令
@@ -76,16 +82,16 @@ class CommandTool(ToolBase):
             process = None
             stdout = ""
             stderr = ""
-            
-            # 4. 执行命令
-            if shell_type == "powershell":
-                encoding = locale.getpreferredencoding() or 'gbk'
-                
-                # 检查是否是 Python 代码执行命令
-                python_match = re.match(r'^python\s+-c\s+(["\'])(.*?)\1\s*$', command, re.DOTALL)
-                if python_match:
+
+            python_match = re.match(r'^python\s+-c\s+(["\'])(.*?)\1\s*$', command, re.DOTALL)
+            if python_match:
                     # 处理 Python 代码执行
                     python_code = python_match.group(2)
+                    
+                    # 检查 Python 解释器是否可用
+                    if not self._check_python_available():
+                        result["error"] = "Python 环境不可用。请确保已安装 Python 并配置了正确的 python_interpreter 路径。或者尝试使用 PowerShell/Bash 命令替代。"
+                        return result
                     
                     # 创建临时Python文件
                     with tempfile.NamedTemporaryFile(
@@ -96,9 +102,13 @@ class CommandTool(ToolBase):
                         temp_file = f.name
                         self.temp_files.append(temp_file)
                     
-                    # 执行临时文件
+                    self.logger.debug(f"使用Python解释器: {self.python_interpreter}")
+                    
+                    # 执行临时文件（使用UTF-8编码）
+                    encoding = 'utf-8'
+                    
                     process = subprocess.Popen(
-                        ["python", temp_file],
+                        [self.python_interpreter, temp_file],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         cwd=cwd,
@@ -106,10 +116,15 @@ class CommandTool(ToolBase):
                         errors='replace'
                     )
                     stdout, stderr = process.communicate(timeout=30)
+            
+            # 4. 执行命令
+            elif shell_type == "powershell":
+                encoding = 'utf-8'
                 
-                else:
+                # 检查是否是 Python 代码执行命令
+    
                     # 处理普通PowerShell命令
-                    with tempfile.NamedTemporaryFile(
+                with tempfile.NamedTemporaryFile(
                         mode='w', suffix='.ps1', encoding='utf-8-sig',
                         delete=False, dir=cwd
                     ) as f:
@@ -124,7 +139,7 @@ class CommandTool(ToolBase):
                         self.temp_files.append(temp_file)
                     
                     # 执行PowerShell脚本
-                    process = subprocess.Popen(
+                process = subprocess.Popen(
                         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", temp_file],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
@@ -132,7 +147,7 @@ class CommandTool(ToolBase):
                         encoding='utf-8',
                         errors='replace'
                     )
-                    stdout, stderr = process.communicate(timeout=30)
+                stdout, stderr = process.communicate(timeout=30)
             
             elif shell_type == "bash":
                 # 执行bash命令
@@ -159,7 +174,8 @@ class CommandTool(ToolBase):
             
             # 检查Python错误
             if self._check_python_errors(full_output):
-                result["error"] = "检测到Python执行错误"
+                result["error"] = f"检测到Python执行错误: {full_output}"
+                self.logger.error(result["error"], exc_info=True)
                 return result
             
             # 检查错误输出和返回码
@@ -188,6 +204,10 @@ class CommandTool(ToolBase):
             # 确保临时文件被清理
             self._cleanup_temp_files()
     
+    
+
+
+
     def _fix_over_escaped_paths(self, command: str) -> str:
         """修复过度转义的路径
         
@@ -221,6 +241,23 @@ class CommandTool(ToolBase):
         # 应用修复
         command = re.sub(path_pattern, fix_path, command)
         return command
+    
+    def _check_python_available(self) -> bool:
+        """检查 Python 解释器是否可用
+        
+        Returns:
+            Python 可用返回 True，否则返回 False
+        """
+        try:
+            result = subprocess.run(
+                [self.python_interpreter, "--version"],
+                capture_output=True,
+                timeout=5,
+                text=True
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return False
     
     def _check_python_errors(self, output: str) -> bool:
         """检查输出中是否包含 Python 错误信息

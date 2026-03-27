@@ -81,10 +81,7 @@ class BaseAssistant(ABC):
             session_store=self.session_manager
         )
         self.logger.debug("workspace_manager 资源引用已设置（sandbox、skill_caller、skill_system、session_store）")
-        
-        # 为子代理调度器设置 SessionManager
-        self.skill_caller.set_session_manager_for_subagents(self.session_manager)
-        self.logger.debug("子代理调度器的 SessionManager 已设置")
+    
     
     def init_session_store_subscriber(self) -> None:
         """初始化会话存储订阅者（延迟初始化，避免循环依赖）

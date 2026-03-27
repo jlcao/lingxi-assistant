@@ -544,6 +544,7 @@ class App {
     })
 
     ipcMain.handle('ws:send-message', async (_, message, sessionId) => {
+      console.log(`[App] ws:send-message called with: ${message}, ${sessionId}`)
       this.wsClient?.send({
         type: 'stream_chat',
         content: message,

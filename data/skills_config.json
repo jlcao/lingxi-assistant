@@ -10,6 +10,47 @@
       "version": "1.0.0",
       "author": ""
     },
+    "extract_news": {
+      "name": "extract_news",
+      "skill_id": "extract_news",
+      "description": "技能：extract_news",
+      "source": "global",
+      "path": "C:\\Users\\caojl\\.lingxi\\skills\\extract_news",
+      "enabled": true,
+      "version": "1.0.0",
+      "author": ""
+    },
+    "financial_news": {
+      "name": "financial_news",
+      "skill_id": "financial_news",
+      "description": "技能：financial_news",
+      "source": "global",
+      "path": "C:\\Users\\caojl\\.lingxi\\skills\\financial_news",
+      "enabled": true,
+      "version": "1.0.0",
+      "author": ""
+    },
+    "memory": {
+      "skill_id": "memory",
+      "skill_name": "memory",
+      "version": "1.0.0",
+      "type": "local",
+      "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
+      "author": "Lingxi Team",
+      "enabled": true,
+      "config": {
+        "name": "memory",
+        "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
+        "version": "1.0.0",
+        "trigger_conditions": "用户要求查看、列出、管理记忆时触发",
+        "execution_guidelines": "1. 支持分类过滤 2. 支持数量限制 3. 显示统计信息",
+        "author": "Lingxi Team",
+        "license": "MIT",
+        "depend": "内置file工具（read/search/write/delete）",
+        "storage_path": "user_dir/.lingxi/memory/MEMORY.md",
+        "skill_id": "memory"
+      }
+    },
     "pdf": {
       "name": "pdf",
       "skill_id": "pdf",
@@ -20,19 +61,19 @@
       "version": "1.0.0",
       "author": ""
     },
-    "xlsx": {
-      "skill_id": "xlsx",
-      "skill_name": "xlsx",
+    "skill-creator": {
+      "skill_id": "skill-creator",
+      "skill_name": "skill-creator",
       "version": "1.0.0",
       "type": "local",
-      "description": "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \\\"the xlsx in my downloads\\\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved.",
+      "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
       "author": "",
       "enabled": true,
       "config": {
-        "name": "xlsx",
-        "description": "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \\\"the xlsx in my downloads\\\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved.",
-        "license": "Proprietary. LICENSE.txt has complete terms",
-        "skill_id": "xlsx"
+        "name": "skill-creator",
+        "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+        "license": "Complete terms in LICENSE.txt",
+        "skill_id": "skill-creator"
       }
     }
   }

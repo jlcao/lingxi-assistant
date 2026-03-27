@@ -149,7 +149,8 @@ class WebSocketManager:
             if message_type == 'command':
                 await self._handle_command_message(connection, data)
             elif message_type == 'stream_chat':
-                await self._handle_stream_chat(connection, data)
+                # 使用 create_task 实现并发处理，避免阻塞消息接收
+                asyncio.create_task(self._handle_stream_chat(connection, data))
             elif message_type == 'session':
                 await self._handle_session_message(connection, data)
             elif message_type == 'checkpoint':
@@ -309,12 +310,9 @@ class WebSocketManager:
             if not skill_source:
                 await self._send_error(connection, "技能源路径不能为空")
                 return
-
-            success = self.assistant.install_skill(skill_source, skill_name, overwrite)
-            if success:
-                await self._send_success(connection, f"技能安装成功：{skill_source}")
-            else:
-                await self._send_error(connection, f"技能安装失败：{skill_source}")
+            
+            # 使用 create_task 实现并发处理，避免阻塞消息接收
+            asyncio.create_task(self._install_skill_async(connection, skill_source, skill_name, overwrite))
         else:
             await self._send_error(connection, f"未知技能操作：{action}")
 
@@ -345,6 +343,25 @@ class WebSocketManager:
             await self._send_success(connection, {"search_results": results})
         else:
             await self._send_error(connection, f"未知上下文操作：{action}")
+
+    async def _install_skill_async(self, connection: WebSocketConnection, skill_source: str, skill_name: str, overwrite: bool):
+        """异步安装技能
+
+        Args:
+            connection: WebSocket 连接
+            skill_source: 技能源路径
+            skill_name: 技能名称
+            overwrite: 是否覆盖
+        """
+        try:
+            success = await self.assistant.install_skill_async(skill_source, skill_name, overwrite)
+            if success:
+                await self._send_success(connection, f"技能安装成功：{skill_source}")
+            else:
+                await self._send_error(connection, f"技能安装失败：{skill_source}")
+        except Exception as e:
+            logger.error(f"异步安装技能失败：{e}", exc_info=True)
+            await self._send_error(connection, f"技能安装异常：{str(e)}")
 
     async def _handle_ping(self, connection: WebSocketConnection):
         """处理 ping 消息

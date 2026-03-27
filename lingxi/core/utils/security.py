@@ -118,6 +118,9 @@ class SecuritySandbox:
         Raises:
             SecurityError: 参数超出安全范围
         """
+        if not self.safety_mode:
+            self.logger.info("安全模式已禁用，跳过所有检查")
+            return True
         if not params:
             return True
         if skill_name == "read_skill":

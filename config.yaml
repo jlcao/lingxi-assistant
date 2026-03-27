@@ -17,6 +17,7 @@ engine:
   default: react
   max_steps: 50
   timeout: 60
+python_interpreter: D:/resources/lingxi-assistant/venv/Scripts/python.exe
 llm:
   api_key: your-dashscope-api-key-here
   base_url: https://coding.dashscope.aliyuncs.com/v1
