@@ -139,12 +139,15 @@ function setupWebSocketListeners() {
       console.log('Task started:', data)
       // 查找是否已存在临时助手消息
       if(data.taskInfo){
-        // 确保task对象包含planThinking和planThinkingContent属性
+        // 确保task对象包含planThinking和planThinkingContent属性，并处理时间戳
         const taskData = {
           ...data.taskInfo,
           planThinking: false,
           planThinkingContent: '',
-          steps: data.taskInfo.steps || []
+          steps: data.taskInfo.steps || [],
+          // 确保时间戳是数字格式
+          createdAt: typeof data.taskInfo.createdAt === 'number' ? data.taskInfo.createdAt : Date.now(),
+          updatedAt: typeof data.taskInfo.updatedAt === 'number' ? data.taskInfo.updatedAt : Date.now()
         }
         appStore.addTask(data.sessionId,data.taskId,taskData)
       }
@@ -155,7 +158,13 @@ function setupWebSocketListeners() {
       console.log('Task ended:', data)
       // 更新助手消息的内容
       if (data.result && data.taskInfo) {
-        appStore.addTask(data.sessionId,data.taskId,data.taskInfo)
+        // 确保时间戳是数字格式
+        const taskData = {
+          ...data.taskInfo,
+          createdAt: typeof data.taskInfo.createdAt === 'number' ? data.taskInfo.createdAt : Date.now(),
+          updatedAt: typeof data.taskInfo.updatedAt === 'number' ? data.taskInfo.updatedAt : Date.now()
+        }
+        appStore.addTask(data.sessionId,data.taskId,taskData)
       }
 
       // 任务结束后刷新工作区目录
@@ -169,7 +178,15 @@ function setupWebSocketListeners() {
       console.log('Think started:', data)
       // 找到对应的助手消息，添加思考开始标记
       if(data.taskInfo){
-        appStore.addTask(data.sessionId,data.taskId,{...data.taskInfo,planThinking:true,planThinkingContent:''})
+        // 确保时间戳是数字格式
+        const taskData = {
+          ...data.taskInfo,
+          planThinking: true,
+          planThinkingContent: '',
+          createdAt: typeof data.taskInfo.createdAt === 'number' ? data.taskInfo.createdAt : Date.now(),
+          updatedAt: typeof data.taskInfo.updatedAt === 'number' ? data.taskInfo.updatedAt : Date.now()
+        }
+        appStore.addTask(data.sessionId,data.taskId,taskData)
       }
       if(data.stepIndex && data.stepInfo){
         appStore.addStep(data.sessionId,data.taskId,data.stepIndex,{...data.stepInfo,isThinking:true,thought:''})
@@ -243,7 +260,13 @@ function setupWebSocketListeners() {
       console.log('Task failed:', data)
       // 找到对应的助手消息，添加失败信息
       if(data.taskInfo){
-        appStore.addTask(data.sessionId,data.taskId,data.taskInfo)
+        // 确保时间戳是数字格式
+        const taskData = {
+          ...data.taskInfo,
+          createdAt: typeof data.taskInfo.createdAt === 'number' ? data.taskInfo.createdAt : Date.now(),
+          updatedAt: typeof data.taskInfo.updatedAt === 'number' ? data.taskInfo.updatedAt : Date.now()
+        }
+        appStore.addTask(data.sessionId,data.taskId,taskData)
       }
     })
   }
