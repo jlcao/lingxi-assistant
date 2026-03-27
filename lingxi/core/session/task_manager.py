@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -424,6 +425,46 @@ class TaskManager:
 
         tasks = []
         for row in rows:
+            # 处理时间戳，确保返回数字类型的时间戳（毫秒）
+            created_at = row[13]
+            updated_at = row[14]
+            
+            # 转换创建时间
+            if isinstance(created_at, datetime):
+                created_at_timestamp = int(created_at.timestamp() * 1000)
+            elif isinstance(created_at, str):
+                try:
+                    # 尝试解析字符串时间戳
+                    created_at_dt = datetime.fromisoformat(created_at)
+                    created_at_timestamp = int(created_at_dt.timestamp() * 1000)
+                except:
+                    try:
+                        # 尝试另一种格式
+                        created_at_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                        created_at_timestamp = int(created_at_dt.timestamp() * 1000)
+                    except:
+                        created_at_timestamp = int(time.time() * 1000)
+            else:
+                created_at_timestamp = int(time.time() * 1000)
+            
+            # 转换更新时间
+            if isinstance(updated_at, datetime):
+                updated_at_timestamp = int(updated_at.timestamp() * 1000)
+            elif isinstance(updated_at, str):
+                try:
+                    # 尝试解析字符串时间戳
+                    updated_at_dt = datetime.fromisoformat(updated_at)
+                    updated_at_timestamp = int(updated_at_dt.timestamp() * 1000)
+                except:
+                    try:
+                        # 尝试另一种格式
+                        updated_at_dt = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S')
+                        updated_at_timestamp = int(updated_at_dt.timestamp() * 1000)
+                    except:
+                        updated_at_timestamp = int(time.time() * 1000)
+            else:
+                updated_at_timestamp = int(time.time() * 1000)
+            
             task_data = {
                 "taskId": row[0],
                 "sessionId": row[1],
@@ -438,8 +479,8 @@ class TaskManager:
                 "errorInfo": row[10],
                 "inputTokens": row[11],
                 "outputTokens": row[12],
-                "createdAt": row[13],
-                "updatedAt": row[14],
+                "createdAt": created_at_timestamp,
+                "updatedAt": updated_at_timestamp,
                 "steps": self.step_manager.get_steps_for_frontend(row[0])
             }
             tasks.append(task_data)
