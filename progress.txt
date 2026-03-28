@@ -14,3 +14,20 @@
 - 现在所有组件都统一使用 C:\Users\Administrator\.lingxi\data\lingxi.db 作为数据库路径
 - 消除了之前同时使用 assistant.db 和 lingxi.db 两个数据库文件的问题
 - 数据库路径已经硬编码到各个组件中，确保一致性
+
+## 2026-03-28 - 任务：安全移除 InputArea.vue 组件
+
+### What was done:
+- 确认 InputArea.vue 组件未被项目中任何文件引用
+- 安全删除了 `lingxi-desktop/src/components/chat/InputArea.vue` 文件
+- 验证了项目构建成功，没有受到删除操作的影响
+
+### Testing:
+- 搜索项目代码库，确认没有对 InputArea.vue 的引用
+- 运行 `npm run build` 命令，构建成功
+- 项目结构保持完整，功能不受影响
+
+### Notes:
+- InputArea.vue 组件是一个未被使用的备用或历史组件
+- 当前项目使用的是 ChatCore.vue 作为主要的聊天界面组件
+- 删除操作不会影响项目的正常运行

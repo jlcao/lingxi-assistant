@@ -165,6 +165,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
         """
         stream = context.stream
         context.task_info.result = direct_answer
+        context.task_info.status = "completed"
         self.logger.debug(f"直接执行行动：action=finish, thought={direct_answer[:50]}...")
         self._publish_task_end(direct_answer,context)
         
