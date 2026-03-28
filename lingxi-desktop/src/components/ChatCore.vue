@@ -86,11 +86,11 @@
           />
         </div>
         <el-button
-          type="primary"
+          :type="isTaskRunning ? 'danger' : 'primary'"
           size="small"
-          @click="handleSend"
+          @click="handleButtonClick"
         >
-          发送
+          {{ isTaskRunning ? '终止' : '发送' }}
         </el-button>
       </div>
     </div>
@@ -112,6 +112,18 @@ const model = ref('gim4.7')
 const defaultOption = ref('default')
 const isDragging = ref(false)
 const thinkingMode = ref(false)
+
+const currentSession = computed(() => {
+  return appStore.sessions.find(s => s.sessionId === appStore.currentSessionId)
+})
+
+const isTaskRunning = computed(() => {
+  return currentSession.value?.isTaskRunning || false
+})
+
+const currentTaskId = computed(() => {
+  return currentSession.value?.currentTaskId || ''
+})
 
 const currentSessionName = computed(() => {
   const session = appStore.sessions.find(s => s.sessionId === appStore.currentSessionId)
@@ -254,6 +266,24 @@ function handleUpload() {
   window.electronAPI.file.selectFiles()
 }
 
+function handleButtonClick() {
+  if (isTaskRunning.value) {
+    handleStopTask()
+  } else {
+    handleSend()
+  }
+}
+
+async function handleStopTask() {
+  if (window.electronAPI?.ws && currentTaskId.value) {
+    try {
+      await window.electronAPI.ws.stopTask(currentTaskId.value)
+    } catch (error) {
+      console.error('Failed to stop task:', error)
+    }
+  }
+}
+
 async function handleSend() {
   if (inputText.value.trim()) {
     const userMessage = inputText.value.trim()
@@ -271,7 +301,9 @@ async function handleSend() {
             tasks: [],
             totalTokens: 0,
             createdAt: Date.now(),
-            updatedAt: Date.now()
+            updatedAt: Date.now(),
+            currentTaskId: null,
+            isTaskRunning: false
           }])
         } else {
           throw new Error('创建会话失败')

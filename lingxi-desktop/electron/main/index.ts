@@ -551,6 +551,14 @@ class App {
         sessionId: sessionId || 'default'
       })
     })
+
+    ipcMain.handle('ws:stop-task', async (_, taskId) => {
+      console.log(`[App] ws:stop-task called with: ${taskId}`)
+      this.wsClient?.send({
+        type: 'stop_task',
+        taskId: taskId
+      })
+    })
   }
 
   /**
@@ -651,6 +659,10 @@ class App {
 
     this.wsClient.on('task_failed', (data) => {
       this.safeSend('ws:task-failed', data)
+    })
+
+    this.wsClient.on('task_stopped', (data) => {
+      this.safeSend('ws:task-stopped', data)
     })
 
     this.wsClient.on('workspace_files_changed', (data) => {

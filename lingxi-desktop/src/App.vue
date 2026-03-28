@@ -45,6 +45,7 @@ onUnmounted(() => {
   if (window.electronAPI?.ws) {
     window.electronAPI.ws.removeAllListeners('ws:task-start')
     window.electronAPI.ws.removeAllListeners('ws:task-end')
+    window.electronAPI.ws.removeAllListeners('ws:task-stopped')
     window.electronAPI.ws.removeAllListeners('ws:think-start')
     window.electronAPI.ws.removeAllListeners('ws:think-stream')
     window.electronAPI.ws.removeAllListeners('ws:think-final')
@@ -111,7 +112,9 @@ async function initializeApp() {
                 totalTokens: 0,
                 userName: sessionData.user_name || sessionData.userName || '新用户',
                 createdAt: Date.now(),
-                updatedAt: Date.now()
+                updatedAt: Date.now(),
+                currentTaskId: null,
+                isTaskRunning: false
               }
               appStore.setSessions([session])
               appStore.setCurrentSession(session.sessionId)
@@ -137,6 +140,8 @@ function setupWebSocketListeners() {
   if (window.electronAPI?.ws) {
     window.electronAPI.ws.onTaskStart((data) => {
       console.log('Task started:', data)
+      appStore.setCurrentTask(data.sessionId, data.taskId)
+      appStore.updateTaskStatus(data.sessionId, data.taskId, 'running')
       // 查找是否已存在临时助手消息
       if(data.taskInfo){
         // 确保task对象包含planThinking和planThinkingContent属性，并处理时间戳
@@ -145,6 +150,7 @@ function setupWebSocketListeners() {
           planThinking: false,
           planThinkingContent: '',
           steps: data.taskInfo.steps || [],
+          status: 'running',
           // 确保时间戳是数字格式
           createdAt: typeof data.taskInfo.createdAt === 'number' ? data.taskInfo.createdAt : Date.now(),
           updatedAt: typeof data.taskInfo.updatedAt === 'number' ? data.taskInfo.updatedAt : Date.now()
@@ -156,15 +162,45 @@ function setupWebSocketListeners() {
 
     window.electronAPI.ws.onTaskEnd((data) => {
       console.log('Task ended:', data)
+      appStore.setCurrentTask(data.sessionId, null)
+      appStore.updateTaskStatus(data.sessionId, data.taskId, 'completed')
       // 更新助手消息的内容
       if (data.result && data.taskInfo) {
         // 确保时间戳是数字格式
         const taskData = {
           ...data.taskInfo,
+          status: 'completed',
           createdAt: typeof data.taskInfo.createdAt === 'number' ? data.taskInfo.createdAt : Date.now(),
           updatedAt: typeof data.taskInfo.updatedAt === 'number' ? data.taskInfo.updatedAt : Date.now()
         }
         appStore.addTask(data.sessionId,data.taskId,taskData)
+      }
+
+      // 任务结束后刷新工作区目录
+      workspaceStore.refreshDirectoryTree()
+
+      // 任务结束后刷新历史会话列表，重新加载会话名称
+      refreshSessionsList()
+    })
+    
+    window.electronAPI.ws.onTaskStopped((data) => {
+      console.log('Task stopped:', data)
+      const sessionId = data.sessionId || data.payload?.sessionId
+      const taskId = data.taskId || data.payload?.taskId
+      
+      if (sessionId && taskId) {
+        appStore.setCurrentTask(sessionId, null)
+        appStore.updateTaskStatus(sessionId, taskId, 'stopped')
+        
+        // 更新任务数据，设置 result 为终止信息
+        const taskData = {
+          taskId: taskId,
+          status: 'stopped',
+          result: '任务已被用户终止',
+          updatedAt: Date.now(),
+          ...(data.taskInfo || {})
+        }
+        appStore.addTask(sessionId, taskId, taskData)
       }
 
       // 任务结束后刷新工作区目录
@@ -208,6 +244,9 @@ function setupWebSocketListeners() {
       if(data.stepIndex>0){
         appStore.stepThinkFinal(data.sessionId,data.taskId,data.stepIndex,false)
         // 更新步骤的思考内容
+        if (data.taskInfo){
+          appStore.addTask(data.sessionId,data.taskId,{...data.taskInfo})
+        }
         /*if(data.content){
           appStore.addThought(data.sessionId,data.taskId,data.stepIndex,data.content)
         }*/
@@ -258,11 +297,14 @@ function setupWebSocketListeners() {
 
     window.electronAPI.ws.onTaskFailed((data) => {
       console.log('Task failed:', data)
+      appStore.setCurrentTask(data.sessionId, null)
+      appStore.updateTaskStatus(data.sessionId, data.taskId, 'failed')
       // 找到对应的助手消息，添加失败信息
       if(data.taskInfo){
         // 确保时间戳是数字格式
         const taskData = {
           ...data.taskInfo,
+          status: 'failed',
           createdAt: typeof data.taskInfo.createdAt === 'number' ? data.taskInfo.createdAt : Date.now(),
           updatedAt: typeof data.taskInfo.updatedAt === 'number' ? data.taskInfo.updatedAt : Date.now()
         }

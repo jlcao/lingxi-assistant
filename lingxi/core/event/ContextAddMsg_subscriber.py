@@ -43,6 +43,7 @@ class ContextAddMsgSubscriber:
         global_event_publisher.subscribe('step_end', self.handle_step_end)
         global_event_publisher.subscribe('task_failed', self.handle_task_failed)
         global_event_publisher.subscribe('task_end', self.handle_task_end)
+        global_event_publisher.subscribe('task_stopped', self.handle_task_end)
 
         self.logger.info("会话存储订阅者已初始化，开始监听事件")
 
@@ -53,6 +54,7 @@ class ContextAddMsgSubscriber:
         global_event_publisher.unsubscribe('step_end', self.handle_step_end)
         global_event_publisher.unsubscribe('task_end', self.handle_task_end)
         global_event_publisher.unsubscribe('task_failed', self.handle_task_failed)
+        global_event_publisher.unsubscribe('task_stopped', self.handle_task_end)
 
         self.logger.info("会话存储订阅者已停止监听事件")
 

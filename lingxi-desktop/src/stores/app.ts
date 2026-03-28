@@ -5,9 +5,11 @@ interface Session {
   userName: string
   title: string
   tasks: Task[]
-  totalTokens:number
+  totalTokens: number
   createdAt: number
   updatedAt: number
+  currentTaskId: string | null
+  isTaskRunning: boolean
 }
 
 interface Task {
@@ -108,6 +110,29 @@ export const useAppStore = defineStore('app', {
     setLoading(loading: boolean) {
       this.loading = loading
     },
+    setCurrentTask(sessionId: string, taskId: string | null) {
+      const sessionIndex = this.sessions.findIndex(session => session.sessionId === sessionId)
+      if (sessionIndex !== -1) {
+        this.sessions[sessionIndex].currentTaskId = taskId
+        this.sessions[sessionIndex].isTaskRunning = taskId !== null
+        this.sessions[sessionIndex].updatedAt = Date.now()
+      }
+    },
+    updateTaskStatus(sessionId: string, taskId: string, status: string) {
+      const sessionIndex = this.sessions.findIndex(session => session.sessionId === sessionId)
+      if (sessionIndex !== -1) {
+        const taskIndex = this.sessions[sessionIndex].tasks.findIndex(t => t.taskId === taskId)
+        if (taskIndex !== -1) {
+          this.sessions[sessionIndex].tasks[taskIndex].status = status
+          this.sessions[sessionIndex].tasks[taskIndex].updatedAt = Date.now()
+          this.sessions[sessionIndex].updatedAt = Date.now()
+          
+          if (this.sessions[sessionIndex].currentTaskId === taskId) {
+            this.sessions[sessionIndex].isTaskRunning = status === 'running'
+          }
+        }
+      }
+    },
     addSession(name: string) {
       const sessionId = Date.now().toString()
       this.sessions.unshift({ 
@@ -117,7 +142,9 @@ export const useAppStore = defineStore('app', {
         tasks: [],  
         totalTokens: 0,
         createdAt: Date.now(),
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
+        currentTaskId: null,
+        isTaskRunning: false
       })
       this.setCurrentSession(sessionId)
       return sessionId

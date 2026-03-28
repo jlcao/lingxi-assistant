@@ -12,6 +12,7 @@ from lingxi.core.engine.async_plan_react import AsyncPlanReActEngine
 from lingxi.core.context.task_context import TaskContext
 from lingxi.core.session.session_models import Task
 from lingxi.utils.config import get_workspace_path
+from lingxi.core.event import global_event_publisher
 
 
 class AsyncLingxiAssistant(BaseAssistant):
@@ -85,9 +86,107 @@ class AsyncLingxiAssistant(BaseAssistant):
         Returns:
             异步流式响应生成器
         """
-        result = await self.process_input(user_input, session_id, stream=True, thinking_mode=thinking_mode)
-        async for chunk in result:
-            yield chunk
+        from lingxi.core.context.task_context_manager import TaskContextManager
+        from lingxi.core.context.task_context import TaskStoppedException
+        
+        task_context_manager = TaskContextManager()
+        
+        # 获取 TaskContext
+        history = self.session_manager.get_history(session_id)
+        engine = AsyncPlanReActEngine(self.config, self.skill_caller, self.session_manager)
+        session_context = self.context_manager.get_session_context(session_id)
+        session_context.add_history(history)
+        context = TaskContext(
+            user_input=user_input,
+            session_id=session_id,
+            session_history=history,
+            stream=True,
+            workspace_path=get_workspace_path(),
+            thinking_mode=thinking_mode,
+            session_context=session_context
+        )
+        self.context_manager._build_soul_and_memory(context)
+        self.context_manager._build_memory_context(context)
+        
+        # 注册任务
+        await task_context_manager.register_task(context)
+        
+        try:
+            # 发送任务开始事件
+            if self.websocket_manager:
+                await self.websocket_manager.send_event(
+                    session_id,
+                    "task_start",
+                    context.execution_id,
+                    task_id=context.task_id
+                )
+            
+            # 调用执行引擎
+            response = await engine.process(context)
+            async for chunk in response:
+                yield chunk
+                
+            # 任务完成
+            """ if self.websocket_manager:
+                await self.websocket_manager.send_event(
+                    session_id,
+                    "task_end1",
+                    context.execution_id,
+                    task_id=context.task_id
+                ) """
+                
+        except TaskStoppedException:
+            # 任务被终止
+            self.logger.info(f"任务被终止: task_id={context.task_id}")
+            self._publish_task_stop(context=context,result="任务被终止")
+            # 发送终止响应
+            yield {
+                "type": "task_stopped",
+                "result": "任务已被用户终止",
+                "task_id": context.task_id
+            }
+        except Exception as e:
+            # 处理其他异常
+            self.logger.error(f"任务执行失败: {e}", exc_info=True)
+            self._publish_task_failed(context=context,error=str(e))
+            raise
+        finally:
+            # 注销任务
+            await task_context_manager.unregister_task(context.task_id)
+
+    def _publish_task_failed(self, context: TaskContext, error: str):
+        """发布任务失败事件
+
+        Args:
+            context: 任务上下文
+            error: 错误信息
+            task_id: 任务 ID
+        """
+        global_event_publisher.publish(
+            'task_failed',
+            context=context,
+            error=error
+        )
+
+    
+    def _publish_task_stop(self, context: TaskContext, result: str):
+        """发布任务失败事件
+
+        Args:
+            context: 任务上下文
+            error: 错误信息
+            task_id: 任务 ID
+        """
+        context.task_info.result = result
+        context.task_info.status = "interrupted"
+        global_event_publisher.publish(
+            'task_end',
+            context=context,
+            result=result,
+            input_tokens=context.input_tokens,
+            output_tokens=context.output_tokens
+        )
+
 
     async def install_skill_async(self, skill_path: str, skill_name: str = None, overwrite: bool = False) -> bool:
         """异步安装技能

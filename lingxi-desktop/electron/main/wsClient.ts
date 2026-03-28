@@ -141,6 +141,9 @@ export class WsClient extends EventEmitter {
       case 'task_failed':
         this.emit('task_failed', payload || data)
         break
+      case 'task_stopped':
+        this.emit('task_stopped', payload || data)
+        break
       case 'workspace_files_changed':
         this.emit('workspace_files_changed', payload as WorkspaceFilesChangedEvent)
         break
@@ -260,6 +263,10 @@ export class WsClient extends EventEmitter {
 
   onTaskFailed(callback: (data: any) => void): void {
     this.on('task_failed', callback)
+  }
+
+  onTaskStopped(callback: (data: any) => void): void {
+    this.on('task_stopped', callback)
   }
 
   onWorkspaceFilesChanged(callback: (data: WorkspaceFilesChangedEvent) => void): void {

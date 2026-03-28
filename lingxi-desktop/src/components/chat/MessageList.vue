@@ -30,7 +30,7 @@
               <span class="message-role">{{ '助手' }}</span>
               <span class="message-time">{{ formatTime(task.createdAt) }}</span>
               <span v-if="task.status" class="message-status" :class="task.status">
-                {{ task.status === 'running' ? '执行中' : task.status === 'completed' ? '已完成' : '失败' }}
+                {{ task.status === 'running' ? '执行中' : task.status === 'completed' ? '已完成' : task.status==='interrupted' ? '中断':'失败' }}
               </span>
             </div>
 
@@ -67,7 +67,7 @@
                     <span class="step-index">{{ ((step?.stepIndex) ?? index) }}.</span>
                     <span class="step-description">{{ step?.description }}</span>
                     <span class="step-status">{{ step?.status === 'running' ? '执行中' : step?.status === 'completed' ? '已完成'
-                      : '失败' }}</span>
+                      : task.status==='interrupted' ? '中断':'失败' }}</span>
                     <span class="step-expand-icon">{{ isStepExpanded(task.taskId, index) ? '▼' : '▶' }}</span>
                   </div>
 
@@ -86,6 +86,13 @@
             <div v-if="task.result != '' && task.result !== undefined" class="message-text-container">
               <div class="message-text-wrapper">
                 <div class="message-text" v-html="renderMarkdown(task.result)" />
+              </div>
+            </div>
+            <div v-else-if="task.status === 'stopped'" class="message-text-container">
+              <div class="message-text-wrapper">
+                <div class="message-text" style="color: #999; font-style: italic;">
+                  任务已被用户终止
+                </div>
               </div>
             </div>
             <div v-else class="message-text-container streaming">

@@ -13,6 +13,7 @@ from lingxi.core.context.task_context import TaskContext
 from lingxi.core.engine.async_react_core import AsyncReActCore
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.utils.config import get_config
+from lingxi.core.context.task_context import TaskStoppedException
 
 class AsyncPlanReActEngine(AsyncReActCore):
     """异步 Plan+ReAct 引擎
@@ -67,6 +68,8 @@ class AsyncPlanReActEngine(AsyncReActCore):
                 if stream:
                     yield chunk
 
+        except TaskStoppedException as e:
+            raise e
         except Exception as e:
             import traceback
             self.logger.error(f"计划执行失败：{e}\n{traceback.format_exc()}")

@@ -81,6 +81,9 @@ class BaseAssistant(ABC):
             session_store=self.session_manager
         )
         self.logger.debug("workspace_manager 资源引用已设置（sandbox、skill_caller、skill_system、session_store）")
+        
+        # WebSocket 管理器引用（由外部设置）
+        self.websocket_manager = None
     
     
     def init_session_store_subscriber(self) -> None:

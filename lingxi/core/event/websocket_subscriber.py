@@ -43,6 +43,7 @@ class WebSocketSubscriber:
         global_event_publisher.subscribe('step_end', self.handle_step_end)
         global_event_publisher.subscribe('task_start', self.handle_task_start)
         global_event_publisher.subscribe('task_end', self.handle_task_end)
+        global_event_publisher.subscribe('task_stopped', self.handle_task_end)
 
         self.logger.info("WebSocket 订阅者已初始化，开始监听事件")
 
@@ -57,6 +58,7 @@ class WebSocketSubscriber:
         global_event_publisher.unsubscribe('step_end', self.handle_step_end)
         global_event_publisher.unsubscribe('task_start', self.handle_task_start)
         global_event_publisher.unsubscribe('task_end', self.handle_task_end)
+        global_event_publisher.unsubscribe('task_stopped', self.handle_task_end)
 
         self.logger.info("WebSocket订阅者已停止监听事件")
 

@@ -9,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from lingxi.web.websocket_message import WebSocketMessage
 from lingxi.web.websocket_connection import WebSocketConnection
 from lingxi.core.assistant.async_main import AsyncLingxiAssistant
+from lingxi.core.context.task_context_manager import TaskContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,12 @@ class WebSocketManager:
         self.active_connections: Dict[str, WebSocketConnection] = {}
         self.session_connections: Dict[str, Set[str]] = {}
         self.assistant = assistant
+        # 设置 websocket_manager 引用到 assistant
+        if assistant:
+            assistant.websocket_manager = self
         self.connection_counter = 0
         self.stream_callbacks: Dict[str, Callable] = {}
+        self.task_context_manager = TaskContextManager()
         self._initialized = True
 
     async def connect(self, websocket: WebSocket, session_id: str = None) -> str:
@@ -151,6 +156,8 @@ class WebSocketManager:
             elif message_type == 'stream_chat':
                 # 使用 create_task 实现并发处理，避免阻塞消息接收
                 asyncio.create_task(self._handle_stream_chat(connection, data))
+            elif message_type == 'stop_task':
+                await self._handle_stop_task(connection, data)
             elif message_type == 'session':
                 await self._handle_session_message(connection, data)
             elif message_type == 'checkpoint':
@@ -193,6 +200,29 @@ class WebSocketManager:
         except Exception as e:
             logger.error(f"处理流式聊天失败：{e}", exc_info=True)
             await self._send_error(connection, f"处理流式聊天失败：{str(e)}")
+
+    async def _handle_stop_task(self, connection: WebSocketConnection, data: Dict[str, Any]):
+        """处理终止任务消息
+
+        Args:
+            connection: WebSocket 连接
+            data: 消息数据
+        """
+        task_id = data.get('taskId') or data.get('task_id')
+        
+        if not task_id:
+            await self._send_error(connection, "taskId 不能为空")
+            return
+
+        try:
+            success = await self.task_context_manager.stop_task(task_id)
+            if success:
+                await self._send_success(connection, {"task_id": task_id, "message": "任务已终止"})
+            else:
+                await self._send_error(connection, "任务不存在或已完成")
+        except Exception as e:
+            logger.error(f"终止任务失败: {e}", exc_info=True)
+            await self._send_error(connection, f"终止任务失败: {str(e)}")
 
     async def _handle_command_message(self, connection: WebSocketConnection, data: Dict[str, Any]):
         """处理命令消息

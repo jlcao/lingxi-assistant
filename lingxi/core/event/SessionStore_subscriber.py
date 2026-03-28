@@ -43,6 +43,7 @@ class SessionStoreSubscriber:
         global_event_publisher.subscribe('step_end', self.handle_step_end)
         global_event_publisher.subscribe('task_failed', self.handle_task_failed)
         global_event_publisher.subscribe('task_end', self.handle_task_end)
+        global_event_publisher.subscribe('task_stopped', self.handle_task_end)
 
         self.logger.info("会话存储订阅者已初始化，开始监听事件")
 
@@ -53,6 +54,7 @@ class SessionStoreSubscriber:
         global_event_publisher.unsubscribe('step_end', self.handle_step_end)
         global_event_publisher.unsubscribe('task_end', self.handle_task_end)
         global_event_publisher.unsubscribe('task_failed', self.handle_task_failed)
+        global_event_publisher.unsubscribe('task_stopped', self.handle_task_end)
 
         self.logger.info("会话存储订阅者已停止监听事件")
 
@@ -238,6 +240,7 @@ class SessionStoreSubscriber:
         task_id = context.task_id
         session_id = context.session_id
         user_input = context.user_input
+        status=context.task_info.status
         self.logger.debug(f"收到 task_end 事件：session={context.session_id}, task_id={task_id}")
         if not task_id:
             self.logger.warning(f"处理 task_end 事件时缺少 task_id: {session_id}, kwargs={kwargs}")
@@ -252,7 +255,7 @@ class SessionStoreSubscriber:
                 task_id=task_id,
                 result=result,
                 user_input=user_input,
-                status='completed'
+                status= status or 'completed'
             )
             
             input_tokens = context.input_tokens

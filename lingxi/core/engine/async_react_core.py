@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any, Union
 from collections.abc import AsyncGenerator
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
-from lingxi.core.context.task_context import TaskContext
+from lingxi.core.context.task_context import TaskContext, TaskStoppedException
 from lingxi.core.llm.async_llm_client import AsyncLLMClient
 from lingxi.core.session.session_models import Step
 from .base import BaseEngine
@@ -413,6 +413,9 @@ class AsyncReActCore(BaseEngine):
         self._publish_think_start(context, step_index, "")
         try:
             async for response_chunk in self._process_llm_response(messages, task_level, stream, thinking_mode):
+                # 检查终止
+                context.check_stopped()
+                
                 chunk_type = response_chunk["type"]
                 
                 if chunk_type == "thought_chunk":
@@ -424,6 +427,8 @@ class AsyncReActCore(BaseEngine):
                     usage = response_chunk.get("usage")
                     self.logger.debug(f"收到完整响应，长度：{len(full_response) if full_response else 0}")
                     break
+        except TaskStoppedException as e:
+            raise
         except Exception as e:
             self.logger.error(f"处理LLM响应时出错：{e}", exc_info=True)
             step.status = "failed"
@@ -508,10 +513,16 @@ class AsyncReActCore(BaseEngine):
         messages = self._build_initial_messages(context, history_context)
         step_index = 0
         for step in range(self.max_steps):
+            # 检查是否已终止
+            context.check_stopped()
+            
             self.logger.debug(f"步骤 {step + 1}/{self.max_steps}")
             step_index = step + 1
             step_result = []
             async for chunk in self._execute_step(step_index, messages, task_level, context):
+                # 在执行步骤期间也检查
+                context.check_stopped()
+                
                 if(chunk.get("parsed") is not None):
                     step_result = chunk
                 else:
