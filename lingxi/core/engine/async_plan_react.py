@@ -98,7 +98,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
 
         # 分析任务
         plan_info={}
-        if(get_config().get("engine", {}).get("enable_plan")):
+        if(get_config().get("engine", {}).get("enable_plan", True)):
             plan_info = await self._analyze_task_and_plan(context)
             self.logger.debug(f"异步 Plan+ReAct 引擎处理任务：level={task_level}, task={task}")
             if not plan_info:

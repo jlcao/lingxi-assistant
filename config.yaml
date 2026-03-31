@@ -20,7 +20,7 @@ engine:
 python_interpreter: D:/resources/lingxi-assistant/venv/Scripts/python.exe
 llm:
   api_key: your-dashscope-api-key-here
-  base_url: https://coding.dashscope.aliyuncs.com/v1
+  base_url: https://ark.cn-beijing.volces.com/api/coding/v3
   default_model: qwen3.5-plus
   max_tokens: 32000
   model: qwen3.5-plus
