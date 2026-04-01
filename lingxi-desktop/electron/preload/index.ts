@@ -57,29 +57,7 @@ const electronAPI = {
     validate: (workspacePath: string) => ipcRenderer.invoke('workspace:validate', workspacePath)
   },
 
-  ws: {
-    connect: (sessionId?: string) => ipcRenderer.invoke('ws:connect', sessionId),
-    disconnect: () => ipcRenderer.invoke('ws:disconnect'),
-    isConnected: () => ipcRenderer.invoke('ws:is-connected'),
-    sendMessage: (message: string, sessionId?: string) => ipcRenderer.invoke('ws:send-message', message, sessionId),
-    stopTask: (taskId: string) => ipcRenderer.invoke('ws:stop-task', taskId),
-    onConnected: (callback: () => void) => ipcRenderer.on('ws:connected', callback),
-    onDisconnected: (callback: () => void) => ipcRenderer.on('ws:disconnected', callback),
-    onThoughtChain: (callback: (data: any) => void) => ipcRenderer.on('ws:thought-chain', (_, data) => callback(data)),
-    onStepStart: (callback: (data: any) => void) => ipcRenderer.on('ws:step-start', (_, data) => callback(data)),
-    onStepEnd: (callback: (data: any) => void) => ipcRenderer.on('ws:step-end', (_, data) => callback(data)),
-    onTaskStart: (callback: (data: any) => void) => ipcRenderer.on('ws:task-start', (_, data) => callback(data)),
-    onTaskEnd: (callback: (data: any) => void) => ipcRenderer.on('ws:task-end', (_, data) => callback(data)),
-    onTaskStopped: (callback: (data: any) => void) => ipcRenderer.on('ws:task-stopped', (_, data) => callback(data)),
-    onTaskFailed: (callback: (data: any) => void) => ipcRenderer.on('ws:task-failed', (_, data) => callback(data)),
-    onThinkStart: (callback: (data: any) => void) => ipcRenderer.on('ws:think-start', (_, data) => callback(data)),
-    onThinkStream: (callback: (data: any) => void) => ipcRenderer.on('ws:think-stream', (_, data) => callback(data)),
-    onThinkFinal: (callback: (data: any) => void) => ipcRenderer.on('ws:think-final', (_, data) => callback(data)),
-    onPlanStart: (callback: (data: any) => void) => ipcRenderer.on('ws:plan-start', (_, data) => callback(data)),
-    onPlanFinal: (callback: (data: any) => void) => ipcRenderer.on('ws:plan-final', (_, data) => callback(data)),
-    onWorkspaceFilesChanged: (callback: (data: any) => void) => ipcRenderer.on('ws:workspace-files-changed', (_, data) => callback(data)),
-    removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel)
-  }
+
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

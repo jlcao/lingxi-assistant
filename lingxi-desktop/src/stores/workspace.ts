@@ -1,6 +1,7 @@
 import type { FileChange, WorkspaceFilesChangedEvent, WorkspaceInfo } from '@/types'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { useWsStore } from './wsStore'
 
 const DEBOUNCE_MS = 500
 const MIN_REFRESH_INTERVAL = 1000
@@ -168,7 +169,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function setupFileChangeListener() {
-    window.electronAPI.ws.onWorkspaceFilesChanged((data: WorkspaceFilesChangedEvent) => {
+    const wsStore = useWsStore()
+    wsStore.onWorkspaceFilesChanged((data: WorkspaceFilesChangedEvent) => {
       handleWorkspaceFilesChanged(data)
     })
     console.log('[Workspace] 文件变动监听器已设置')

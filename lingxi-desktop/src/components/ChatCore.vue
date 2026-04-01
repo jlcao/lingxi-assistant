@@ -100,11 +100,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAppStore } from '../stores/app'
+import { useWsStore } from '../stores/wsStore'
 import { Plus, Upload, Edit, Delete, Download, Picture, View, Star } from '@element-plus/icons-vue'
 import MessageList from './chat/MessageList.vue'
 import { ElMessageBox, ElSwitch } from 'element-plus'
 
 const appStore = useAppStore()
+const wsStore = useWsStore()
 
 const inputText = ref('')
 const mode = ref('plan')
@@ -275,9 +277,9 @@ function handleButtonClick() {
 }
 
 async function handleStopTask() {
-  if (window.electronAPI?.ws && currentTaskId.value) {
+  if (currentTaskId.value) {
     try {
-      await window.electronAPI.ws.stopTask(currentTaskId.value)
+      wsStore.stopTask(currentTaskId.value)
     } catch (error) {
       console.error('Failed to stop task:', error)
     }
@@ -317,13 +319,9 @@ async function handleSend() {
     inputText.value = ''
 
     // 通过 WebSocket 发送消息到后端
-    if (window.electronAPI?.ws && appStore.currentSessionId) {
+    if (appStore.currentSessionId) {
       try {
-        await window.electronAPI.ws.sendMessage(
-          userMessage,
-          appStore.currentSessionId,
-          thinkingMode.value
-        )
+        wsStore.sendMessage(userMessage, appStore.currentSessionId)
       } catch (error) {
         console.error('Failed to send message:', error)
       }

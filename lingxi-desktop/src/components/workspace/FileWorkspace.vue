@@ -84,6 +84,7 @@
 <script setup lang="ts">
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useWsStore } from '@/stores/wsStore'
 import { FolderOpened, Loading } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
@@ -282,7 +283,8 @@ onMounted(async () => {
 onUnmounted(() => {
   console.log('[FileWorkspace] onUnmounted called')
   workspaceStore.setDirectoryTreeRefreshCallback(null)
-  window.electronAPI.ws.removeAllListeners('ws:workspace-files-changed')
+  const wsStore = useWsStore()
+  wsStore.removeAllListeners('workspace_files_changed')
 })
 
 watch(currentWorkspace, async (newWorkspace) => {

@@ -3,7 +3,6 @@ import { ApiClient } from './apiClient'
 import { FileManager } from './fileManager'
 import { WindowManager } from './windowManager'
 import { BackendManager } from './backendManager'
-import { WsManager } from './wsManager'
 import { FileWatcher } from './fileWatcher'
 
 // 导入日志模块
@@ -13,7 +12,6 @@ class App {
   private windowManager: WindowManager
   private apiClient: ApiClient
   private backendManager: BackendManager
-  private wsManager: WsManager
   private fileManager: FileManager
   private fileWatcher: FileWatcher
   private isQuitting: boolean = false
@@ -22,12 +20,10 @@ class App {
     this.backendManager = new BackendManager()
     this.windowManager = new WindowManager()
     this.apiClient = new ApiClient(`http://127.0.0.1:${this.backendManager.getBackendPort()}`)
-    this.wsManager = new WsManager(this.backendManager.getBackendPort())
     this.fileManager = new FileManager()
     this.fileWatcher = new FileWatcher()
 
     this.setupIpcHandlers()
-    this.setupWsMessageHandler()
 
     // 确保前端退出时后端也会退出（只添加一次）
     process.on('exit', () => {
@@ -44,12 +40,6 @@ class App {
         console.error(`[App] 发送 IPC 消息失败 (${channel}):`, error)
       }
     }
-  }
-
-  private setupWsMessageHandler(): void {
-    this.wsManager.initWsClient((channel, data) => {
-      this.safeSend(channel, data)
-    })
   }
 
   private setupIpcHandlers(): void {
@@ -237,35 +227,7 @@ class App {
       return this.apiClient.validateWorkspace(workspacePath)
     })
 
-    // ===== WebSocket 相关 IPC 处理 =====
-    ipcMain.handle('ws:connect', async (_, sessionId) => {
-      this.wsManager.connect(sessionId)
-    })
 
-    ipcMain.handle('ws:disconnect', async () => {
-      this.wsManager.disconnect()
-    })
-
-    ipcMain.handle('ws:is-connected', async () => {
-      return this.wsManager.isConnected()
-    })
-
-    ipcMain.handle('ws:send-message', async (_, message, sessionId) => {
-      console.log(`[App] ws:send-message called with: ${message}, ${sessionId}`)
-      this.wsManager.send({
-        type: 'stream_chat',
-        content: message,
-        sessionId: sessionId || 'default'
-      })
-    })
-
-    ipcMain.handle('ws:stop-task', async (_, taskId) => {
-      console.log(`[App] ws:stop-task called with: ${taskId}`)
-      this.wsManager.send({
-        type: 'stop_task',
-        taskId: taskId
-      })
-    })
   }
 
   async start(): Promise<void> {
@@ -348,13 +310,6 @@ class App {
       this.fileWatcher.cleanup()
     } catch (error) {
       logger.error('[App] 清理文件监控器时出错:', error)
-    }
-
-    try {
-      // 清理 WebSocket 连接
-      this.wsManager.cleanup()
-    } catch (error) {
-      logger.error('[App] 清理 WebSocket 时出错:', error)
     }
 
     try {

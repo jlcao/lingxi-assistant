@@ -1,13 +1,41 @@
-import EventEmitter from 'events'
-import WebSocket from 'ws'
-import { logger } from './logger'
 import type {
   ThoughtChainData,
   StepStatusData,
   SkillCallData,
   ModelRouteData,
   WorkspaceFilesChangedEvent
-} from '../../src/types'
+} from '../types'
+
+// 实现一个简单的EventEmitter，兼容浏览器环境
+class EventEmitter {
+  private events: Map<string, Array<(...args: any[]) => void>> = new Map()
+
+  on(event: string, listener: (...args: any[]) => void): this {
+    if (!this.events.has(event)) {
+      this.events.set(event, [])
+    }
+    this.events.get(event)?.push(listener)
+    return this
+  }
+
+  emit(event: string, ...args: any[]): boolean {
+    const listeners = this.events.get(event)
+    if (listeners) {
+      listeners.forEach(listener => listener(...args))
+      return true
+    }
+    return false
+  }
+
+  removeAllListeners(event?: string): this {
+    if (event) {
+      this.events.delete(event)
+    } else {
+      this.events.clear()
+    }
+    return this
+  }
+}
 
 export class WsClient extends EventEmitter {
   private ws: WebSocket | null = null
@@ -17,30 +45,26 @@ export class WsClient extends EventEmitter {
   private reconnectInterval: number = 1000
   private maxReconnectInterval: number = 30000
   private heartbeatInterval: number = 30000
-  private heartbeatTimer: NodeJS.Timeout | null = null
+  private heartbeatTimer: number | null = null
   private isManualClose: boolean = false
-  private lastSessionId: string | undefined // 新增：保存sessionId用于重连
+  private lastSessionId: string | undefined
 
   constructor(url: string) {
     super()
     this.url = url
-    // 全局错误监听，方便调试
     this.on('error', (err) => {
-      logger.error('[WsClient] 错误:', err)
+      console.error('[WsClient] 错误:', err)
     })
   }
 
   connect(sessionId?: string): void {
-    // 保存最新的sessionId
     this.lastSessionId = sessionId
     this.isManualClose = false
     const wsUrl = sessionId ? `${this.url}?sessionId=${sessionId}` : this.url
 
-    logger.log(`[WsClient] 尝试连接WS服务端: ${wsUrl}`)
+    console.log(`[WsClient] 尝试连接WS服务端: ${wsUrl}`)
 
-    // 修复：连接前清理旧连接，避免冲突
     if (this.ws) {
-      this.ws.removeAllListeners()
       this.ws.close()
       this.ws = null
     }
@@ -57,49 +81,48 @@ export class WsClient extends EventEmitter {
   private setupEventHandlers(): void {
     if (!this.ws) return
 
-    this.ws.on('open', () => {
-      logger.log('[WsClient] WS连接成功 ✅')
+    this.ws.onopen = () => {
+      console.log('[WsClient] WS连接成功 ✅')
       this.reconnectAttempts = 0
       this.emit('connected')
       this.startHeartbeat()
-    })
+    }
 
-    this.ws.on('message', (data) => {
+    this.ws.onmessage = (event) => {
       try {
-        const message = data.toString()
+        const message = event.data
         const parsed = JSON.parse(message)
         this.handleMessage(parsed)
       } catch (error) {
         this.emit('error', new Error(`消息解析失败: ${(error as Error).message}`))
       }
-    })
+    }
 
-    // 修复：精准捕获ECONNREFUSED错误并给出明确提示
-    this.ws.on('error', (error) => {
-      const errMsg = (error as Error).message
+    this.ws.onerror = (error) => {
+      const errMsg = error instanceof Error ? error.message : '未知错误'
       if (errMsg.includes('ECONNREFUSED')) {
         const tip = `[WsClient] 连接被拒绝 ❌，请检查: 1. WS服务端是否启动 2. 5000端口是否被占用 3. 服务端地址是否正确(${this.url})`
         this.emit('error', new Error(tip))
-        logger.error(tip)
+        console.error(tip)
       } else {
         this.emit('error', new Error(`WS连接错误: ${errMsg}`))
       }
-    })
+    }
 
-    this.ws.on('close', () => {
+    this.ws.onclose = () => {
       this.stopHeartbeat()
-      logger.log('[WsClient] WS连接关闭 ❌')
+      console.log('[WsClient] WS连接关闭 ❌')
       this.emit('disconnected')
 
       if (!this.isManualClose) {
         this.scheduleReconnect()
       }
-    })
+    }
   }
 
   private handleMessage(data: any): void {
     if (!data) {
-      logger.error('[WsClient] 收到空消息，忽略')
+      console.error('[WsClient] 收到空消息，忽略')
       return
     }
     
@@ -154,14 +177,14 @@ export class WsClient extends EventEmitter {
 
   private startHeartbeat(): void {
     this.stopHeartbeat()
-    this.heartbeatTimer = setInterval(() => {
-      this.send({ type: 'heartbeat' })
+    this.heartbeatTimer = window.setInterval(() => {
+      this.send({ type: 'ping' })
     }, this.heartbeatInterval)
   }
 
   private stopHeartbeat(): void {
     if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer)
+      window.clearInterval(this.heartbeatTimer)
       this.heartbeatTimer = null
     }
   }
@@ -169,7 +192,7 @@ export class WsClient extends EventEmitter {
   private scheduleReconnect(): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.emit('reconnect_failed', '达到最大重连次数，停止重连')
-      logger.error(`[WsClient] 重连失败：已尝试${this.reconnectAttempts}次，超过上限`)
+      console.error(`[WsClient] 重连失败：已尝试${this.reconnectAttempts}次，超过上限`)
       return
     }
 
@@ -180,10 +203,9 @@ export class WsClient extends EventEmitter {
 
     this.reconnectAttempts++
     this.emit('reconnecting', this.reconnectAttempts, interval)
-    logger.log(`[WsClient] 准备重连：第${this.reconnectAttempts}次，间隔${interval/1000}s`)
+    console.log(`[WsClient] 准备重连：第${this.reconnectAttempts}次，间隔${interval/1000}s`)
 
-    // 修复：重连时携带上次的sessionId
-    setTimeout(() => {
+    window.setTimeout(() => {
       this.connect(this.lastSessionId)
     }, interval)
   }
@@ -202,31 +224,35 @@ export class WsClient extends EventEmitter {
       this.ws.close()
       this.ws = null
     }
-    this.reconnectAttempts = 0 // 重置重连次数
+    this.reconnectAttempts = 0
   }
 
   isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN
   }
 
+  onConnected(callback: () => void): void {
+    this.on('connected', callback)
+  }
+
+  onDisconnected(callback: () => void): void {
+    this.on('disconnected', callback)
+  }
+
+  onError(callback: (error: Error) => void): void {
+    this.on('error', callback)
+  }
+
   onThoughtChain(callback: (data: ThoughtChainData) => void): void {
     this.on('thought_chain', callback)
   }
 
-  onStepStatus(callback: (data: StepStatusData) => void): void {
-    this.on('step_status', callback)
+  onStepStart(callback: (data: any) => void): void {
+    this.on('step_start', callback)
   }
 
-  onSkillCall(callback: (data: SkillCallData) => void): void {
-    this.on('skill_call', callback)
-  }
-
-  onResourceUpdate(callback: (data: any) => void): void {
-    this.on('resource_update', callback)
-  }
-
-  onModelRoute(callback: (data: ModelRouteData) => void): void {
-    this.on('model_route', callback)
+  onStepEnd(callback: (data: any) => void): void {
+    this.on('step_end', callback)
   }
 
   onTaskStart(callback: (data: any) => void): void {
@@ -235,6 +261,14 @@ export class WsClient extends EventEmitter {
 
   onTaskEnd(callback: (data: any) => void): void {
     this.on('task_end', callback)
+  }
+
+  onTaskStopped(callback: (data: any) => void): void {
+    this.on('task_stopped', callback)
+  }
+
+  onTaskFailed(callback: (data: any) => void): void {
+    this.on('task_failed', callback)
   }
 
   onThinkStart(callback: (data: any) => void): void {
@@ -257,24 +291,15 @@ export class WsClient extends EventEmitter {
     this.on('plan_final', callback)
   }
 
-  onStepEnd(callback: (data: any) => void): void {
-    this.on('step_end', callback)
-  }
-
-  onTaskFailed(callback: (data: any) => void): void {
-    this.on('task_failed', callback)
-  }
-
-  onTaskStopped(callback: (data: any) => void): void {
-    this.on('task_stopped', callback)
-  }
-
   onWorkspaceFilesChanged(callback: (data: WorkspaceFilesChangedEvent) => void): void {
     this.on('workspace_files_changed', callback)
   }
 
-  off(eventType: string, callback: (...args: any[]) => void): this {
-    this.removeListener(eventType, callback)
-    return this
+  removeAllListeners(eventType?: string): void {
+    if (eventType) {
+      super.removeAllListeners(eventType)
+    } else {
+      super.removeAllListeners()
+    }
   }
 }
