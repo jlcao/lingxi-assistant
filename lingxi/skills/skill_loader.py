@@ -10,6 +10,7 @@ import subprocess
 import sys
 from typing import Dict, List, Optional, Any
 from pathlib import Path
+from lingxi.utils.config import get_workspace_path
 
 
 class SkillLoader:
@@ -177,7 +178,8 @@ class SkillLoader:
         self.logger.info(f"开始扫描技能目录，内置技能目录: {self.builtin_skills_dir}, 用户技能目录: {self.user_skills_dir}")
         self.builtin_skills_dir="_internal/lingxi/skills/builtin"
         # 扫描内置技能目录
-        for skills_path in [self.builtin_skills_dir, self.user_skills_dir]:
+        workspace_skills_dir = f"{get_workspace_path()}/.lingxi/skills"
+        for skills_path in [self.builtin_skills_dir, self.user_skills_dir, workspace_skills_dir]:
             try:
                 # ========== 修复：适配打包后的路径 ==========
                 # 处理打包后相对路径的问题

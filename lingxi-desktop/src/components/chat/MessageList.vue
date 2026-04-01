@@ -206,9 +206,9 @@ function renderMarkdown(content: any): string {
   if (typeof content === 'object' && content !== null) {
     // 提取最终结果部分
     if (content.final_result) {
-      return marked.parse(content.final_result)
+      return renderMarkdown(content.final_result)
     } else if (content.result) {
-      return marked.parse(content.result)
+      return renderMarkdown(content.result)
     } else if (content.content) {
       // 如果JSON中包含content字段，递归处理
       return renderMarkdown(content.content)
@@ -219,7 +219,7 @@ function renderMarkdown(content: any): string {
   }
 
   // 处理字符串格式的内容（Markdown）
-  const contentStr = typeof content === 'string' ? content : JSON.stringify(content)
+  let contentStr = typeof content === 'string' ? content : JSON.stringify(content)
 
   // 提取最终结果部分，只显示最终结果
   if (contentStr.includes('# 最终结果')) {
@@ -230,11 +230,18 @@ function renderMarkdown(content: any): string {
       if (!finalResult) {
         return marked.parse('*暂无最终结果*')
       }
-      return marked.parse(finalResult)
+      contentStr = finalResult
     }
   }
 
-  return marked.parse(contentStr)
+  // 将 \n 转义序列转换为实际的换行符
+  contentStr = contentStr.replace(/\\n/g, '\n')
+
+  // 解析Markdown内容
+  const parsedContent = marked.parse(contentStr)
+  
+  // 直接返回解析后的内容
+  return parsedContent
 }
 
 
