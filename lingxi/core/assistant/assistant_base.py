@@ -12,7 +12,7 @@ from lingxi.utils.logging import setup_logging
 # from lingxi.core.execution import ExecutionModeSelector
 # 任务分类功能已移除 - 2026-03-15
 # from lingxi.core.classification import TaskClassifier
-from lingxi.core.skill_caller import SkillCaller
+from lingxi.core.action_caller import ActionCaller
 from lingxi.core.event.console_subscriber import ConsoleSubscriber
 from lingxi.core.context.task_context import TaskContext
 from lingxi.core.context.context_manager import ContextManager
@@ -57,9 +57,9 @@ class BaseAssistant(ABC):
         # self.classifier = TaskClassifier(self.config)
         self.classifier = None  # 保留字段避免引用错误
         # 执行模式选择器已废弃 - 2026-03-15
-        # self.mode_selector = ExecutionModeSelector(self.config, self.skill_caller)
+        # self.mode_selector = ExecutionModeSelector(self.config, self.action_caller)
         self.mode_selector = None  # 保留字段避免引用错误
-        self.skill_caller = SkillCaller(self.config)
+        self.action_caller = ActionCaller(self.config)
         #self.console_subscriber = ConsoleSubscriber()
         
         #
@@ -68,19 +68,19 @@ class BaseAssistant(ABC):
         self._session_store_subscriber = None
         
         # 将 session_manager 设置到 workspace_manager 中
-        # 注意：skill_caller.workspace_manager 初始为 None，需要手动创建并设置
+        # 注意：action_caller.workspace_manager 初始为 None，需要手动创建并设置
         from lingxi.management.workspace import WorkspaceManager
         self.workspace_manager = WorkspaceManager(self.config)
-        self.skill_caller.set_workspace_manager(self.workspace_manager)
+        self.action_caller.set_workspace_manager(self.workspace_manager)
         
-        # 设置资源引用（包括 sandbox、skill_caller、session_store）
+        # 设置资源引用（包括 sandbox、action_caller、session_store）
         self.workspace_manager.set_resources(
-            sandbox=self.skill_caller.sandbox,
-            skill_caller=self.skill_caller,
-            skill_system=self.skill_caller.skill_system,
+            sandbox=self.action_caller.sandbox,
+            action_caller=self.action_caller,
+            skill_system=self.action_caller.skill_system,
             session_store=self.session_manager
         )
-        self.logger.debug("workspace_manager 资源引用已设置（sandbox、skill_caller、skill_system、session_store）")
+        self.logger.debug("workspace_manager 资源引用已设置（sandbox、action_caller、skill_system、session_store）")
         
         # WebSocket 管理器引用（由外部设置）
         self.websocket_manager = None
@@ -235,7 +235,7 @@ class BaseAssistant(ABC):
 
     def list_skills(self):
         """列出可用技能"""
-        skills = self.skill_caller.list_available_skills(enabled_only=True)
+        skills = self.action_caller.list_available_skills(enabled_only=True)
 
         if not skills:
             print("没有可用的技能")

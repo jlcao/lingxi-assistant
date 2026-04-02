@@ -5,7 +5,7 @@ import uuid
 import threading
 import asyncio
 from typing import Dict, List, Optional, Any, Union, Generator, TYPE_CHECKING
-from lingxi.core.skill_caller import SkillCaller
+from lingxi.core.action_caller import ActionCaller
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.context.task_context import TaskContext
@@ -20,17 +20,17 @@ if TYPE_CHECKING:
 class BaseEngine:
     """引擎基类，提供公共功能"""
 
-    def __init__(self, config: Dict[str, Any], skill_caller: SkillCaller = None, session_manager: 'SessionManager' = None, websocket_manager=None):
+    def __init__(self, config: Dict[str, Any], action_caller: ActionCaller = None, session_manager: 'SessionManager' = None, websocket_manager=None):
         """初始化引擎
 
         Args:
             config: 系统配置
-            skill_caller: 技能调用器
+            action_caller: 行动调用器
             session_manager: 会话管理器
             websocket_manager: WebSocket管理器（已弃用，使用事件系统）
         """
         self.config = config
-        self.skill_caller = skill_caller
+        self.action_caller = action_caller
         self.session_manager = session_manager
         self.websocket_manager = websocket_manager
         # LLMClient 已废弃 - 子类应使用 AsyncLLMClient
@@ -107,8 +107,8 @@ class BaseEngine:
         if action == "finish":
             return action_input
 
-        if not self.skill_caller:
-            return {"success": False, "error": "技能调用器未初始化", "result_description": f"{action} 执行失败，技能调用器未初始化"}
+        if not self.action_caller:
+            return {"success": False, "error": "行动调用器未初始化", "result_description": f"{action} 执行失败，行动调用器未初始化"}
 
         try:
             # 如果 action_input 是字符串，尝试解析为参数字典
@@ -130,7 +130,7 @@ class BaseEngine:
                 return {"success": False, "error": "用户拒绝执行高危操作", "result_description": f"{action} 执行失败，用户拒绝执行高危操作"}
             
             # 使用带安全检查的技能调用
-            result = self.skill_caller.call_with_security_check(
+            result = self.action_caller.call_with_security_check(
                 action,
                 action_type,
                 parameters,

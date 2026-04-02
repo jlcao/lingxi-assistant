@@ -73,16 +73,16 @@ async def startup_event():
     else:
         logger.info("使用已初始化的助手实例")
         # 修复：确保现有实例的资源引用已完整设置
-        if hasattr(assistant, 'skill_caller') and hasattr(assistant.skill_caller, 'workspace_manager'):
-            workspace_manager = assistant.skill_caller.workspace_manager
+        if hasattr(assistant, 'action_caller') and hasattr(assistant.action_caller, 'workspace_manager'):
+            workspace_manager = assistant.action_caller.workspace_manager
             if workspace_manager:
                 workspace_manager.set_resources(
-                    sandbox=assistant.skill_caller.sandbox,
-                    skill_caller=assistant.skill_caller,
-                    skill_system=assistant.skill_caller.skill_system if hasattr(assistant.skill_caller, 'skill_system') else None,
+                    sandbox=assistant.action_caller.sandbox,
+                    action_caller=assistant.action_caller,
+                    skill_system=assistant.action_caller.skill_system if hasattr(assistant.action_caller, 'skill_system') else None,
                     session_store=assistant.session_manager if hasattr(assistant, 'session_manager') else None
                 )
-                logger.info("已修复现有实例的 workspace_manager 资源引用（sandbox、skill_caller、skill_system、session_store）")
+                logger.info("已修复现有实例的 workspace_manager 资源引用（sandbox、action_caller、skill_system、session_store）")
         
         # 确保会话存储订阅者已初始化
         assistant.init_session_store_subscriber()

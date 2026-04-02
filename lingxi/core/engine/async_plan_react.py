@@ -21,16 +21,16 @@ class AsyncPlanReActEngine(AsyncReActCore):
     继承自 AsyncReActCore，实现完全异步的执行流程
     """
 
-    def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager=None, websocket_manager=None):
+    def __init__(self, config: Dict[str, Any], action_caller=None, session_manager=None, websocket_manager=None):
         """初始化异步 Plan+ReAct 引擎
 
         Args:
             config: 系统配置
-            skill_caller: 技能调用器
+            action_caller: 行动调用器
             session_manager: 会话管理器
             websocket_manager: WebSocket 管理器
         """
-        super().__init__(config, skill_caller, session_manager, websocket_manager)
+        super().__init__(config, action_caller, session_manager, websocket_manager)
         
         config = get_config()
         complex_config = config.get("execution_mode", {}).get("complex", {})
@@ -190,7 +190,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
             分析结果
         """
         task_info = context.task_info
-        available_skills = self.skill_caller.list_available_skills(enabled_only=True) if self.skill_caller else []
+        available_skills = self.action_caller.list_available_skills(enabled_only=True) if self.action_caller else []
         history_context = context.session_context.get_history_context()
         
         messages = PromptTemplates.build_task_analysis_messages_with_cache(

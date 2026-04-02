@@ -126,22 +126,7 @@ class SkillCache:
         }
         self.logger.debug(f"技能配置已缓存：{skill_id}")
     
-    def invalidate(self, skill_id: str) -> None:
-        """使缓存失效"""
-        if skill_id in self._module_cache:
-            del self._module_cache[skill_id]
-            self.logger.debug(f"技能模块缓存已失效：{skill_id}")
-        
-        if skill_id in self._config_cache:
-            del self._config_cache[skill_id]
-            self.logger.debug(f"技能配置缓存已失效：{skill_id}")
-    
-    def invalidate_all(self) -> None:
-        """清空所有缓存"""
-        count = len(self._module_cache) + len(self._config_cache)
-        self._module_cache.clear()
-        self._config_cache.clear()
-        self.logger.info(f"所有技能缓存已清空，共 {count} 个条目")
+
     
     def _is_expired(self, timestamp: datetime) -> bool:
         """检查是否过期"""
@@ -286,18 +271,16 @@ class SkillCache:
         skill_cache = self._file_cache[skill_id]
         entry = skill_cache.get_file(relative_path)
         
-        
         if entry is None:
-            
             return None
         
         if entry.is_expired(self._ttl):
             self.logger.debug(f"文件缓存过期: {skill_id}/{relative_path},重新加载")
             self.cache_skill_files(skill_id, skill_cache.skill_dir)
 
-        str = entry.content.replace('skill_dir', skill_cache.skill_dir)
+        result_str = entry.content.replace('skill_dir', skill_cache.skill_dir)
         
-        return str
+        return result_str
     
     def list_cached_files(self, skill_id: str) -> List[str]:
         """列出技能已缓存的所有文件

@@ -202,7 +202,7 @@ class LingxiAssistant(BaseAssistant):
 
     def list_skills(self):
         """列出可用技能"""
-        skills = self.skill_caller.list_available_skills(enabled_only=True)
+        skills = self.action_caller.list_available_skills(enabled_only=True)
 
         if not skills:
             print("没有可用的技能")

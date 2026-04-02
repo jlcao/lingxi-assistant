@@ -39,7 +39,7 @@ async def list_skills(enabled_only: bool = False) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
-        skills = assistant.skill_caller.list_available_skills(enabled_only=enabled_only)
+        skills = assistant.action_caller.list_available_skills(enabled_only=enabled_only)
         return {
             "skills": skills,
             "count": len(skills)
@@ -63,7 +63,7 @@ async def get_skill(skill_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
-        skills = assistant.skill_caller.list_available_skills(enabled_only=False)
+        skills = assistant.action_caller.list_available_skills(enabled_only=False)
         skill = next((s for s in skills if s.get("skill_id") == skill_id), None)
 
         if not skill:
@@ -145,7 +145,7 @@ async def diagnose_skill(skill_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
-        skills = assistant.skill_caller.list_available_skills(enabled_only=False)
+        skills = assistant.action_caller.list_available_skills(enabled_only=False)
         skill = next((s for s in skills if s.get("skill_id") == skill_id), None)
 
         if not skill:
@@ -186,7 +186,7 @@ async def reload_skill(skill_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
-        skills = assistant.skill_caller.list_available_skills(enabled_only=False)
+        skills = assistant.action_caller.list_available_skills(enabled_only=False)
         skill = next((s for s in skills if s.get("skill_id") == skill_id), None)
 
         if not skill:
@@ -227,7 +227,7 @@ async def uninstall_skill(skill_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="助手服务未初始化")
 
     try:
-        skills = assistant.skill_caller.list_available_skills(enabled_only=False)
+        skills = assistant.action_caller.list_available_skills(enabled_only=False)
         skill = next((s for s in skills if s.get("skill_id") == skill_id), None)
 
         if not skill:

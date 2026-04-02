@@ -33,8 +33,21 @@ class ISessionManager(Protocol):
 
 
 @runtime_checkable
+class IActionCaller(Protocol):
+    """行动调用器接口"""
+    
+    def call_skill(self, skill_name: str, parameters: Dict[str, Any]) -> str:
+        """调用技能"""
+        ...
+    
+    def list_skills(self) -> List[Dict[str, Any]]:
+        """列出所有技能"""
+        ...
+
+
+@runtime_checkable
 class ISkillCaller(Protocol):
-    """技能调用器接口"""
+    """技能调用器接口 (已弃用，使用 IActionCaller)"""
     
     def call_skill(self, skill_name: str, parameters: Dict[str, Any]) -> str:
         """调用技能"""
@@ -90,6 +103,7 @@ class IWorkspaceManager(Protocol):
 
 __all__ = [
     "ISessionManager",
+    "IActionCaller",
     "ISkillCaller",
     "ILLMClient",
     "IEventPublisher",

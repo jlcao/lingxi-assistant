@@ -176,7 +176,6 @@ class SkillLoader:
         skill_dirs = []
 
         self.logger.info(f"开始扫描技能目录，内置技能目录: {self.builtin_skills_dir}, 用户技能目录: {self.user_skills_dir}")
-        self.builtin_skills_dir="_internal/lingxi/skills/builtin"
         # 扫描内置技能目录
         workspace_skills_dir = f"{get_workspace_path()}/.lingxi/skills"
         for skills_path in [self.builtin_skills_dir, self.user_skills_dir, workspace_skills_dir]:
@@ -349,33 +348,6 @@ class SkillLoader:
             self.logger.error(f"加载 SKILL.md 失败：{e}")
             return None
     
-    def _parse_parameters(self, input_schema: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """解析输入参数配置
-
-        Args:
-            input_schema: 输入参数模式
-
-        Returns:
-            参数列表
-        """
-        parameters = []
-
-        if not input_schema:
-            return parameters
-
-        properties = input_schema.get("properties", {})
-        required_fields = input_schema.get("required", [])
-
-        for param_name, param_config in properties.items():
-            parameters.append({
-                "name": param_name,
-                "type": param_config.get("type", "string"),
-                "required": param_name in required_fields,
-                "description": param_config.get("description", "")
-            })
-
-        return parameters
-
     def _load_local_skill_module(self, skill_dir: str, skill_id: str):
         """加载本地技能模块（适配打包后的Python环境）
 

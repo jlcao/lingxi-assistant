@@ -91,24 +91,3 @@ class SkillExecutor:
             error_msg = f"技能执行失败：{skill_name} - {str(e)}"
             self.logger.error(error_msg)
             return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败"}
-    
-    def _normalize_file_path(self, file_path: str) -> str:
-        """
-        将文件路径转换为绝对路径（如果是相对路径）
-        
-        Args:
-            file_path: 文件路径
-            
-        Returns:
-            绝对路径
-        """
-        from pathlib import Path
-        
-        # 如果已经是绝对路径，直接返回
-        if Path(file_path).is_absolute():
-            return file_path
-        
-        # 如果是相对路径，转换为工作区绝对路径
-        workspace_root = self.sandbox.workspace_root
-        normalized_path = workspace_root / file_path
-        return str(normalized_path)

@@ -42,7 +42,8 @@ class WorkspaceManager:
         
         # 资源引用（切换时更新）
         self.sandbox = None
-        self.skill_caller = None
+        self.action_caller = None
+        self.skill_caller = None  # 保留向后兼容
         self.skill_system = None 
         self.session_store = None
         self.event_publisher = None
@@ -91,17 +92,19 @@ class WorkspaceManager:
         
         self.logger.info(f"全局 .lingxi 目录初始化完成：{global_lingxi_dir}")
     
-    def set_resources(self, sandbox=None, skill_caller=None, skill_system=None, session_store=None, event_publisher=None):
+    def set_resources(self, sandbox=None, action_caller=None, skill_caller=None, skill_system=None, session_store=None, event_publisher=None):
         """设置资源引用
         
         Args:
             sandbox: SecuritySandbox 实例
-            skill_caller: SkillCaller 实例
+            action_caller: ActionCaller 实例
+            skill_caller: SkillCaller 实例 (向后兼容)
             session_store: SessionStore 实例
             event_publisher: EventPublisher 实例
         """
         self.sandbox = sandbox
-        self.skill_caller = skill_caller
+        self.action_caller = action_caller
+        self.skill_caller = skill_caller or action_caller  # 向后兼容
         self.session_store = session_store
         self.event_publisher = event_publisher
         self.logger.debug(f"工作目录资源引用已设置，session_store: {session_store is not None}")

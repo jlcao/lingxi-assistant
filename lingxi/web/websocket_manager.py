@@ -330,7 +330,7 @@ class WebSocketManager:
         action = data.get('action', '')
 
         if action == 'list':
-            skills = self.assistant.skill_caller.list_available_skills(enabled_only=True)
+            skills = self.assistant.action_caller.list_available_skills(enabled_only=True)
             await self._send_success(connection, {"skills": skills})
         elif action == 'install':
             skill_source = data.get('skill_source')
@@ -434,7 +434,7 @@ class WebSocketManager:
         elif command == 'status':
             return self.assistant.session_manager.get_checkpoint_status(session_id)
         elif command == 'skills':
-            return self.assistant.skill_caller.list_available_skills(enabled_only=True)
+            return self.assistant.action_caller.list_available_skills(enabled_only=True)
         elif command == 'context-stats':
             return self.assistant.session_manager.get_context_stats()
         elif command == 'compress':

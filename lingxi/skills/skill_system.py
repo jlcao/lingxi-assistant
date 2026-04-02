@@ -4,8 +4,7 @@
 import logging
 from typing import Dict, List, Optional, Any
 from lingxi.management import workspace
-from lingxi.skills.registry import SkillRegistry
-from lingxi.skills.registry_memory import SkillRegistry as SkillRegistryMemory
+from lingxi.skills.registry_memory import SkillRegistry
 from lingxi.skills.skill_loader import SkillLoader
 from lingxi.skills.skill_cache import SkillCache
 from lingxi.core.utils.security import SecuritySandbox
@@ -32,15 +31,8 @@ class SkillSystem:
         self.logger.info("初始化技能系统...")
         
         # 1. 初始化注册表
-        skills_config = config.get("skills", {})
-        use_memory = skills_config.get("use_memory_registry", True)
-        
-        if use_memory:
-            self.logger.debug("使用纯内存注册表")
-            self.registry = SkillRegistryMemory(config)
-        else:
-            self.logger.debug("使用 SQLite 数据库注册表")
-            self.registry = SkillRegistry(config)
+        self.logger.debug("使用纯内存注册表")
+        self.registry = SkillRegistry(config)
         
         # 2. 初始化安全沙箱
         security_config = config.get("security", {})
@@ -55,6 +47,7 @@ class SkillSystem:
         self.logger.debug("安全沙箱已初始化")
         
         # 3. 初始化缓存
+        skills_config = config.get("skills", {})
         cache_ttl = skills_config.get("cache_ttl", 300)
         self.cache = SkillCache(ttl=cache_ttl)
         self.logger.debug(f"技能缓存已初始化，TTL={cache_ttl}秒")

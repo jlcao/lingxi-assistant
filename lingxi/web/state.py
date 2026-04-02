@@ -21,8 +21,8 @@ def set_assistant(asst: Union[LingxiAssistant, AsyncLingxiAssistant]):
     
     # 修复：将 session_manager 设置到 workspace_manager 中
     # 检查是否是异步助手
-    if hasattr(asst, 'skill_caller') and hasattr(asst.skill_caller, 'workspace_manager'):
-        workspace_manager = asst.skill_caller.workspace_manager
+    if hasattr(asst, 'action_caller') and hasattr(asst.action_caller, 'workspace_manager'):
+        workspace_manager = asst.action_caller.workspace_manager
         if workspace_manager and hasattr(asst, 'session_manager'):
             workspace_manager.set_resources(
                 session_store=asst.session_manager

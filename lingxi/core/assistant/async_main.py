@@ -45,7 +45,7 @@ class AsyncLingxiAssistant(BaseAssistant):
 
             # 根据配置决定是否启用历史压缩
             history = self.session_manager.get_history(session_id)
-            engine = AsyncPlanReActEngine(self.config, self.skill_caller, self.session_manager)
+            engine = AsyncPlanReActEngine(self.config, self.action_caller, self.session_manager)
             session_context = self.context_manager.get_session_context(session_id)
             # 添加历史会话到上下文管理器
             session_context.add_history(history)
@@ -93,7 +93,7 @@ class AsyncLingxiAssistant(BaseAssistant):
         
         # 获取 TaskContext
         history = self.session_manager.get_history(session_id)
-        engine = AsyncPlanReActEngine(self.config, self.skill_caller, self.session_manager)
+        engine = AsyncPlanReActEngine(self.config, self.action_caller, self.session_manager)
         session_context = self.context_manager.get_session_context(session_id)
         session_context.add_history(history)
         context = TaskContext(

@@ -20,16 +20,16 @@ from lingxi.utils.config import get_workspace_path
 class AsyncReActCore(BaseEngine):
     """异步 ReAct 引擎核心逻辑"""
 
-    def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager=None, websocket_manager=None):
+    def __init__(self, config: Dict[str, Any], action_caller=None, session_manager=None, websocket_manager=None):
         """初始化异步 ReAct 核心
 
         Args:
             config: 系统配置
-            skill_caller: 技能调用器
+            action_caller: 行动调用器
             session_manager: 会话管理器
             websocket_manager: WebSocket 管理器
         """
-        super().__init__(config, skill_caller, session_manager, websocket_manager)
+        super().__init__(config, action_caller, session_manager, websocket_manager)
 
         self.max_steps = int(config.get("engine", {}).get("max_steps", 50))
         self.timeout = int(config.get("engine", {}).get("timeout", 60))

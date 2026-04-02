@@ -13,8 +13,8 @@ _skill_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="skill-e
 
 from lingxi.core.soul import SoulInjector
 
-class SkillCaller:
-    """能力调用层，标准化 MCP/Skill 调用"""
+class ActionCaller:
+    """行动调用层，标准化 MCP/Skill 调用"""
     
     _instance = None  # 单例实例
     
@@ -73,7 +73,7 @@ class SkillCaller:
         if workspace_manager:
             workspace_manager.set_resources(
                 sandbox=self.sandbox,
-                skill_caller=self,
+                action_caller=self,
                 skill_system=self.skill_system,
                 session_store=None,  # 由外部设置
                 event_publisher=None  # 由外部设置
