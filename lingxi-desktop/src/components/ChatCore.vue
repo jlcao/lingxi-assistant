@@ -288,30 +288,29 @@ async function handleSend() {
 
     // 如果没有当前会话，创建一个新会话
     if (!appStore.currentSessionId) {
-      try {
-        const result = await apiService.client.createSession({ title: '新会话' })
-        if (result.data && result.data.session_id) {
-          appStore.setCurrentSession(result.data.session_id)
-          appStore.setSessions([...appStore.sessions, {
-            id: result.data.session_id,
-            name: result.data.first_message || '新会话',
-            sessionId: result.data.session_id,
-            title: result.data.first_message || '新会话',
-            userName: '',
-            tasks: [],
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            currentTaskId: null,
-            isTaskRunning: false
-          }])
-        } else {
-          throw new Error('创建会话失败')
+          try {
+            const result = await apiService.client.createSession({ user_name: '新会话' })
+            if (result.data && result.data.session_id) {
+              appStore.setCurrentSession(result.data.session_id)
+              appStore.setSessions([...appStore.sessions, {
+                sessionId: result.data.session_id,
+                title: result.data.first_message || '新会话',
+                userName: '',
+                tasks: [],
+                totalTokens: 0,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                currentTaskId: null,
+                isTaskRunning: false
+              }])
+            } else {
+              throw new Error('创建会话失败')
+            }
+          } catch (error) {
+            console.error('Failed to create session:', error)
+            return
+          }
         }
-      } catch (error) {
-        console.error('Failed to create session:', error)
-        return
-      }
-    }
 
     inputText.value = ''
 

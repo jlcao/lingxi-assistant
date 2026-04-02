@@ -95,7 +95,7 @@ export class ApiClient {
   async createSession(data: {
     user_name?: string
     title?: string
-  }): Promise<ApiResponse<{ session_id: string; first_message?: string }>> {
+  } = {}): Promise<ApiResponse<{ session_id: string; first_message?: string }>> {
     return this.client.post('/api/sessions', data)
   }
 

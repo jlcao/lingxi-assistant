@@ -10,7 +10,7 @@ export const useAppStore = defineStore('app', () => {
   const loading = ref(false)
 
   const currentSession = computed(() => {
-    return sessions.value.find(session => session.id === currentSessionId.value) || null
+    return sessions.value.find(session => session.sessionId === currentSessionId.value) || null
   })
 
   function setSessions(newSessions: Session[]) {
@@ -38,24 +38,25 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function setCurrentTask(sessionId: string, taskId: string | null) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session) {
       session.currentTaskId = taskId
     }
   }
 
   function updateTaskStatus(sessionId: string, taskId: string, status: string) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session && session.tasks) {
       const task = session.tasks.find(t => t.taskId === taskId)
       if (task) {
         task.status = status
+        task.planThinking = false
       }
     }
   }
 
   function addTask(sessionId: string, taskId: string, taskData: any) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session) {
       if (!session.tasks) {
         session.tasks = []
@@ -70,7 +71,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function addStep(sessionId: string, taskId: string, stepIndex: number, stepInfo: Step) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session && session.tasks) {
       const task = session.tasks.find(t => t.taskId === taskId)
       if (task) {
@@ -83,7 +84,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function addThought(sessionId: string, taskId: string, stepIndex: number, content: string) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session && session.tasks) {
       const task = session.tasks.find(t => t.taskId === taskId)
       if (task && task.steps && task.steps[stepIndex]) {
@@ -93,7 +94,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function addThinkThought(sessionId: string, taskId: string, content: string) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session && session.tasks) {
       const task = session.tasks.find(t => t.taskId === taskId)
       if (task) {
@@ -103,7 +104,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function stepThinkFinal(sessionId: string, taskId: string, stepIndex: number, isThinking: boolean) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session && session.tasks) {
       const task = session.tasks.find(t => t.taskId === taskId)
       if (task && task.steps && task.steps[stepIndex]) {
@@ -113,7 +114,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function planThinkFinal(sessionId: string, taskId: string, isThinking: boolean) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session && session.tasks) {
       const task = session.tasks.find(t => t.taskId === taskId)
       if (task) {
@@ -123,7 +124,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function updateSessionTitle(sessionId: string, title: string) {
-    const session = sessions.value.find(s => s.id === sessionId)
+    const session = sessions.value.find(s => s.sessionId === sessionId)
     if (session) {
       session.title = title
     }

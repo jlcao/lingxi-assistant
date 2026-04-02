@@ -8,3 +8,4 @@ release/
 .idea/
 .package-lock.json
 electron/main/backend/
+lingxi-desktop-analysis.md

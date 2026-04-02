@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List
 from lingxi.web.state import get_assistant
 import logging
@@ -11,13 +11,9 @@ router = APIRouter()
 
 class CreateSessionRequest(BaseModel):
     """创建会话请求模型"""
-    userName: Optional[str] = None
     user_name: Optional[str] = None  # 兼容 snake_case 格式
+    userName: Optional[str] = None  # 兼容 camelCase 格式
     workspace_path: Optional[str] = None  # 工作目录路径
-    
-    class Config:
-        # 允许使用别名
-        populate_by_name = True
 
 
 class UpdateSessionRequest(BaseModel):
