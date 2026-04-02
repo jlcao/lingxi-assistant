@@ -16,13 +16,6 @@ class WorkspaceSwitchRequest(BaseModel):
     force: bool = False
 
 
-class WorkspaceSwitchResponse(BaseModel):
-    """切换工作目录响应"""
-    success: bool
-    data: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-
-
 class WorkspaceInfoResponse(BaseModel):
     """工作目录信息响应"""
     workspace: Optional[str]
@@ -30,7 +23,15 @@ class WorkspaceInfoResponse(BaseModel):
     is_initialized: bool
 
 
-@router.post("/switch", response_model=WorkspaceSwitchResponse)
+class ApiResponse(BaseModel):
+    """统一 API 响应格式"""
+    code: int
+    message: str
+    data: Optional[Any] = None
+    error: Optional[Dict[str, str]] = None
+
+
+@router.post("/switch", response_model=ApiResponse)
 async def switch_workspace(request: WorkspaceSwitchRequest):
     """切换工作目录
     
@@ -45,7 +46,8 @@ async def switch_workspace(request: WorkspaceSwitchRequest):
     返回示例:
     ```json
     {
-        "success": true,
+        "code": 0,
+        "message": "success",
         "data": {
             "previous_workspace": "D:/projects/old-project",
             "current_workspace": "D:/projects/my-project",
@@ -76,45 +78,69 @@ async def switch_workspace(request: WorkspaceSwitchRequest):
             force=request.force
         )
         
-        return WorkspaceSwitchResponse(success=True, data=result)
+        return ApiResponse(code=0, message="success", data=result)
     except Exception as e:
         logger.error(f"切换工作目录失败：{e}")
-        raise HTTPException(status_code=500, detail=f"切换失败：{str(e)}")
+        return ApiResponse(
+            code=500,
+            message="切换失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.get("/current", response_model=WorkspaceInfoResponse)
+@router.get("/current", response_model=ApiResponse)
 async def get_current_workspace():
     """获取当前工作目录
     
     返回示例:
     ```json
     {
-        "workspace": "D:/projects/my-project",
-        "lingxi_dir": "D:/projects/my-project/.lingxi",
-        "is_initialized": true
+        "code": 0,
+        "message": "success",
+        "data": {
+            "workspace": "D:/projects/my-project",
+            "lingxi_dir": "D:/projects/my-project/.lingxi",
+            "is_initialized": true
+        }
     }
     ```
     """
-    from lingxi.management.workspace import get_workspace_manager
-    
-    workspace_manager = get_workspace_manager()
-    workspace = workspace_manager.get_current_workspace()
-    
-    if workspace is None:
-        return WorkspaceInfoResponse(
-            workspace=None,
-            lingxi_dir=None,
-            is_initialized=False
+    try:
+        from lingxi.management.workspace import get_workspace_manager
+        
+        workspace_manager = get_workspace_manager()
+        workspace = workspace_manager.get_current_workspace()
+        
+        if workspace is None:
+            return ApiResponse(
+                code=0,
+                message="success",
+                data={
+                    "workspace": None,
+                    "lingxi_dir": None,
+                    "is_initialized": False
+                }
+            )
+        
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={
+                "workspace": str(workspace),
+                "lingxi_dir": str(workspace_manager.get_lingxi_directory()),
+                "is_initialized": True
+            }
         )
-    
-    return WorkspaceInfoResponse(
-        workspace=str(workspace),
-        lingxi_dir=str(workspace_manager.get_lingxi_directory()),
-        is_initialized=True
-    )
+    except Exception as e:
+        logger.error(f"获取当前工作目录失败：{e}")
+        return ApiResponse(
+            code=500,
+            message="获取失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.post("/initialize")
+@router.post("/initialize", response_model=ApiResponse)
 async def initialize_workspace(workspace_path: Optional[str] = None):
     """初始化工作目录
     
@@ -128,7 +154,8 @@ async def initialize_workspace(workspace_path: Optional[str] = None):
     返回示例:
     ```json
     {
-        "success": true,
+        "code": 0,
+        "message": "success",
         "data": {
             "workspace": "D:/projects/new-project",
             "lingxi_dir": "D:/projects/new-project/.lingxi"
@@ -142,19 +169,24 @@ async def initialize_workspace(workspace_path: Optional[str] = None):
         workspace_manager = get_workspace_manager()
         lingxi_dir = workspace_manager.initialize(workspace_path)
         
-        return {
-            "success": True,
-            "data": {
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={
                 "workspace": str(workspace_manager.get_current_workspace()),
                 "lingxi_dir": str(lingxi_dir)
             }
-        }
+        )
     except Exception as e:
         logger.error(f"初始化工作目录失败：{e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return ApiResponse(
+            code=500,
+            message="初始化失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.get("/validate")
+@router.get("/validate", response_model=ApiResponse)
 async def validate_workspace(workspace_path: str):
     """验证工作目录是否有效
     
@@ -164,32 +196,48 @@ async def validate_workspace(workspace_path: str):
     返回示例:
     ```json
     {
-        "valid": true,
-        "exists": true,
-        "has_lingxi_dir": true,
-        "message": "工作目录有效"
+        "code": 0,
+        "message": "success",
+        "data": {
+            "valid": true,
+            "exists": true,
+            "has_lingxi_dir": true,
+            "message": "工作目录有效"
+        }
     }
     ```
     """
-    from pathlib import Path
-    from lingxi.management.workspace import get_workspace_manager
-    
-    workspace_manager = get_workspace_manager()
-    path = Path(workspace_path).resolve()
-    
-    exists = path.exists()
-    has_lingxi_dir = (path / ".lingxi").exists() if exists else False
-    valid = workspace_manager.validate_workspace(path)
-    
-    return {
-        "valid": valid,
-        "exists": exists,
-        "has_lingxi_dir": has_lingxi_dir,
-        "message": "工作目录有效" if valid else "工作目录无效"
-    }
+    try:
+        from pathlib import Path
+        from lingxi.management.workspace import get_workspace_manager
+        
+        workspace_manager = get_workspace_manager()
+        path = Path(workspace_path).resolve()
+        
+        exists = path.exists()
+        has_lingxi_dir = (path / ".lingxi").exists() if exists else False
+        valid = workspace_manager.validate_workspace(path)
+        
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={
+                "valid": valid,
+                "exists": exists,
+                "has_lingxi_dir": has_lingxi_dir,
+                "message": "工作目录有效" if valid else "工作目录无效"
+            }
+        )
+    except Exception as e:
+        logger.error(f"验证工作目录失败：{e}")
+        return ApiResponse(
+            code=500,
+            message="验证失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.get("/sessions")
+@router.get("/sessions", response_model=ApiResponse)
 async def get_workspace_sessions(workspace_path: Optional[str] = None):
     """获取指定工作目录的会话列表
     
@@ -199,17 +247,21 @@ async def get_workspace_sessions(workspace_path: Optional[str] = None):
     返回示例:
     ```json
     {
-        "success": true,
-        "sessions": [
-            {
-                "session_id": "abc123",
-                "title": "会话 1",
-                "task_count": 5,
-                "total_tokens": 1000,
-                "created_at": "2026-03-12T10:00:00",
-                "updated_at": "2026-03-12T12:00:00"
-            }
-        ]
+        "code": 0,
+        "message": "success",
+        "data": {
+            "success": true,
+            "sessions": [
+                {
+                    "session_id": "abc123",
+                    "title": "会话 1",
+                    "task_count": 5,
+                    "total_tokens": 1000,
+                    "created_at": "2026-03-12T10:00:00",
+                    "updated_at": "2026-03-12T12:00:00"
+                }
+            ]
+        }
     }
     ```
     """
@@ -222,22 +274,33 @@ async def get_workspace_sessions(workspace_path: Optional[str] = None):
             workspace_manager = get_workspace_manager()
             current_workspace = workspace_manager.get_current_workspace()
             if current_workspace is None:
-                return {"success": True, "sessions": []}
+                return ApiResponse(
+                    code=0,
+                    message="success",
+                    data={"success": True, "sessions": []}
+                )
             workspace_path = str(current_workspace)
         
         # 获取会话列表
         assistant = get_assistant()
         if not assistant or not hasattr(assistant, 'session_manager'):
-            raise HTTPException(status_code=503, detail="助手服务未初始化")
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
         
         sessions = assistant.session_manager.list_all_sessions(workspace_path)
         
-        return {
-            "success": True,
-            "sessions": sessions
-        }
-    except HTTPException:
-        raise
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={"success": True, "sessions": sessions}
+        )
     except Exception as e:
         logger.error(f"获取工作目录会话失败：{e}")
-        raise HTTPException(status_code=500, detail=f"获取会话失败：{str(e)}")
+        return ApiResponse(
+            code=500,
+            message="获取会话失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )

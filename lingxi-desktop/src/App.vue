@@ -20,6 +20,7 @@ import WorkspaceSwitchDialog from './components/WorkspaceSwitchDialog.vue'
 import { useAppStore } from './stores/app'
 import { useWorkspaceStore } from './stores/workspace'
 import { useWsStore } from './stores/wsStore'
+import { apiService } from './api/apiService'
 
 const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
@@ -48,10 +49,14 @@ onUnmounted(() => {
 })
 
 async function initializeApp() {
+  debugger
   console.log('[App] initializeApp called')
   appStore.setLoading(true)
 
   try {
+    // 初始化API服务
+    await apiService.init()
+
     // 首先加载工作区信息
     if (window.electronAPI?.workspace) {
       console.log('[App] Loading current workspace...')
@@ -59,61 +64,60 @@ async function initializeApp() {
       console.log('[App] Current workspace loaded:', workspaceStore.currentWorkspace)
     }
 
-    if (window.electronAPI?.api) {
-        console.log('[App] Loading checkpoints and resource usage...')
-        const [checkpoints, resourceUsage] = await Promise.all([
-          window.electronAPI.api.getCheckpoints(),
-          window.electronAPI.api.getResourceUsage()
-        ])
+    console.log('[App] Loading checkpoints and resource usage...')
+    const [checkpoints, resourceUsage] = await Promise.all([
+      apiService.client.getCheckpoints(),
+      apiService.client.getResourceUsage()
+    ])
 
-        // 根据工作目录加载会话列表
-        let sessions
-        const currentWorkspace = workspaceStore.currentWorkspace
-        if (currentWorkspace?.workspace) {
-          console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
-          sessions = await window.electronAPI.api.getWorkspaceSessions(currentWorkspace.workspace)
-          console.log('[App] Loaded sessions:', sessions)
-          sessions = sessions.sessions || []
-        } else {
-          console.log('[App] No workspace initialized, loading all sessions')
-          sessions = await window.electronAPI.api.getSessions()
-          console.log('[App] Loaded sessions:', sessions)
-          sessions = sessions || []
-        }
+    // 根据工作目录加载会话列表
+    let sessions
+    const currentWorkspace = workspaceStore.currentWorkspace
+    if (currentWorkspace?.workspace) {
+      console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
+      const result = await apiService.client.getWorkspaceSessions(currentWorkspace.workspace)
+      sessions = result.data.sessions || []
+      console.log('[App] Loaded sessions:', sessions)
+    } else {
+      console.log('[App] No workspace initialized, loading all sessions')
+      const result = await apiService.client.getSessions()
+      sessions = result.data?.sessions || []
+      console.log('[App] Loaded sessions:', sessions)
+    }
 
-        if (sessions && sessions.length > 0) {
-          appStore.setSessions(sessions)
-          appStore.setCurrentSession(sessions[0].sessionId)
+    if (sessions && sessions.length > 0) {
+      appStore.setSessions(sessions)
+      appStore.setCurrentSession(sessions[0].sessionId)
+      
+      // 建立 WebSocket 连接
+      wsStore.connect(sessions[0].sessionId)
+    } else {
+      // 没有会话时，创建一个新会话
+      try {
+        const sessionData = await apiService.client.createSession()
+        const sessionDataPayload = sessionData.data || sessionData
+        if (sessionDataPayload && (sessionDataPayload.session_id || sessionDataPayload.sessionId)) {
+          const session = {
+            sessionId: sessionDataPayload.session_id || sessionDataPayload.sessionId,
+            title: sessionDataPayload.first_message || sessionDataPayload.firstMessage || '新会话',
+            tasks: [],
+            totalTokens: 0,
+            userName: sessionDataPayload.user_name || sessionDataPayload.userName || '新用户',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            currentTaskId: null,
+            isTaskRunning: false
+          }
+          appStore.setSessions([session])
+          appStore.setCurrentSession(session.sessionId)
           
           // 建立 WebSocket 连接
-          wsStore.connect(sessions[0].sessionId)
-        } else {
-          // 没有会话时，创建一个新会话
-          try {
-            const sessionData = await window.electronAPI.api.createSession()
-            if (sessionData && (sessionData.session_id || sessionData.sessionId)) {
-              const session = {
-                sessionId: sessionData.session_id || sessionData.sessionId,
-                title: sessionData.first_message || sessionData.firstMessage || '新会话',
-                tasks: [],
-                totalTokens: 0,
-                userName: sessionData.user_name || sessionData.userName || '新用户',
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                currentTaskId: null,
-                isTaskRunning: false
-              }
-              appStore.setSessions([session])
-              appStore.setCurrentSession(session.sessionId)
-              
-              // 建立 WebSocket 连接
-              wsStore.connect(session.sessionId)
-            }
-          } catch (error) {
-            console.error('Failed to create session:', error)
-          }
+          wsStore.connect(session.sessionId)
         }
+      } catch (error) {
+        console.error('Failed to create session:', error)
       }
+    }
   } catch (error) {
     console.error('Failed to initialize app:', error)
   } finally {
@@ -305,11 +309,12 @@ async function refreshSessionsList() {
     
     if (currentWorkspace?.workspace) {
       console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
-      const result = await window.electronAPI.api.getWorkspaceSessions(currentWorkspace.workspace)
-      newSessions = result.sessions || []
+      const result = await apiService.client.getWorkspaceSessions(currentWorkspace.workspace)
+      newSessions = result.data.sessions || []
     } else {
       console.log('[App] No workspace initialized, loading all sessions')
-      newSessions = await window.electronAPI.api.getSessions()
+      const result = await apiService.client.getSessions()
+      newSessions = result.data?.sessions || []
     }
     
     // 保存所有会话的任务数据

@@ -101,9 +101,11 @@
 import { ref, computed } from 'vue'
 import { useAppStore } from '../stores/app'
 import { useWsStore } from '../stores/wsStore'
+import { apiService } from '../api/apiService'
 import { Plus, Upload, Edit, Delete, Download, Picture, View, Star } from '@element-plus/icons-vue'
 import MessageList from './chat/MessageList.vue'
 import { ElMessageBox, ElSwitch } from 'element-plus'
+
 
 const appStore = useAppStore()
 const wsStore = useWsStore()
@@ -178,9 +180,7 @@ async function handleRenameSession() {
 
     if (value) {
       // 调用后端 API 更新会话名称
-      if (window.electronAPI.api.updateSessionTitle) {
-        await window.electronAPI.api.updateSessionTitle(appStore.currentSessionId, value)
-      }
+      await apiService.client.updateSessionName(appStore.currentSessionId, value)
       // 更新前端会话列表
       const updatedSessions = appStore.sessions.map(s =>
         s.sessionId === appStore.currentSessionId ? { ...s, title: value } : s
@@ -203,9 +203,7 @@ async function handleClearHistory() {
     })
 
     // 调用后端 API 清除会话历史
-    if (window.electronAPI.api.clearSessionHistory) {
-      await window.electronAPI.api.clearSessionHistory(appStore.currentSessionId)
-    }
+    await apiService.client.clearSessionHistory(appStore.currentSessionId)
     // 清空前端历史记录
     const updatedSessions = appStore.sessions.map(s =>
       s.sessionId === appStore.currentSessionId ? { ...s, tasks: [] } : s
@@ -227,9 +225,7 @@ async function handleDeleteSession() {
     })
 
     // 调用后端 API 删除会话
-    if (window.electronAPI.api.deleteSession) {
-      await window.electronAPI.api.deleteSession(appStore.currentSessionId)
-    }
+    await apiService.client.deleteSession(appStore.currentSessionId)
     // 更新前端会话列表
     const updatedSessions = appStore.sessions.filter(
       s => s.sessionId !== appStore.currentSessionId
@@ -279,7 +275,7 @@ function handleButtonClick() {
 async function handleStopTask() {
   if (currentTaskId.value) {
     try {
-      wsStore.stopTask(currentTaskId.value)
+      await apiService.client.cancelTask(currentTaskId.value)
     } catch (error) {
       console.error('Failed to stop task:', error)
     }
@@ -293,15 +289,16 @@ async function handleSend() {
     // 如果没有当前会话，创建一个新会话
     if (!appStore.currentSessionId) {
       try {
-        const result = await window.electronAPI.api.createSession('新会话')
-        if (result && result.session_id) {
-          appStore.setCurrentSession(result.session_id)
+        const result = await apiService.client.createSession({ title: '新会话' })
+        if (result.data && result.data.session_id) {
+          appStore.setCurrentSession(result.data.session_id)
           appStore.setSessions([...appStore.sessions, {
-            sessionId: result.session_id,
-            title: '新会话',
+            id: result.data.session_id,
+            name: result.data.first_message || '新会话',
+            sessionId: result.data.session_id,
+            title: result.data.first_message || '新会话',
             userName: '',
             tasks: [],
-            totalTokens: 0,
             createdAt: Date.now(),
             updatedAt: Date.now(),
             currentTaskId: null,

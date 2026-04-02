@@ -45,7 +45,15 @@ class ConfirmationResponseRequest(BaseModel):
     reason: Optional[str] = None
 
 
-@router.post("/tasks/execute")
+class ApiResponse(BaseModel):
+    """统一 API 响应格式"""
+    code: int
+    message: str
+    data: Optional[Any] = None
+    error: Optional[Dict[str, str]] = None
+
+
+@router.post("/tasks/execute", response_model=ApiResponse)
 async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
     """执行任务
 
@@ -55,15 +63,23 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
     Returns:
         任务执行信息
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
-    execution_id = str(uuid.uuid4())
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
+        execution_id = str(uuid.uuid4())
+
         if not request.task:
-            raise HTTPException(status_code=400, detail="任务内容不能为空")
+            return ApiResponse(
+                code=400,
+                message="任务内容不能为空",
+                error={"error_code": "INVALID_PARAMETER", "error_detail": "任务内容不能为空"}
+            )
 
         # 移除任务分级，统一使用 simple 级别
         # task_level = assistant.classifier.classify(request.task).get("level", "simple")
@@ -88,16 +104,20 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
             "updated_at": time.time()
         })
 
-        return task_info
+        return ApiResponse(code=0, message="success", data=task_info)
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"执行任务失败 - 错误类型: {type(e).__name__}")
         print(f"错误信息: {str(e)}")
         print(f"错误堆栈:\n{error_trace}")
-        raise HTTPException(status_code=500, detail=f"执行任务失败: {str(e)}\n{error_trace}")
+        return ApiResponse(
+            code=500,
+            message="执行任务失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": f"{str(e)}\n{error_trace}"}
+        )
 
 
-@router.get("/tasks/{execution_id}/status")
+@router.get("/tasks/{execution_id}/status", response_model=ApiResponse)
 async def get_task_status(execution_id: str) -> Dict[str, Any]:
     """获取任务状态
 
@@ -107,34 +127,48 @@ async def get_task_status(execution_id: str) -> Dict[str, Any]:
     Returns:
         任务状态信息
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         checkpoint = assistant.session_manager.restore_checkpoint(execution_id)
         if not checkpoint:
-            raise HTTPException(status_code=404, detail=f"任务 {execution_id} 不存在")
+            return ApiResponse(
+                code=404,
+                message="任务不存在",
+                error={"error_code": "NOT_FOUND", "error_detail": f"任务 {execution_id} 不存在"}
+            )
 
-        return {
-            "execution_id": execution_id,
-            "task": checkpoint.get("task", ""),
-            "task_level": checkpoint.get("task_level", "unknown"),
-            "model": checkpoint.get("model", "unknown"),
-            "status": checkpoint.get("execution_status", "unknown"),
-            "current_step": checkpoint.get("current_step_idx", 0),
-            "total_steps": len(checkpoint.get("plan", [])),
-            "result": checkpoint.get("result"),
-            "created_at": checkpoint.get("timestamp", 0),
-            "updated_at": checkpoint.get("updated_at", 0)
-        }
-    except HTTPException:
-        raise
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={
+                "execution_id": execution_id,
+                "task": checkpoint.get("task", ""),
+                "task_level": checkpoint.get("task_level", "unknown"),
+                "model": checkpoint.get("model", "unknown"),
+                "status": checkpoint.get("execution_status", "unknown"),
+                "current_step": checkpoint.get("current_step_idx", 0),
+                "total_steps": len(checkpoint.get("plan", [])),
+                "result": checkpoint.get("result"),
+                "created_at": checkpoint.get("timestamp", 0),
+                "updated_at": checkpoint.get("updated_at", 0)
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取任务状态失败: {str(e)}")
+        return ApiResponse(
+            code=500,
+            message="获取任务状态失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.post("/tasks/{execution_id}/retry")
+@router.post("/tasks/{execution_id}/retry", response_model=ApiResponse)
 async def retry_task(execution_id: str, request: RetryTaskRequest) -> Dict[str, Any]:
     """重试任务
 
@@ -145,32 +179,46 @@ async def retry_task(execution_id: str, request: RetryTaskRequest) -> Dict[str, 
     Returns:
         重试结果
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         checkpoint = assistant.session_manager.restore_checkpoint(execution_id)
         if not checkpoint:
-            raise HTTPException(status_code=404, detail=f"任务 {execution_id} 不存在")
+            return ApiResponse(
+                code=404,
+                message="任务不存在",
+                error={"error_code": "NOT_FOUND", "error_detail": f"任务 {execution_id} 不存在"}
+            )
 
         if request.user_input:
             checkpoint["user_input"] = request.user_input
 
         assistant.session_manager.save_checkpoint(execution_id, checkpoint)
 
-        return {
-            "success": True,
-            "message": "重试已开始",
-            "execution_id": execution_id
-        }
-    except HTTPException:
-        raise
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={
+                "success": True,
+                "message": "重试已开始",
+                "execution_id": execution_id
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"重试任务失败: {str(e)}")
+        return ApiResponse(
+            code=500,
+            message="重试任务失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.post("/tasks/{execution_id}/cancel")
+@router.post("/tasks/{execution_id}/cancel", response_model=ApiResponse)
 async def cancel_task(execution_id: str) -> Dict[str, Any]:
     """取消任务
 
@@ -180,30 +228,44 @@ async def cancel_task(execution_id: str) -> Dict[str, Any]:
     Returns:
         取消结果
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         checkpoint = assistant.session_manager.restore_checkpoint(execution_id)
         if not checkpoint:
-            raise HTTPException(status_code=404, detail=f"任务 {execution_id} 不存在")
+            return ApiResponse(
+                code=404,
+                message="任务不存在",
+                error={"error_code": "NOT_FOUND", "error_detail": f"任务 {execution_id} 不存在"}
+            )
 
         checkpoint["execution_status"] = "cancelled"
         assistant.session_manager.save_checkpoint(execution_id, checkpoint)
 
-        return {
-            "success": True,
-            "message": "任务已取消",
-            "execution_id": execution_id
-        }
-    except HTTPException:
-        raise
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={
+                "success": True,
+                "message": "任务已取消",
+                "execution_id": execution_id
+            }
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"取消任务失败: {str(e)}")
+        return ApiResponse(
+            code=500,
+            message="取消任务失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.post("/tasks/confirm")
+@router.post("/tasks/confirm", response_model=ApiResponse)
 async def respond_confirmation(request: ConfirmationResponseRequest) -> Dict[str, Any]:
     """响应对确认请求（V4.0新增）
 
@@ -213,11 +275,15 @@ async def respond_confirmation(request: ConfirmationResponseRequest) -> Dict[str
     Returns:
         响应结果
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         # 获取当前引擎
         engine = assistant.mode_selector.get_engine(mode="plan_react", session_manager=assistant.session_manager)
         
@@ -229,23 +295,32 @@ async def respond_confirmation(request: ConfirmationResponseRequest) -> Dict[str
         )
         
         if success:
-            return {
-                "success": True,
-                "message": "确认响应处理成功",
-                "request_id": request.request_id,
-                "confirmed": request.confirmed
-            }
+            return ApiResponse(
+                code=0,
+                message="success",
+                data={
+                    "success": True,
+                    "message": "确认响应处理成功",
+                    "request_id": request.request_id,
+                    "confirmed": request.confirmed
+                }
+            )
         else:
-            return {
-                "success": False,
-                "message": "确认响应处理失败",
-                "request_id": request.request_id
-            }
+            return ApiResponse(
+                code=400,
+                message="确认响应处理失败",
+                data={
+                    "success": False,
+                    "message": "确认响应处理失败",
+                    "request_id": request.request_id
+                }
+            )
             
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=f"处理确认响应失败: {str(e)}\n{error_trace}"
+        return ApiResponse(
+            code=500,
+            message="处理确认响应失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": f"{str(e)}\n{error_trace}"}
         )

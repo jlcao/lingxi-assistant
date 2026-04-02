@@ -1,5 +1,4 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
-import { ApiClient } from './apiClient'
 import { FileManager } from './fileManager'
 import { WindowManager } from './windowManager'
 import { BackendManager } from './backendManager'
@@ -10,7 +9,6 @@ import { logger } from './logger'
 
 class App {
   private windowManager: WindowManager
-  private apiClient: ApiClient
   private backendManager: BackendManager
   private fileManager: FileManager
   private fileWatcher: FileWatcher
@@ -19,7 +17,6 @@ class App {
   constructor() {
     this.backendManager = new BackendManager()
     this.windowManager = new WindowManager()
-    this.apiClient = new ApiClient(`http://127.0.0.1:${this.backendManager.getBackendPort()}`)
     this.fileManager = new FileManager()
     this.fileWatcher = new FileWatcher()
 
@@ -43,6 +40,11 @@ class App {
   }
 
   private setupIpcHandlers(): void {
+    // ===== 系统相关 IPC 处理 =====
+    ipcMain.handle('system:get-backend-port', async () => {
+      return this.backendManager.getBackendPort()
+    })
+
     // ===== 窗口相关 IPC 处理 =====
     ipcMain.handle('window:minimize', () => {
       this.windowManager.hideToEdge()
@@ -92,104 +94,9 @@ class App {
       return this.fileManager.readDirectoryTree(dirPath, maxDepth)
     })
 
-    // ===== API 相关 IPC 处理 =====
-    ipcMain.handle('api:get-sessions', async () => {
-      const result = await this.apiClient.getSessions()
-      return result.sessions
-    })
-    ipcMain.handle('api:get-session-history', async (_, sessionId, maxTurns) => {
-      if (!sessionId) {
-        return []
-      }
-      const result = await this.apiClient.getSessionHistory(sessionId, maxTurns)
-      return result.history
-    })
-    ipcMain.handle('api:create-session', async (_, userName) => {
-      return this.apiClient.createSession({ user_name: userName || undefined })
-    })
-
-    ipcMain.handle('api:delete-session', async (_, sessionId) => {
-      return this.apiClient.deleteSession(sessionId)
-    })
-
-    ipcMain.handle('api:update-session-name', async (_, sessionId, name) => {
-      return this.apiClient.updateSessionName(sessionId, name)
-    })
-
-    ipcMain.handle('api:clear-session-history', async (_, sessionId) => {
-      return this.apiClient.clearSessionHistory(sessionId)
-    })
-
-    ipcMain.handle('api:execute-task', async (_, task, sessionId, modelOverride) => {
-      return this.apiClient.executeTask({
-        task,
-        session_id: sessionId,
-        model_override: modelOverride || null
-      })
-    })
-
-    ipcMain.handle('api:get-task-status', async (_, taskId) => {
-      return this.apiClient.getTaskStatus(taskId)
-    })
-
-    ipcMain.handle('api:retry-task', async (_, taskId, stepIndex, userInput) => {
-      return this.apiClient.retryTask(taskId, {
-        step_index: stepIndex,
-        user_input: userInput || null
-      })
-    })
-
-    ipcMain.handle('api:cancel-task', async (_, taskId) => {
-      return this.apiClient.cancelTask(taskId)
-    })
-    ipcMain.handle('api:get-checkpoints', async () => {
-      const result = await this.apiClient.getCheckpoints()
-      return result.checkpoints
-    })
-    ipcMain.handle('api:resume-checkpoint', async (_, sessionId) => {
-      return this.apiClient.resumeCheckpoint(sessionId)
-    })
-    ipcMain.handle('api:delete-checkpoint', async (_, sessionId) => {
-      return this.apiClient.deleteCheckpoint(sessionId)
-    })
-    ipcMain.handle('api:get-skills', async () => {
-      const result = await this.apiClient.getSkills()
-      return result.skills
-    })
-    ipcMain.handle('api:install-skill', async (_, skillData, skillFiles, autoFix) => {
-      return this.apiClient.installSkill({
-        skill_data: skillData,
-        skill_files: skillFiles,
-        auto_fix: autoFix
-      })
-    })
-    ipcMain.handle('api:diagnose-skill', async (_, skillId) => {
-      return this.apiClient.diagnoseSkill(skillId)
-    })
-    ipcMain.handle('api:reload-skill', async (_, skillId) => {
-      return this.apiClient.reloadSkill(skillId)
-    })
-    ipcMain.handle('api:get-resource-usage', async () => {
-      return this.apiClient.getResourceUsage()
-    })
-    ipcMain.handle('api:get-config', async () => {
-      return this.apiClient.getConfig()
-    })
-
-    ipcMain.handle('api:get-session-info', async (_, sessionId) => {
-      if (!sessionId) {
-        throw new Error('Session ID is required')
-      }
-      return this.apiClient.getSession(sessionId)
-    })
-
-    ipcMain.handle('api:get-workspace-sessions', async (_, workspacePath) => {
-      return this.apiClient.getWorkspaceSessions(workspacePath)
-    })
-
     // ===== 工作区相关 IPC 处理 =====
     ipcMain.handle('workspace:get-current', async () => {
-      const workspacePath = this.fileWatcher.getCurrentWorkspace() || await this.apiClient.getWorkspaceCurrent()
+      const workspacePath = this.fileWatcher.getCurrentWorkspace()
       // 返回对象格式，而不是字符串
       if (workspacePath) {
         return {
@@ -204,27 +111,23 @@ class App {
     ipcMain.handle('workspace:switch', async (_, workspacePath, force) => {
       logger.log(`[App] workspace:switch called with: ${workspacePath}`)
 
-      const result = await this.apiClient.switchWorkspace(workspacePath, force)
-
       // 设置文件监控
       this.setupFileWatcher(workspacePath)
 
-      return result
+      return { success: true, message: 'Workspace switched' }
     })
 
     ipcMain.handle('workspace:initialize', async (_, workspacePath) => {
       logger.log(`[App] workspace:initialize called with: ${workspacePath}`)
 
-      const result = await this.apiClient.initializeWorkspace(workspacePath)
-
       // 设置文件监控
       this.setupFileWatcher(workspacePath)
 
-      return result
+      return { success: true, message: 'Workspace initialized' }
     })
 
     ipcMain.handle('workspace:validate', async (_, workspacePath) => {
-      return this.apiClient.validateWorkspace(workspacePath)
+      return { success: true, message: 'Workspace validated' }
     })
 
 
@@ -244,10 +147,10 @@ class App {
 
         // 新增：自动初始化工作区监控
         try {
-          const currentWorkspace = await this.apiClient.getWorkspaceCurrent()
-          if (currentWorkspace && currentWorkspace.workspace) {
-            logger.log(`[App] 自动初始化工作区监控: ${currentWorkspace.workspace}`)
-            this.setupFileWatcher(currentWorkspace.workspace)
+          const currentWorkspace = this.fileWatcher.getCurrentWorkspace()
+          if (currentWorkspace) {
+            logger.log(`[App] 自动初始化工作区监控: ${currentWorkspace}`)
+            this.setupFileWatcher(currentWorkspace)
           }
         } catch (error) {
           logger.error('[App] 获取当前工作区失败:', error)
