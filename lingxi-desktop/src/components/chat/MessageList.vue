@@ -63,7 +63,7 @@
               <div class="steps-label">执行步骤：</div>
               <div class="steps-list">
                 <div v-for="(step, index) in task.steps" :key="index" class="step-item" :class="step?.status">
-                  <div class="step-header" @click="toggleStepExpand(task.taskId, index)">
+                  <div v-if="step!==undefined" class="step-header" @click="toggleStepExpand(task.taskId, index)">
                     <span class="step-index">{{ ((step?.stepIndex) ?? index) }}.</span>
                     <span class="step-description">{{ step?.description }}</span>
                     <span class="step-status">{{ step?.status === 'running' ? '执行中' : step?.status === 'completed' ? '已完成'
@@ -72,7 +72,7 @@
                   </div>
 
                   <transition name="step-collapse" mode="out-in">
-                    <div v-if="isStepExpanded(task.taskId, index)" class="step-content">
+                    <div v-if="step!==undefined && isStepExpanded(task.taskId, index)" class="step-content">
                       <div v-if="step?.thought" class="step-thought">
                         <div class="thought-label">思考过程：</div>
                         <div class="thought-content">{{ step?.thought }}</div>
