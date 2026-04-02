@@ -19,23 +19,23 @@ engine:
   timeout: 60
 python_interpreter: D:/resources/lingxi-assistant/venv/Scripts/python.exe
 llm:
-  api_key: your-dashscope-api-key-here
-  base_url: https://ark.cn-beijing.volces.com/api/coding/v3
-  default_model: qwen3.5-plus
+  api_key: 0f52b7ab-cb78-40f1-b99f-3cb7734dd16d
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  default_model: doubao-seed-2-0-lite-260215
   max_tokens: 32000
-  model: qwen3.5-plus
+  model: doubao-seed-2-0-lite-260215
   models:
     complex:
       max_tokens: 32000
-      model: qwen3.5-plus
+      model: doubao-seed-2-0-lite-260215
       temperature: 0.7
     simple:
       max_tokens: 32000
-      model: qwen3.5-plus
+      model: doubao-seed-2-0-lite-260215
       temperature: 0.7
     trivial:
       max_tokens: 32000
-      model: qwen3.5-plus
+      model: doubao-seed-2-0-lite-260215
       temperature: 0.7
   provider: openai
   temperature: 0.7

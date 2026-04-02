@@ -58,6 +58,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Config } from '../../types'
 import { ElMessage } from 'element-plus'
+import { apiService } from '../api/apiService'
 
 const router = useRouter()
 
@@ -79,8 +80,8 @@ onMounted(async () => {
 
 async function loadConfig() {
   try {
-    const data = await window.electronAPI.api.getConfig()
-    config.value = { ...config.value, ...data }
+    const data = await apiService.client.getConfig()
+    config.value = { ...config.value, ...data.data }
   } catch (error) {
     console.error('Failed to load config:', error)
   }
@@ -88,7 +89,7 @@ async function loadConfig() {
 
 async function handleSave() {
   try {
-    await window.electronAPI.api.updateConfig(config.value)
+    await apiService.client.updateConfig(config.value)
     ElMessage.success('设置已保存')
     router.back()
   } catch (error) {

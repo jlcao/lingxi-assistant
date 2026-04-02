@@ -1,0 +1,136 @@
+llm:
+  provider: "openai"
+  model: "doubao-seed-2-0-lite-260215"
+  api_key: "0f52b7ab-cb78-40f1-b99f-3cb7734dd16d"
+  base_url: "https://ark.cn-beijing.volces.com/api/v3"
+  max_tokens: 32000
+  temperature: 0.7
+  timeout: 300
+
+  # 模型分级配置（根据任务难度自动选择）
+  models:
+    trivial:
+      model: "doubao-seed-2-0-lite-260215"
+      max_tokens: 32000
+      temperature: 0.7
+
+    simple:
+      model: "doubao-seed-2-0-lite-260215"
+      max_tokens: 32000
+      temperature: 0.7
+
+    complex:
+      model: "doubao-seed-2-0-lite-260215"
+      max_tokens: 32000
+      temperature: 0.7
+
+  # 默认模型（当任务级别未知时使用）
+  default_model: "kimi-k2.5"
+
+task_classification:
+  strategy: "doubao-seed-2-0-lite-260215"
+  llm_confidence_threshold: 0.7
+  fallback_to_rule: true
+
+execution_mode:
+  trivial:
+    name: "direct"
+    max_tokens: 1000
+
+  simple:
+    name: "react"
+    max_loop: 5
+    timeout_seconds: 30
+    retry_count: 1
+
+  complex:
+    name: "plan_react"
+    max_plan_steps: 8
+    max_loop_per_step: 5
+    enable_replanning: true
+    max_replan_count: 2
+    max_step_retries: 3
+
+skill_call:
+  default_timeout: 30
+  retry_count: 1
+  verify_ssl: true
+
+session:
+  db_path: "data/assistant.db"
+  max_history_turns: 50
+  checkpoint_ttl_hours: 24
+
+logging:
+  level: "INFO"
+  file_path: "logs/assistant.log"
+  max_file_size_mb: 10
+  backup_count: 5
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+  
+  # 日志过滤器配置
+  filters:
+    # 忽略WebSocket正常断开的错误堆栈
+    ignore_websocket_disconnect:
+      class: "logging.Filter"
+      message: "WebSocket连接断开"
+      level: "INFO"
+
+system:
+  name: "灵犀"
+  version: "0.2.0"
+  description: "个人智能助手"
+
+web:
+  host: "localhost"
+  port: 5000
+  debug: false
+  websocket:
+    enabled: true
+    path: "/ws"
+    ping_interval: 20
+    ping_timeout: 30
+    max_connections: 100
+  cors:
+    enabled: true
+    allow_origins: ["*"]
+    allow_credentials: true
+    allow_methods: ["*"]
+    allow_headers: ["*"]
+
+skills:
+  registry_path: "data/skills.db"
+  config_path: "data/skills_config.json"
+  use_memory_registry: true
+  builtin_skills_dir: "lingxi/skills/builtin"
+  user_skills_dir: ".lingxi/skills"
+  builtin_skills: ["search", "calculator", "weather", "time", "date", "create_file", "delete_file", "execute_command", "modify_file", "fetch_webpage", "read_file"]
+
+context_management:
+  token_budget:
+    max_tokens: 8000
+    compression_trigger: 0.7
+    critical_threshold: 0.9
+
+  retention:
+    user_input_keep_turns: 10
+    tool_result_keep_turns: 5
+    task_boundary_archive: true
+
+  compression:
+    enabled: true              # 是否启用历史压缩
+    strategy: "hybrid"
+    summary_ratio: 0.3
+    enable_llm_summary: true
+    preserve_entities: true
+    max_history_turns: 10      # 保留多少轮完整对话（旧对话将被压缩）
+    compress_old: true         # 是否压缩旧对话
+    use_llm: false             # 是否使用 LLM 智能摘要（默认关闭）
+    llm_threshold: 50          # 超过多少轮才启用 LLM 压缩
+
+
+
+engine:
+  default: react
+  max_steps: 50
+  timeout: 60

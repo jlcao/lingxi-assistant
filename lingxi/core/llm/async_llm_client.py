@@ -37,7 +37,7 @@ class AsyncLLMClient:
         self.logger = logging.getLogger(__name__)
 
         self.provider = self.llm_config.get("provider", "openai")
-        self.api_key = os.getenv("DASHSCOPE_API_KEY") or self.llm_config.get("api_key", "")
+        self.api_key = os.getenv("LLM_API_KEY") or os.getenv("DASHSCOPE_API_KEY") or self.llm_config.get("api_key", "")
         self.model = self.llm_config.get("model", "gpt-4")
         self.temperature = self.llm_config.get("temperature", 0.7)
         self.max_tokens = self.llm_config.get("max_tokens", 2048)
@@ -121,6 +121,15 @@ class AsyncLLMClient:
         for attempt in range(self.retry_count + 1):
             try:
                 url = self._get_api_url()
+                # 打印 LLM 模型访问信息
+                self.logger.info(f"访问 LLM 模型：")
+                self.logger.info(f"  URL: {url}")
+                self.logger.info(f"  Model: {model}")
+                self.logger.info(f"  Messages: {json.dumps(messages, ensure_ascii=False)}")
+                # 确保 API 密钥不为空
+                if not self.api_key:
+                    self.logger.error("API 密钥为空，请检查配置")
+                    raise ValueError("API 密钥为空，请检查配置")
                 async with client.stream('POST', url, json=payload) as response:
                     if response.status_code != 200:
                         error_text = await response.aread()
@@ -158,10 +167,10 @@ class AsyncLLMClient:
     def _get_api_url(self) -> str:
         """获取 API URL"""
         if self.provider in ["openai", "dashscope"]:
-            base_url = self.llm_config.get("base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+            base_url = os.getenv("LLM_BASE_URL") or self.llm_config.get("base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
             return f"{base_url}/chat/completions"
         elif self.provider == "azure":
-            base_url = self.llm_config.get("base_url")
+            base_url = os.getenv("LLM_BASE_URL") or self.llm_config.get("base_url")
             return f"{base_url}/openai/deployments/{self.model}/chat/completions?api-version=2023-05-15"
         else:
             raise ValueError(f"不支持的提供商：{self.provider}")

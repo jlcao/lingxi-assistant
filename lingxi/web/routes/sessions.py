@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List
 from lingxi.web.state import get_assistant
 import logging
@@ -11,13 +11,9 @@ router = APIRouter()
 
 class CreateSessionRequest(BaseModel):
     """创建会话请求模型"""
-    userName: Optional[str] = None
     user_name: Optional[str] = None  # 兼容 snake_case 格式
+    userName: Optional[str] = None  # 兼容 camelCase 格式
     workspace_path: Optional[str] = None  # 工作目录路径
-    
-    class Config:
-        # 允许使用别名
-        populate_by_name = True
 
 
 class UpdateSessionRequest(BaseModel):
@@ -39,7 +35,15 @@ class SessionHistoryResponse(BaseModel):
     history: List[Dict[str, Any]]
 
 
-@router.get("/sessions")
+class ApiResponse(BaseModel):
+    """统一 API 响应格式"""
+    code: int
+    message: str
+    data: Optional[Any] = None
+    error: Optional[Dict[str, str]] = None
+
+
+@router.get("/sessions", response_model=ApiResponse)
 async def get_sessions(workspace_path: Optional[str] = None) -> Dict[str, Any]:
     """获取所有会话列表（支持按工作目录过滤）
 
@@ -49,11 +53,15 @@ async def get_sessions(workspace_path: Optional[str] = None) -> Dict[str, Any]:
     Returns:
         会话列表
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         # 如果指定了工作目录路径，返回该工作目录的会话
         if workspace_path:
             sessions = assistant.session_manager.list_all_sessions(workspace_path)
@@ -61,12 +69,17 @@ async def get_sessions(workspace_path: Optional[str] = None) -> Dict[str, Any]:
             # 否则返回所有会话
             sessions = assistant.session_manager.list_all_sessions()
         
-        return {"sessions": sessions}
+        return ApiResponse(code=0, message="success", data={"sessions": sessions})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取会话列表失败：{str(e)}")
+        logger.error(f"获取会话列表失败：{e}")
+        return ApiResponse(
+            code=500,
+            message="获取会话列表失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.post("/sessions")
+@router.post("/sessions", response_model=ApiResponse)
 async def create_session(request: CreateSessionRequest) -> Dict[str, Any]:
     """创建新会话
 
@@ -76,11 +89,15 @@ async def create_session(request: CreateSessionRequest) -> Dict[str, Any]:
     Returns:
         新创建的会话信息
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         import uuid
         from lingxi.management.workspace_manager import get_workspace_manager
         
@@ -105,16 +122,24 @@ async def create_session(request: CreateSessionRequest) -> Dict[str, Any]:
         # 使用 create_session_by_id 方法，传入 session_id、user_name 和 workspace_path
         assistant.session_manager.create_session_by_id(session_id, user_name, workspace_path=workspace_path)
         
-        return {
-            "sessionId": session_id,
-            "firstMessage": user_name
-        }
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={
+                "sessionId": session_id,
+                "firstMessage": user_name
+            }
+        )
     except Exception as e:
         logger.error(f"创建会话失败：{e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"创建会话失败：{str(e)}")
+        return ApiResponse(
+            code=500,
+            message="创建会话失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.get("/sessions/{session_id}")
+@router.get("/sessions/{session_id}", response_model=ApiResponse)
 async def get_session(session_id: str) -> Dict[str, Any]:
     """获取会话详情
 
@@ -124,24 +149,33 @@ async def get_session(session_id: str) -> Dict[str, Any]:
     Returns:
         会话详情
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         info = assistant.session_manager.get_session_info_for_frontend(session_id)
         if not info:
-            raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
-        return info
-    except HTTPException:
-        logger.error(f"获取会话详情失败：{session_id}", exc_info=True)
-        raise
+            return ApiResponse(
+                code=404,
+                message="会话不存在",
+                error={"error_code": "NOT_FOUND", "error_detail": f"会话 {session_id} 不存在"}
+            )
+        return ApiResponse(code=0, message="success", data=info)
     except Exception as e:
         logger.error(f"获取会话详情失败：{session_id}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取会话详情失败：{str(e)}")
+        return ApiResponse(
+            code=500,
+            message="获取会话详情失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.get("/sessions/{session_id}/history")
+@router.get("/sessions/{session_id}/history", response_model=ApiResponse)
 async def get_session_history(session_id: str, max_turns: int = 20) -> Dict[str, Any]:
     """获取会话历史
 
@@ -152,28 +186,41 @@ async def get_session_history(session_id: str, max_turns: int = 20) -> Dict[str,
     Returns:
         会话历史
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         history = assistant.session_manager.get_history(session_id)
         if history is None:
-            raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
+            return ApiResponse(
+                code=404,
+                message="会话不存在",
+                error={"error_code": "NOT_FOUND", "error_detail": f"会话 {session_id} 不存在"}
+            )
 
-        return {
-            "session_id": session_id,
-            "history": history
-        }
-    except HTTPException:
-        logger.error(f"获取会话历史失败：{session_id}", exc_info=True)
-        raise
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={
+                "session_id": session_id,
+                "history": history
+            }
+        )
     except Exception as e:
         logger.error(f"获取会话历史失败：{session_id}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取会话历史失败：{str(e)}")
+        return ApiResponse(
+            code=500,
+            message="获取会话历史失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.patch("/sessions/{session_id}")
+@router.patch("/sessions/{session_id}", response_model=ApiResponse)
 async def update_session(session_id: str, request: UpdateSessionRequest) -> Dict[str, Any]:
     """更新会话（重命名）
 
@@ -184,22 +231,36 @@ async def update_session(session_id: str, request: UpdateSessionRequest) -> Dict
     Returns:
         更新结果
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         success = assistant.session_manager.rename_session(session_id, request.title)
         if not success:
-            raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
-        return {"success": True, "message": f"会话已重命名为：{request.title}"}
-    except HTTPException:
-        raise
+            return ApiResponse(
+                code=404,
+                message="会话不存在",
+                error={"error_code": "NOT_FOUND", "error_detail": f"会话 {session_id} 不存在"}
+            )
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={"success": True, "message": f"会话已重命名为：{request.title}"}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"更新会话失败：{str(e)}")
+        return ApiResponse(
+            code=500,
+            message="更新会话失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.delete("/sessions/{session_id}")
+@router.delete("/sessions/{session_id}", response_model=ApiResponse)
 async def delete_session(session_id: str) -> Dict[str, Any]:
     """删除会话
 
@@ -209,22 +270,36 @@ async def delete_session(session_id: str) -> Dict[str, Any]:
     Returns:
         删除结果
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         success = assistant.session_manager.delete_session(session_id)
         if not success:
-            raise HTTPException(status_code=404, detail=f"会话 {session_id} 不存在")
-        return {"success": True, "message": f"会话已删除：{session_id}"}
-    except HTTPException:
-        raise
+            return ApiResponse(
+                code=404,
+                message="会话不存在",
+                error={"error_code": "NOT_FOUND", "error_detail": f"会话 {session_id} 不存在"}
+            )
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={"success": True, "message": f"会话已删除：{session_id}"}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"删除会话失败：{str(e)}")
+        return ApiResponse(
+            code=500,
+            message="删除会话失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
 
 
-@router.delete("/sessions/{session_id}/history")
+@router.delete("/sessions/{session_id}/history", response_model=ApiResponse)
 async def clear_session_history(session_id: str) -> Dict[str, Any]:
     """清空会话历史
 
@@ -234,12 +309,24 @@ async def clear_session_history(session_id: str) -> Dict[str, Any]:
     Returns:
         清空结果
     """
-    assistant = get_assistant()
-    if not assistant:
-        raise HTTPException(status_code=503, detail="助手服务未初始化")
-
     try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
         assistant.session_manager.clear_session_history(session_id)
-        return {"success": True, "message": f"会话历史已清空：{session_id}"}
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={"success": True, "message": f"会话历史已清空：{session_id}"}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"清空会话历史失败：{str(e)}")
+        return ApiResponse(
+            code=500,
+            message="清空会话历史失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )

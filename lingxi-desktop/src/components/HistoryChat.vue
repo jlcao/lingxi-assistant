@@ -80,6 +80,7 @@ import { ChatDotRound, Delete, Document, Edit, FolderOpened, MoreFilled, Plus } 
 import { ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
+import { apiService } from '@/api/apiService'
 
 const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
@@ -94,26 +95,26 @@ async function handleSelectWorkspace() {
     const selectedPath = await window.electronAPI.file.selectDirectory()
     if (selectedPath) {
       // 验证工作目录
-      const validationResult = await window.electronAPI.workspace.validate(selectedPath)
+      const validationResult = await apiService.client.validateWorkspace(selectedPath)
       
       // 检查验证结果
       if (!validationResult) {
         throw new Error('验证返回数据为空')
       }
       
-      if (validationResult.valid) {
+      if (validationResult.code === 0) {
         // 调用后台切换工作区接口
-        const switchResult = await window.electronAPI.workspace.switch(selectedPath, false)
+        const switchResult = await apiService.client.switchWorkspace(selectedPath, false)
         
-        if (switchResult && switchResult.success) {
+        if (switchResult.code === 0) {
           // 重新加载工作区信息
           await workspaceStore.loadCurrentWorkspace()
           
           // 重新加载会话列表（使用工作目录特定的 API）
-          const sessionsResult = await window.electronAPI.api.getWorkspaceSessions(selectedPath)
+          const sessionsResult = await apiService.client.getWorkspaceSessions(selectedPath)
           console.log('获取到的会话列表:', sessionsResult)
           
-          const sessions = sessionsResult.sessions || []
+          const sessions = sessionsResult.data?.sessions || []
           const formattedSessions = (sessions || []).map((session: any) => ({
             sessionId: session.sessionId || session.id,
             title: session.title || session.name || '新会话',
@@ -136,7 +137,7 @@ async function handleSelectWorkspace() {
           
           alert('工作区切换成功！')
         } else {
-          throw new Error(switchResult?.error || '切换失败')
+          throw new Error(switchResult.message || '切换失败')
         }
       } else {
         throw new Error(validationResult.message || '工作目录无效')
@@ -163,18 +164,19 @@ function formatSessionTime(timestamp?: number): string {
 
 async function handleNewSession() {
   try {
-    const sessionData = await window.electronAPI.api.createSession()
+    const sessionData = await apiService.client.createSession()
+    const sessionDataPayload = sessionData.data || sessionData
     
-    const sessionId = sessionData.session_id || sessionData.sessionId
-    if (!sessionData || !sessionId) {
+    const sessionId = sessionDataPayload.session_id || sessionDataPayload.sessionId
+    if (!sessionDataPayload || !sessionId) {
       console.error('Invalid session data received:', sessionData)
       return
     }
     
     const session = {
       sessionId: sessionId,
-      title: sessionData.first_message || sessionData.firstMessage || '新会话',
-      userName: sessionData.user_name || sessionData.userName || '用户',
+      title: sessionDataPayload.first_message || sessionDataPayload.firstMessage || '新会话',
+      userName: sessionDataPayload.user_name || sessionDataPayload.userName || '用户',
       tasks: [],
       totalTokens: 0,
       createdAt: Date.now(),
@@ -197,16 +199,18 @@ async function handleSelectSession(sessionId: string) {
   appStore.setCurrentSession(sessionId)  
   try {
     console.log('Calling getSessionInfo for sessionId:', sessionId)
-    const sessionInfo = await window.electronAPI.api.getSessionInfo(sessionId)
+    const sessionInfo = await apiService.client.getSession(sessionId)
+    const sessionInfoPayload = sessionInfo.data || sessionInfo
     console.log('Received sessionInfo:', sessionInfo)
     
     // 更新会话列表中的对应会话，保留前端已有的任务数据（特别是正在处理中的任务状态）
     const updatedSessions = sessions.value.map(session => {
+      debugger
       if (session.sessionId === sessionId) {
         // 如果前端已经有任务数据，保留它（包含实时状态）
         // 只有当前端没有任务数据时，才使用后端返回的任务数据
         const existingTasks = session.tasks || []
-        const backendTasks = sessionInfo.tasks || []
+        const backendTasks = sessionInfoPayload.tasks || []
         return { 
           ...session, 
           tasks: existingTasks.length > 0 ? existingTasks : backendTasks 
@@ -244,9 +248,7 @@ async function handleCommand(command: string, session: any) {
       })
       
       if (value) {
-        if (window.electronAPI.api.updateSessionTitle) {
-          await window.electronAPI.api.updateSessionTitle(session.sessionId, value)
-        }
+        await apiService.client.updateSessionName(session.sessionId, value)
         const updatedSessions = sessions.value.map(s =>
           s.sessionId === session.sessionId ? { ...s, title: value, updatedAt: Date.now() } : s
         )
@@ -268,9 +270,7 @@ async function handleCommand(command: string, session: any) {
         }
       )
       
-      if (window.electronAPI.api.deleteSession) {
-        await window.electronAPI.api.deleteSession(session.sessionId)
-      }
+      await apiService.client.deleteSession(session.sessionId)
       const updatedSessions = sessions.value.filter(s => s.sessionId !== session.sessionId)
       appStore.setSessions(updatedSessions)
       
