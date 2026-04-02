@@ -78,6 +78,7 @@ export const useAppStore = defineStore('app', () => {
         if (!task.steps) {
           task.steps = []
         }
+        debugger
         task.steps[stepIndex] = stepInfo
       }
     }
@@ -88,7 +89,7 @@ export const useAppStore = defineStore('app', () => {
     if (session && session.tasks) {
       const task = session.tasks.find(t => t.taskId === taskId)
       if (task && task.steps && task.steps[stepIndex]) {
-        task.steps[stepIndex].thought = content
+        task.steps[stepIndex].thought = task.steps[stepIndex].thought + content
       }
     }
   }
@@ -98,7 +99,7 @@ export const useAppStore = defineStore('app', () => {
     if (session && session.tasks) {
       const task = session.tasks.find(t => t.taskId === taskId)
       if (task) {
-        task.planThinkingContent = content
+        task.planThinkingContent = task.planThinkingContent + content
       }
     }
   }

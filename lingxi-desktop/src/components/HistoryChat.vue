@@ -205,7 +205,6 @@ async function handleSelectSession(sessionId: string) {
     
     // 更新会话列表中的对应会话，保留前端已有的任务数据（特别是正在处理中的任务状态）
     const updatedSessions = sessions.value.map(session => {
-      debugger
       if (session.sessionId === sessionId) {
         // 如果前端已经有任务数据，保留它（包含实时状态）
         // 只有当前端没有任务数据时，才使用后端返回的任务数据

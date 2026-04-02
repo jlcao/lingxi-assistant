@@ -51,7 +51,7 @@ async def list_skills(enabled_only: bool = False) -> Dict[str, Any]:
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
 
-        skills = assistant.skill_caller.list_available_skills(enabled_only=enabled_only)
+        skills = assistant.action_caller.list_available_skills(enabled_only=enabled_only)
         return ApiResponse(
             code=0,
             message="success",
@@ -87,7 +87,7 @@ async def get_skill(skill_id: str) -> Dict[str, Any]:
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
 
-        skills = assistant.skill_caller.list_available_skills(enabled_only=False)
+        skills = assistant.action_caller.list_available_skills(enabled_only=False)
         skill = next((s for s in skills if s.get("skill_id") == skill_id), None)
 
         if not skill:
@@ -197,7 +197,7 @@ async def diagnose_skill(skill_id: str) -> Dict[str, Any]:
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
 
-        skills = assistant.skill_caller.list_available_skills(enabled_only=False)
+        skills = assistant.action_caller.list_available_skills(enabled_only=False)
         skill = next((s for s in skills if s.get("skill_id") == skill_id), None)
 
         if not skill:
@@ -248,7 +248,7 @@ async def reload_skill(skill_id: str) -> Dict[str, Any]:
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
 
-        skills = assistant.skill_caller.list_available_skills(enabled_only=False)
+        skills = assistant.action_caller.list_available_skills(enabled_only=False)
         skill = next((s for s in skills if s.get("skill_id") == skill_id), None)
 
         if not skill:
@@ -303,7 +303,7 @@ async def uninstall_skill(skill_id: str) -> Dict[str, Any]:
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
 
-        skills = assistant.skill_caller.list_available_skills(enabled_only=False)
+        skills = assistant.action_caller.list_available_skills(enabled_only=False)
         skill = next((s for s in skills if s.get("skill_id") == skill_id), None)
 
         if not skill:

@@ -49,7 +49,6 @@ onUnmounted(() => {
 })
 
 async function initializeApp() {
-  debugger
   console.log('[App] initializeApp called')
   appStore.setLoading(true)
 

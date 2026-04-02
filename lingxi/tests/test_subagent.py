@@ -35,7 +35,7 @@ class TestSubAgentScheduler:
         }
         return SubAgentScheduler(
             session_manager=MockSessionManager(),
-            skill_caller=MockSkillCaller(),
+            action_caller=MockSkillCaller(),
             config=config
         )
     

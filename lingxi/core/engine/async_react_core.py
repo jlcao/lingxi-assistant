@@ -61,7 +61,7 @@ class AsyncReActCore(BaseEngine):
             消息列表
         """
         # 获取可用技能列表
-        available_skills = self.skill_caller.list_available_skills(enabled_only=True) if self.skill_caller else []
+        available_skills = self.action_caller.list_available_skills(enabled_only=True) if self.action_caller else []
         skills_list = PromptTemplates.format_skills_list(available_skills)
 
         # 获取系统信息
