@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder",
-    "build:win": "npm run build && electron-builder --win",
+    "build:win": "npm run build && npx electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux",
     "test:e2e": "npx playwright test",
@@ -75,7 +75,8 @@
         "nsis",
         "portable"
       ],
-      "icon": "src/assets/images/logo_256x256.ico"
+      "icon": "src/assets/images/logo_256x256.ico",
+      "forceCodeSigning": false
     },
     "mac": {
       "target": [

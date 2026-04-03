@@ -3,11 +3,13 @@
 rem Lingxi Assistant Complete Build Script
 set PROJECT_ROOT=%~dp0
 set FRONTEND_DIR=%PROJECT_ROOT%lingxi-desktop
+set MAIN_DIST_DIR=%PROJECT_ROOT%dist
 
-rem Clean up previous builds
-echo Cleaning up previous builds...
-if exist %FRONTEND_DIR%\electron\main\backend rmdir /s /q %FRONTEND_DIR%\electron\main\backend
-if exist %FRONTEND_DIR%\release rmdir /s /q %FRONTEND_DIR%\release
+rem Create main dist directory
+echo Creating main dist directory...
+mkdir %MAIN_DIST_DIR%
+mkdir %MAIN_DIST_DIR%\backend
+mkdir %MAIN_DIST_DIR%\frontend
 
 rem 1. Build backend
 echo Building backend...
@@ -20,7 +22,11 @@ pip install pyinstaller
 
 rem Build backend using PyInstaller
 echo Building backend using PyInstaller...
-pyinstaller backend.spec
+python -m PyInstaller backend.spec
+
+rem Move build results to main dist directory
+echo Moving backend build results to main dist directory...
+move dist\lingxi-backend %MAIN_DIST_DIR%\backend
 
 rem Create frontend backend directories
 echo Creating frontend backend directories...
@@ -29,8 +35,8 @@ mkdir %FRONTEND_DIR%\dist-electron\main\backend
 
 rem Copy build results to frontend
 echo Copying backend build results to frontend...
-xcopy dist\lingxi-backend %FRONTEND_DIR%\electron\main\backend /s /e /y
-xcopy dist\lingxi-backend %FRONTEND_DIR%\dist-electron\main\backend /s /e /y
+xcopy %MAIN_DIST_DIR%\backend %FRONTEND_DIR%\electron\main\backend /s /e /y
+xcopy %MAIN_DIST_DIR%\backend %FRONTEND_DIR%\dist-electron\main\backend /s /e /y
 
 if errorlevel 1 (
     echo Backend build failed!
@@ -42,23 +48,19 @@ echo Backend build completed
 
 rem 2. Build frontend
 echo Building frontend...
-cd %FRONTEND_DIR%
+cd lingxi-desktop
 
 rem Install frontend dependencies
 echo Installing frontend dependencies...
-npm install
 
 if errorlevel 1 (
     echo Frontend dependency installation failed!
     pause
-    exit /b 1
 )
-
-echo Frontend dependency installation completed
 
 rem Build frontend
 echo Building frontend...
-npm run electron:build:win
+npm run build:win
 
 if errorlevel 1 (
     echo Frontend build failed!
@@ -66,9 +68,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Moving frontend build results to main dist directory...
+
 echo Frontend build completed
 
 echo The entire build process has been completed
-echo Build results are located at: %FRONTEND_DIR%\release
+echo Build results are located at: %MAIN_DIST_DIR%
+echo Backend build: %MAIN_DIST_DIR%\backend
+echo Frontend build: %MAIN_DIST_DIR%\frontend
 
 pause
