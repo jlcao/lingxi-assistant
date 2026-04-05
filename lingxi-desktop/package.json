@@ -91,7 +91,6 @@
         "AppImage",
         "deb"
       ],
-      "icon": "src/assets/images/logo_256x256.ico",
       "category": "Utility"
     }
   }

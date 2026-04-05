@@ -40,7 +40,8 @@ cp -r "$MAIN_DIST_DIR/backend" "$FRONTEND_DIR/dist-electron/main/"
 
 if [ $? -ne 0 ]; then
     echo "Backend build failed!"
-    read -p "Press Enter to exit..."
+    echo "Press Enter to exit..."
+    read
     exit 1
 fi
 
@@ -56,7 +57,8 @@ npm install
 
 if [ $? -ne 0 ]; then
     echo "Frontend dependency installation failed!"
-    read -p "Press Enter to exit..."
+    echo "Press Enter to exit..."
+    read
     exit 1
 fi
 
@@ -66,7 +68,8 @@ npm run build:linux
 
 if [ $? -ne 0 ]; then
     echo "Frontend build failed!"
-    read -p "Press Enter to exit..."
+    echo "Press Enter to exit..."
+    read
     exit 1
 fi
 
@@ -84,4 +87,5 @@ echo "Build results are located at: $MAIN_DIST_DIR"
 echo "Backend build: $MAIN_DIST_DIR/backend"
 echo "Frontend build: $MAIN_DIST_DIR/frontend"
 
-read -p "Press Enter to exit..."
+echo "Press Enter to exit..."
+read
