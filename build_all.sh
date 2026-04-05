@@ -17,16 +17,50 @@ cd "$PROJECT_ROOT"
 
 # Install dependencies
 echo "Installing Python dependencies..."
+which pip3 || { echo "Error: pip3 not found. Please install Python 3 and pip3 first."; echo "Press Enter to exit..."; read; exit 1; }
 pip3 install -r requirements.txt
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to install Python dependencies."
+    echo "Press Enter to exit..."
+    read
+    exit 1
+fi
+
 pip3 install pyinstaller
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to install PyInstaller."
+    echo "Press Enter to exit..."
+    read
+    exit 1
+fi
 
 # Build backend using PyInstaller
 echo "Building backend using PyInstaller..."
 python3 -m PyInstaller backend.spec
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to build backend using PyInstaller."
+    echo "Press Enter to exit..."
+    read
+    exit 1
+fi
+
+# Check if the build result exists
+if [ ! -d "dist/lingxi-backend" ]; then
+    echo "Error: Backend build result not found."
+    echo "Press Enter to exit..."
+    read
+    exit 1
+fi
 
 # Move build results to main dist directory
 echo "Moving backend build results to main dist directory..."
 mv -f dist/lingxi-backend "$MAIN_DIST_DIR/backend"
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to move backend build results."
+    echo "Press Enter to exit..."
+    read
+    exit 1
+fi
 
 # Create frontend backend directories
 echo "Creating frontend backend directories..."
@@ -36,10 +70,16 @@ mkdir -p "$FRONTEND_DIR/dist-electron/main/backend"
 # Copy build results to frontend
 echo "Copying backend build results to frontend..."
 cp -r "$MAIN_DIST_DIR/backend" "$FRONTEND_DIR/electron/main/"
-cp -r "$MAIN_DIST_DIR/backend" "$FRONTEND_DIR/dist-electron/main/"
-
 if [ $? -ne 0 ]; then
-    echo "Backend build failed!"
+    echo "Error: Failed to copy backend build results to frontend."
+    echo "Press Enter to exit..."
+    read
+    exit 1
+fi
+
+cp -r "$MAIN_DIST_DIR/backend" "$FRONTEND_DIR/dist-electron/main/"
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to copy backend build results to frontend."
     echo "Press Enter to exit..."
     read
     exit 1
@@ -53,8 +93,8 @@ cd "$FRONTEND_DIR"
 
 # Install frontend dependencies
 echo "Installing frontend dependencies..."
+which npm || { echo "Error: npm not found. Please install Node.js first."; echo "Press Enter to exit..."; read; exit 1; }
 npm install
-
 if [ $? -ne 0 ]; then
     echo "Frontend dependency installation failed!"
     echo "Press Enter to exit..."
@@ -65,7 +105,6 @@ fi
 # Build frontend
 echo "Building frontend..."
 npm run build:linux
-
 if [ $? -ne 0 ]; then
     echo "Frontend build failed!"
     echo "Press Enter to exit..."
