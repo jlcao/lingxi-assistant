@@ -17,12 +17,12 @@ cd "$PROJECT_ROOT"
 
 # Install dependencies
 echo "Installing Python dependencies..."
-which pip || { echo "Error: pip not found. Please install Python 3 and pip first."; echo "Press Enter to exit..."; read -r; exit 1; }
+which pip || { echo "Error: pip not found. Please install Python 3 and pip first."; echo "Press Enter to exit..."; read; exit 1; }
 pip install -r requirements.txt
 if [ $? -ne 0 ]; then
     echo "Error: Failed to install Python dependencies."
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -30,7 +30,7 @@ pip install pyinstaller
 if [ $? -ne 0 ]; then
     echo "Error: Failed to install PyInstaller."
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -40,7 +40,7 @@ python -m PyInstaller backend.spec
 if [ $? -ne 0 ]; then
     echo "Error: Failed to build backend using PyInstaller."
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -48,7 +48,7 @@ fi
 if [ ! -d "dist/lingxi-backend" ]; then
     echo "Error: Backend build result not found."
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -58,7 +58,7 @@ mv -f dist/lingxi-backend "$MAIN_DIST_DIR/backend"
 if [ $? -ne 0 ]; then
     echo "Error: Failed to move backend build results."
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -73,7 +73,7 @@ cp -r "$MAIN_DIST_DIR/backend" "$FRONTEND_DIR/electron/main/"
 if [ $? -ne 0 ]; then
     echo "Error: Failed to copy backend build results to frontend."
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -81,7 +81,7 @@ cp -r "$MAIN_DIST_DIR/backend" "$FRONTEND_DIR/dist-electron/main/"
 if [ $? -ne 0 ]; then
     echo "Error: Failed to copy backend build results to frontend."
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -93,12 +93,12 @@ cd "$FRONTEND_DIR"
 
 # Install frontend dependencies
 echo "Installing frontend dependencies..."
-which npm || { echo "Error: npm not found. Please install Node.js first."; echo "Press Enter to exit..."; read -r; exit 1; }
+which npm || { echo "Error: npm not found. Please install Node.js first."; echo "Press Enter to exit..."; read; exit 1; }
 npm install
 if [ $? -ne 0 ]; then
     echo "Frontend dependency installation failed!"
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -108,7 +108,7 @@ npm run build:linux
 if [ $? -ne 0 ]; then
     echo "Frontend build failed!"
     echo "Press Enter to exit..."
-    read -r
+    read
     exit 1
 fi
 
@@ -127,4 +127,4 @@ echo "Backend build: $MAIN_DIST_DIR/backend"
 echo "Frontend build: $MAIN_DIST_DIR/frontend"
 
 echo "Press Enter to exit..."
-read -r
+read
