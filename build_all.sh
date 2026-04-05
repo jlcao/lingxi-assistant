@@ -17,8 +17,8 @@ cd "$PROJECT_ROOT"
 
 # Install dependencies
 echo "Installing Python dependencies..."
-which pip3 || { echo "Error: pip3 not found. Please install Python 3 and pip3 first."; echo "Press Enter to exit..."; read -r; exit 1; }
-pip3 install -r requirements.txt
+which pip || { echo "Error: pip not found. Please install Python 3 and pip first."; echo "Press Enter to exit..."; read -r; exit 1; }
+pip install -r requirements.txt
 if [ $? -ne 0 ]; then
     echo "Error: Failed to install Python dependencies."
     echo "Press Enter to exit..."
@@ -26,7 +26,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-pip3 install pyinstaller
+pip install pyinstaller
 if [ $? -ne 0 ]; then
     echo "Error: Failed to install PyInstaller."
     echo "Press Enter to exit..."
@@ -36,7 +36,7 @@ fi
 
 # Build backend using PyInstaller
 echo "Building backend using PyInstaller..."
-python3 -m PyInstaller backend.spec
+python -m PyInstaller backend.spec
 if [ $? -ne 0 ]; then
     echo "Error: Failed to build backend using PyInstaller."
     echo "Press Enter to exit..."
