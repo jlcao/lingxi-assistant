@@ -8,6 +8,7 @@ export class BackendManager {
   private backendProcess: ChildProcess | null = null
   private backendPort: number = 5000
   private isBackendStarted: boolean = false
+  private executableName: string = process.platform === 'win32' ? 'lingxi-backend.exe' : 'lingxi-backend'
 
   async startBackendService(): Promise<boolean> {
     if (this.isBackendStarted || this.backendProcess) {
@@ -24,13 +25,13 @@ export class BackendManager {
         }
 
         const possiblePaths = [
-          'd:\\resource\\python\\lingxi\\lingxi-desktop\\electron\\main\\backend\\lingxi-backend.exe',
-          path.join(appPath, 'electron', 'main', 'backend', 'lingxi-backend.exe'),
-          path.join(appPath, 'backend', 'lingxi-backend.exe'),
-          path.join(path.dirname(appPath), 'backend', 'lingxi-backend.exe'),
-          path.join(path.dirname(appPath), 'resources', 'backend', 'lingxi-backend.exe'),
-          path.join(path.dirname(appPath), 'lingxi-backend.exe'),
-          path.join(path.dirname(appPath), 'resources', 'lingxi-backend.exe')
+          'd:\\resource\\python\\lingxi\\lingxi-desktop\\electron\\main\\backend\\' + this.executableName,
+          path.join(appPath, 'electron', 'main', 'backend', this.executableName),
+          path.join(appPath, 'backend', this.executableName),
+          path.join(path.dirname(appPath), 'backend', this.executableName),
+          path.join(path.dirname(appPath), 'resources', 'backend', this.executableName),
+          path.join(path.dirname(appPath), this.executableName),
+          path.join(path.dirname(appPath), 'resources', this.executableName)
         ]
 
         let backendPath = ''
@@ -129,7 +130,7 @@ export class BackendManager {
 
         this.backendProcess.on('error', (error) => {
           console.error('[BackendManager] 启动后端服务失败:', error)
-          dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${error.message}`)
+          dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${(error as Error).message}`)
           this.isBackendStarted = false
           resolve(false)
         })
@@ -158,7 +159,7 @@ export class BackendManager {
 
       } catch (error) {
         console.error('[BackendManager] 启动后端服务时出错:', error)
-        dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${error.message}`)
+        dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${(error as Error).message}`)
         this.isBackendStarted = false
         resolve(false)
       }
@@ -184,16 +185,18 @@ export class BackendManager {
 
         const startTime = Date.now()
         while (Date.now() - startTime < 1000) {
-          try {
-            process.kill(pid, 0)
-          } catch (e) {
-            logger.log(`[BackendManager] 进程 ${pid} 已优雅退出`)
-            isStopping = false
-            break
+          if (pid) {
+            try {
+              process.kill(pid, 0)
+            } catch (e) {
+              logger.log(`[BackendManager] 进程 ${pid} 已优雅退出`)
+              isStopping = false
+              break
+            }
           }
         }
       } catch (killError) {
-        logger.warn(`[BackendManager] 优雅关闭失败: ${killError.message}`)
+        logger.log(`[BackendManager] 优雅关闭失败: ${(killError as Error).message}`)
       }
 
       if (isStopping && process.platform === 'win32' && pid) {
@@ -219,20 +222,36 @@ export class BackendManager {
       this.backendProcess = null
       this.isBackendStarted = false
 
-      try {
-        const killAllCmd = `taskkill /F /IM lingxi-backend.exe`
-        logger.log(`[BackendManager] 执行强制杀掉所有后端进程命令: ${killAllCmd}`)
+      if (process.platform === 'win32') {
+        try {
+          const killAllCmd = `taskkill /F /IM ${this.executableName}`
+          logger.log(`[BackendManager] 执行强制杀掉所有后端进程命令: ${killAllCmd}`)
 
-        const killAllResult = execSync(killAllCmd, {
-          stdio: ['ignore', 'pipe', 'pipe'],
-          encoding: 'binary',
-          timeout: 3000
-        })
-        const iconv = require('iconv-lite')
-        const killAllOutput = iconv.decode(Buffer.from(killAllResult, 'binary'), 'gbk')
-        logger.log(`[BackendManager] 强制杀掉所有后端进程成功: ${killAllOutput.trim()}`)
-      } catch (killAllError: any) {
-        logger.error(`[BackendManager] 强制杀掉所有后端进程失败: ${killAllError.message} (状态码: ${killAllError.status || '未知'})`)
+          const killAllResult = execSync(killAllCmd, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            encoding: 'binary',
+            timeout: 3000
+          })
+          const iconv = require('iconv-lite')
+          const killAllOutput = iconv.decode(Buffer.from(killAllResult, 'binary'), 'gbk')
+          logger.log(`[BackendManager] 强制杀掉所有后端进程成功: ${killAllOutput.trim()}`)
+        } catch (killAllError: any) {
+          logger.error(`[BackendManager] 强制杀掉所有后端进程失败: ${killAllError.message} (状态码: ${killAllError.status || '未知'})`)
+        }
+      } else {
+        try {
+          const killAllCmd = `pkill -f ${this.executableName}`
+          logger.log(`[BackendManager] 执行强制杀掉所有后端进程命令: ${killAllCmd}`)
+
+          const killAllResult = execSync(killAllCmd, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            encoding: 'utf8',
+            timeout: 3000
+          })
+          logger.log(`[BackendManager] 强制杀掉所有后端进程成功: ${killAllResult.trim()}`)
+        } catch (killAllError: any) {
+          logger.error(`[BackendManager] 强制杀掉所有后端进程失败: ${killAllError.message} (状态码: ${killAllError.status || '未知'})`)
+        }
       }
       logger.log(`[BackendManager] 后端服务停止流程完成（PID: ${pid}）`)
     } catch (error) {

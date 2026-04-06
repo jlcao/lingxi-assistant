@@ -85,6 +85,10 @@ analysis = Analysis(
 )
 
 # 创建可执行文件
+executable_name = 'lingxi-backend'
+if sys.platform == 'win32':
+    executable_name += '.exe'
+
 pyz = PYZ(
     analysis.pure,
     analysis.zipped_data,
@@ -95,7 +99,7 @@ executable = EXE(
     pyz,
     analysis.scripts,
     [],
-    name='lingxi-backend-exe',
+    name=executable_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -138,6 +142,13 @@ def verify_build():
         print(f"✅ 技能目录已成功打包：{skills_dir}")
     else:
         print(f"❌ 未找到技能目录：{skills_dir}")
+    
+    # 验证可执行文件是否存在
+    built_executable = os.path.join(build_dir, executable_name)
+    if os.path.exists(built_executable):
+        print(f"✅ 可执行文件已成功打包：{built_executable}")
+    else:
+        print(f"❌ 未找到可执行文件：{built_executable}")
 
 # 仅在直接执行 spec 文件时运行验证
 if __name__ == '__main__':
