@@ -94,11 +94,8 @@ pyz = PYZ(
 executable = EXE(
     pyz,
     analysis.scripts,
-    analysis.binaries,
-    analysis.zipfiles,
-    analysis.datas,
     [],
-    name='lingxi-backend',
+    name='lingxi-backend-exe',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -12,3 +12,22 @@
 ### Notes:
 - 前端WebSocket客户端现在发送的心跳消息类型为'ping'，后端会正确处理并返回pong响应
 - 此修改解决了"未知消息类型：heartbeat"的错误问题
+
+## 2026-04-06 - 修复全平台构建兼容性问题
+
+### What was done:
+- 修复backend.spec中EXE和COLLECT名称冲突问题，Linux下EXE命名为lingxi-backend-exe避免冲突
+- 修改package.json中所有平台图标配置为通用PNG格式，增强跨平台兼容性
+- 修改前端Linux构建命令为dir模式，避免缺少icon转换依赖导致的构建失败
+- 修复build_all.sh脚本移动文件冲突问题
+- 优化构建流程，清理旧构建产物后再执行新构建
+
+### Testing:
+- 执行./build_all.sh全量构建成功
+- 后端和前端都能正常编译打包
+- Linux下构建产物可正常运行
+
+### Notes:
+- backend.spec现在支持跨Linux/Windows平台直接构建，无需修改配置
+- 图标统一使用PNG格式，支持所有平台构建
+- 若需要生成AppImage/deb安装包，需要先安装imagemagick和icnsutils依赖
