@@ -13,7 +13,7 @@
     "electron:build": "npm run build && electron-builder",
     "build:win": "npm run build && npx electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux dir",
+    "build:linux": "npm run build && electron-builder --linux",
     "test:e2e": "npx playwright test",
     "test:electron": "npx playwright test --project=electron"
   },

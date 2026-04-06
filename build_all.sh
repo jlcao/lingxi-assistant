@@ -5,6 +5,12 @@ PROJECT_ROOT=$(pwd)
 FRONTEND_DIR="$PROJECT_ROOT/lingxi-desktop"
 MAIN_DIST_DIR="$PROJECT_ROOT/dist"
 
+# Clean previous build artifacts
+echo "Cleaning previous build artifacts..."
+rm -rf "$MAIN_DIST_DIR" "$PROJECT_ROOT/build"
+rm -rf "$FRONTEND_DIR/electron/main/backend" "$FRONTEND_DIR/dist-electron/main/backend"
+rm -rf "$FRONTEND_DIR/dist" "$FRONTEND_DIR/dist-electron" "$FRONTEND_DIR/release"
+
 # Create main dist directory
 echo "Creating main dist directory..."
 mkdir -p "$MAIN_DIST_DIR"
@@ -45,18 +51,8 @@ if [ $? -ne 0 ]; then
 fi
 
 # Check if the build result exists
-if [ ! -d "dist/lingxi-backend" ]; then
+if [ ! -d "dist/backend" ]; then
     echo "Error: Backend build result not found."
-    echo "Press Enter to exit..."
-    read
-    exit 1
-fi
-
-# Move build results to main dist directory
-echo "Moving backend build results to main dist directory..."
-mv -f dist/lingxi-backend "$MAIN_DIST_DIR/backend"
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to move backend build results."
     echo "Press Enter to exit..."
     read
     exit 1
