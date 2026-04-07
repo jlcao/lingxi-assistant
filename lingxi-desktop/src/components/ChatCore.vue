@@ -1,26 +1,44 @@
 <template>
   <div class="chat-core">
     <div class="chat-core-header">
-      <div class="chat-core-title">{{ currentSessionName }}</div>
+      <div class="chat-core-title">
+        {{ currentSessionName }}
+      </div>
       <div class="chat-core-actions">
         <el-dropdown @command="handleMoreCommand">
-          <el-button size="small" text>...</el-button>
+          <el-button
+            size="small"
+            text
+          >
+            ...
+          </el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="rename">
-                <el-icon class="mr-2"><Edit /></el-icon>
+                <el-icon class="mr-2">
+                  <Edit />
+                </el-icon>
                 重命名会话
               </el-dropdown-item>
               <el-dropdown-item command="clear">
-                <el-icon class="mr-2"><Delete /></el-icon>
+                <el-icon class="mr-2">
+                  <Delete />
+                </el-icon>
                 清除历史
               </el-dropdown-item>
-              <el-dropdown-item command="delete" type="danger">
-                <el-icon class="mr-2"><Delete /></el-icon>
+              <el-dropdown-item
+                command="delete"
+                type="danger"
+              >
+                <el-icon class="mr-2">
+                  <Delete />
+                </el-icon>
                 删除会话
               </el-dropdown-item>
               <el-dropdown-item command="export">
-                <el-icon class="mr-2"><Download /></el-icon>
+                <el-icon class="mr-2">
+                  <Download />
+                </el-icon>
                 导出会话
               </el-dropdown-item>
             </el-dropdown-menu>
@@ -31,11 +49,13 @@
     <div class="chat-core-content">
       <MessageList />
     </div>
-    <div class="chat-core-input" 
-         :class="{ 'dragging': isDragging }"
-         @dragover.prevent="handleDragOver"
-         @dragleave="handleDragLeave"
-         @drop.prevent="handleDrop">
+    <div
+      class="chat-core-input" 
+      :class="{ 'dragging': isDragging }"
+      @dragover.prevent="handleDragOver"
+      @dragleave="handleDragLeave"
+      @drop.prevent="handleDrop"
+    >
       <el-input
         v-model="inputText"
         type="textarea"
@@ -55,15 +75,21 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="upload">
-                <el-icon class="mr-2"><Upload /></el-icon>
+                <el-icon class="mr-2">
+                  <Upload />
+                </el-icon>
                 上传文件
               </el-dropdown-item>
               <el-dropdown-item command="image">
-                <el-icon class="mr-2"><Picture /></el-icon>
+                <el-icon class="mr-2">
+                  <Picture />
+                </el-icon>
                 添加图片
               </el-dropdown-item>
               <el-dropdown-item command="code">
-                <el-icon class="mr-2"><View /></el-icon>
+                <el-icon class="mr-2">
+                  <View />
+                </el-icon>
                 代码块
               </el-dropdown-item>
               <el-dropdown-item command="emoji">

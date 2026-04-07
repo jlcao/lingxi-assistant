@@ -1,25 +1,43 @@
 <template>
   <div class="step-intervention-card">
     <div class="intervention-header">
-      <el-icon class="intervention-icon"><WarningFilled /></el-icon>
+      <el-icon class="intervention-icon">
+        <WarningFilled />
+      </el-icon>
       <span class="intervention-title">步骤执行失败，需要人工干预</span>
     </div>
     <div class="intervention-body">
-      <div v-for="step in failedSteps" :key="step.stepIndex" class="intervention-step">
+      <div
+        v-for="step in failedSteps"
+        :key="step.stepIndex"
+        class="intervention-step"
+      >
         <div class="intervention-step-name">
           步骤 {{ step.stepIndex }}: {{ step.name }}
           <span class="intervention-step-retry">重试次数: {{ step.retryCount }}/{{ step.maxRetries }}</span>
         </div>
-        <div v-if="step.error" class="intervention-error">
+        <div
+          v-if="step.error"
+          class="intervention-error"
+        >
           <strong>错误信息:</strong> {{ step.error.message }}
         </div>
-        <div v-if="step.error?.type" class="intervention-error-type">
+        <div
+          v-if="step.error?.type"
+          class="intervention-error-type"
+        >
           <strong>错误类型:</strong> {{ step.error.type }}
         </div>
-        <div v-if="step.error?.suggestions && step.error.suggestions.length > 0" class="intervention-suggestions">
+        <div
+          v-if="step.error?.suggestions && step.error.suggestions.length > 0"
+          class="intervention-suggestions"
+        >
           <strong>修正建议:</strong>
           <ul>
-            <li v-for="(suggestion, index) in step.error.suggestions" :key="index">
+            <li
+              v-for="(suggestion, index) in step.error.suggestions"
+              :key="index"
+            >
               {{ suggestion }}
             </li>
           </ul>
@@ -34,10 +52,31 @@
           class="intervention-input"
         />
         <div class="intervention-buttons">
-          <el-button size="small" @click="handleSkip">跳过</el-button>
-          <el-button size="small" @click="handleRetry">重试</el-button>
-          <el-button size="small" @click="handleBatchRetry">批量重试</el-button>
-          <el-button type="primary" size="small" @click="handleSubmit">提交修正</el-button>
+          <el-button
+            size="small"
+            @click="handleSkip"
+          >
+            跳过
+          </el-button>
+          <el-button
+            size="small"
+            @click="handleRetry"
+          >
+            重试
+          </el-button>
+          <el-button
+            size="small"
+            @click="handleBatchRetry"
+          >
+            批量重试
+          </el-button>
+          <el-button
+            type="primary"
+            size="small"
+            @click="handleSubmit"
+          >
+            提交修正
+          </el-button>
         </div>
       </div>
     </div>

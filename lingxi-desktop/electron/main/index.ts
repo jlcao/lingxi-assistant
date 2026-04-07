@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import * as path from 'path'
 import { FileManager } from './fileManager'
 import { WindowManager } from './windowManager'
 import { BackendManager } from './backendManager'
@@ -101,7 +102,7 @@ class App {
       if (workspacePath) {
         return {
           workspace: workspacePath,
-          lingxi_dir: require('path').join(workspacePath, '.lingxi'),
+          lingxi_dir: path.join(workspacePath, '.lingxi'),
           is_initialized: true
         }
       }
@@ -158,7 +159,6 @@ class App {
       } else {
         logger.error('[App] 后端服务启动失败，无法继续')
         // 可以选择退出应用或显示错误界面
-        const { dialog } = require('electron')
         dialog.showErrorBox('启动失败', '后端服务启动失败，应用无法正常运行')
         app.quit()
       }

@@ -7,14 +7,32 @@
   >
     <div class="workspace-switch-dialog">
       <div class="current-workspace">
-        <div class="label">当前工作目录：</div>
-        <div class="path">{{ currentWorkspace?.workspace || '未初始化' }}</div>
-        <el-tag v-if="currentWorkspace?.is_initialized" type="success" size="small">已初始化</el-tag>
-        <el-tag v-else type="warning" size="small">未初始化</el-tag>
+        <div class="label">
+          当前工作目录：
+        </div>
+        <div class="path">
+          {{ currentWorkspace?.workspace || '未初始化' }}
+        </div>
+        <el-tag
+          v-if="currentWorkspace?.is_initialized"
+          type="success"
+          size="small"
+        >
+          已初始化
+        </el-tag>
+        <el-tag
+          v-else
+          type="warning"
+          size="small"
+        >
+          未初始化
+        </el-tag>
       </div>
       
       <div class="select-workspace">
-        <div class="label">选择新工作目录：</div>
+        <div class="label">
+          选择新工作目录：
+        </div>
         <div class="input-group">
           <el-input
             v-model="newWorkspacePath"
@@ -28,7 +46,10 @@
         </div>
       </div>
       
-      <div class="validation-result" v-if="validationResult">
+      <div
+        v-if="validationResult"
+        class="validation-result"
+      >
         <el-alert
           :title="validationResult.message"
           :type="validationResult.valid ? 'success' : 'error'"
@@ -39,12 +60,14 @@
     </div>
     
     <template #footer>
-      <el-button @click="handleCancel">取消</el-button>
+      <el-button @click="handleCancel">
+        取消
+      </el-button>
       <el-button 
         type="primary" 
-        @click="handleSwitch"
         :loading="isSwitching"
         :disabled="!canSwitch"
+        @click="handleSwitch"
       >
         {{ isSwitching ? '切换中...' : '切换' }}
       </el-button>

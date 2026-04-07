@@ -6,7 +6,7 @@ let electronApp: ElectronApplication
 let page: Page
 
 test.describe('目录树自动刷新机制测试', () => {
-  let consoleMessages: string[] = []
+  const consoleMessages: string[] = []
 
   test.beforeAll(async () => {
     const projectRoot = path.resolve(__dirname, '../../')

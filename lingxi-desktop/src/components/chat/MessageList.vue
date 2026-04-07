@@ -1,8 +1,17 @@
 <template>
-  <div class="message-list" ref="scrollContainer">
+  <div
+    ref="scrollContainer"
+    class="message-list"
+  >
     <div v-if="session">
-      <div v-for="task in session.tasks" :key="task.taskId || task.createdAt">
-        <div class="message-item" :class="'user'">
+      <div
+        v-for="task in session.tasks"
+        :key="task.taskId || task.createdAt"
+      >
+        <div
+          class="message-item"
+          :class="'user'"
+        >
           <div class="message-avatar">
             <el-icon>
               <User />
@@ -14,12 +23,18 @@
               <span class="message-time">{{ formatTime(task.createdAt) }}</span>
             </div>
             <div class="message-text-container">
-              <div class="message-text-user" v-html="renderMarkdown(task.userInput)" />
+              <div
+                class="message-text-user"
+                v-html="renderMarkdown(task.userInput)"
+              />
             </div>
           </div>
         </div>
 
-        <div class="message-item" :class="'assistant'">
+        <div
+          class="message-item"
+          :class="'assistant'"
+        >
           <div class="message-avatar">
             <el-icon>
               <ChatDotRound />
@@ -29,41 +44,78 @@
             <div class="message-header">
               <span class="message-role">{{ '助手' }}</span>
               <span class="message-time">{{ formatTime(task.createdAt) }}</span>
-              <span v-if="task.status" class="message-status" :class="task.status">
+              <span
+                v-if="task.status"
+                class="message-status"
+                :class="task.status"
+              >
                 {{ task.status === 'running' ? '执行中' : task.status === 'completed' ? '已完成' : task.status==='interrupted' ? '中断':'失败' }}
               </span>
             </div>
 
-            <div v-if="task.planThinking === true && task.steps && task.steps.length === 0" class="message-plan-thinking">
+            <div
+              v-if="task.planThinking === true && task.steps && task.steps.length === 0"
+              class="message-plan-thinking"
+            >
               <div class="plan-thinking-header">
                 <el-icon class="is-loading">
                   <Loading />
                 </el-icon>
                 <span class="plan-thinking-label">正在思考...</span>
               </div>
-              <div v-if="task.planThinkingContent" class="plan-thinking-content">
+              <div
+                v-if="task.planThinkingContent"
+                class="plan-thinking-content"
+              >
                 {{ task.planThinkingContent }}
               </div>
             </div>
 
-            <div v-if="getPlanSteps(task.plan).length > 0" class="message-plan">
-              <div class="plan-header" @click="togglePlanExpand(task.taskId)">
+            <div
+              v-if="getPlanSteps(task.plan).length > 0"
+              class="message-plan"
+            >
+              <div
+                class="plan-header"
+                @click="togglePlanExpand(task.taskId)"
+              >
                 <span class="plan-label">执行计划：</span>
                 <span class="plan-expand-icon">{{ isPlanExpanded(task.taskId) ? '▼' : '▶' }}</span>
               </div>
               <transition name="plan-collapse">
-                <div v-if="isPlanExpanded(task.taskId)" class="plan-steps">
-                  <div v-for="(step, index) in getPlanSteps(task.plan)" :key="index" class="plan-step">
+                <div
+                  v-if="isPlanExpanded(task.taskId)"
+                  class="plan-steps"
+                >
+                  <div
+                    v-for="(step, index) in getPlanSteps(task.plan)"
+                    :key="index"
+                    class="plan-step"
+                  >
                     {{ index + 1 }}. {{ step }}
                   </div>
                 </div>
               </transition>
             </div>
-            <div v-if="task.steps && task.steps.length > 0" class="message-steps">
-              <div class="steps-label">执行步骤：</div>
+            <div
+              v-if="task.steps && task.steps.length > 0"
+              class="message-steps"
+            >
+              <div class="steps-label">
+                执行步骤：
+              </div>
               <div class="steps-list">
-                <div v-for="(step, index) in task.steps" :key="index" class="step-item" :class="step?.status">
-                  <div v-if="step!==undefined" class="step-header" @click="toggleStepExpand(task.taskId, index)">
+                <div
+                  v-for="(step, index) in task.steps"
+                  :key="index"
+                  class="step-item"
+                  :class="step?.status"
+                >
+                  <div
+                    v-if="step!==undefined"
+                    class="step-header"
+                    @click="toggleStepExpand(task.taskId, index)"
+                  >
                     <span class="step-index">{{ ((step?.stepIndex) ?? index) }}.</span>
                     <span class="step-description">{{ step?.description }}</span>
                     <span class="step-status">{{ step?.status === 'running' ? '执行中' : step?.status === 'completed' ? '已完成'
@@ -71,31 +123,64 @@
                     <span class="step-expand-icon">{{ isStepExpanded(task.taskId, index) ? '▼' : '▶' }}</span>
                   </div>
 
-                  <transition name="step-collapse" mode="out-in">
-                    <div v-if="step!==undefined && isStepExpanded(task.taskId, index)" class="step-content">
-                      <div v-if="step?.thought" class="step-thought">
-                        <div class="thought-label">思考过程：</div>
-                        <div class="thought-content">{{ step?.thought }}</div>
+                  <transition
+                    name="step-collapse"
+                    mode="out-in"
+                  >
+                    <div
+                      v-if="step!==undefined && isStepExpanded(task.taskId, index)"
+                      class="step-content"
+                    >
+                      <div
+                        v-if="step?.thought"
+                        class="step-thought"
+                      >
+                        <div class="thought-label">
+                          思考过程：
+                        </div>
+                        <div class="thought-content">
+                          {{ step?.thought }}
+                        </div>
                       </div>
-                      <div v-if="step?.result" class="step-result">{{ step?.resultDescription || step?.result }}</div>
+                      <div
+                        v-if="step?.result"
+                        class="step-result"
+                      >
+                        {{ step?.resultDescription || step?.result }}
+                      </div>
                     </div>
                   </transition>
                 </div>
               </div>
             </div>
-            <div v-if="task.result != '' && task.result !== undefined" class="message-text-container">
+            <div
+              v-if="task.result != '' && task.result !== undefined"
+              class="message-text-container"
+            >
               <div class="message-text-wrapper">
-                <div class="message-text" v-html="renderMarkdown(task.result)" />
+                <div
+                  class="message-text"
+                  v-html="renderMarkdown(task.result)"
+                />
               </div>
             </div>
-            <div v-else-if="task.status === 'stopped'" class="message-text-container">
+            <div
+              v-else-if="task.status === 'stopped'"
+              class="message-text-container"
+            >
               <div class="message-text-wrapper">
-                <div class="message-text" style="color: #999; font-style: italic;">
+                <div
+                  class="message-text"
+                  style="color: #999; font-style: italic;"
+                >
                   任务已被用户终止
                 </div>
               </div>
             </div>
-            <div v-else class="message-text-container streaming">
+            <div
+              v-else
+              class="message-text-container streaming"
+            >
               <div class="streaming-indicator">
                 <el-icon class="is-loading">
                   <Loading />

@@ -1,7 +1,12 @@
 <template>
-  <div class="edge-widget" @click="handleClick">
+  <div
+    class="edge-widget"
+    @click="handleClick"
+  >
     <div class="edge-widget-bubble">
-      <el-icon class="edge-widget-icon"><ChatDotRound /></el-icon>
+      <el-icon class="edge-widget-icon">
+        <ChatDotRound />
+      </el-icon>
       <div
         v-if="resourceStatus !== 'normal'"
         class="edge-widget-indicator"

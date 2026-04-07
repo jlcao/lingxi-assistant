@@ -1,7 +1,11 @@
 <template>
   <div class="title-bar">
     <div class="title-bar-left">
-      <img src="@/assets/images/logo_multi.ico" alt="Lingxi Logo" class="title-bar-logo">
+      <img
+        src="@/assets/images/logo_multi.ico"
+        alt="Lingxi Logo"
+        class="title-bar-logo"
+      >
       <span class="title-bar-text">Lingxi 助手</span>
     </div>
     <div class="title-bar-center">
@@ -16,7 +20,7 @@
     <div class="title-bar-right">
       <WorkspaceStatus />
       <div class="title-bar-status">
-        <span class="status-dot online"></span>
+        <span class="status-dot online" />
         <span class="status-text">状态</span>
       </div>
       <el-button
@@ -46,8 +50,12 @@
         text
         @click="handleMaximize"
       >
-        <el-icon v-if="isMaximized"><FullScreen /></el-icon>
-        <el-icon v-else><ZoomIn /></el-icon>
+        <el-icon v-if="isMaximized">
+          <FullScreen />
+        </el-icon>
+        <el-icon v-else>
+          <ZoomIn />
+        </el-icon>
       </el-button>
       <el-button
         :icon="Close"

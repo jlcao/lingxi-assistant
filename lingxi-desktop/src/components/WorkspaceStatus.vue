@@ -1,24 +1,50 @@
 <template>
-  <div class="workspace-status" @click="handleClick">
-    <div class="workspace-path" :title="workspacePath">
+  <div
+    class="workspace-status"
+    @click="handleClick"
+  >
+    <div
+      class="workspace-path"
+      :title="workspacePath"
+    >
       <el-icon><Folder /></el-icon>
       <span class="path-text">{{ shortPath }}</span>
     </div>
     
-    <div class="lingxi-status" :class="{ 'initialized': isInitialized }">
-      <el-tooltip :content="lingxiStatusText" placement="bottom">
-        <el-icon v-if="isInitialized"><Check /></el-icon>
-        <el-icon v-else><Warning /></el-icon>
+    <div
+      class="lingxi-status"
+      :class="{ 'initialized': isInitialized }"
+    >
+      <el-tooltip
+        :content="lingxiStatusText"
+        placement="bottom"
+      >
+        <el-icon v-if="isInitialized">
+          <Check />
+        </el-icon>
+        <el-icon v-else>
+          <Warning />
+        </el-icon>
       </el-tooltip>
     </div>
     
-    <div class="workspace-skills" v-if="workspaceSkillsCount > 0">
-      <el-badge :value="workspaceSkillsCount" :max="99">
+    <div
+      v-if="workspaceSkillsCount > 0"
+      class="workspace-skills"
+    >
+      <el-badge
+        :value="workspaceSkillsCount"
+        :max="99"
+      >
         <el-icon><Star /></el-icon>
       </el-badge>
     </div>
     
-    <el-button size="small" circle @click="openSwitchDialog">
+    <el-button
+      size="small"
+      circle
+      @click="openSwitchDialog"
+    >
       <el-icon><Switch /></el-icon>
     </el-button>
   </div>

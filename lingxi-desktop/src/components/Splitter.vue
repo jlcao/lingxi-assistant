@@ -1,18 +1,33 @@
 <template>
   <div class="splitter">
-    <div class="splitter-pane left" :style="{ width: leftWidth }">
+    <div
+      class="splitter-pane left"
+      :style="{ width: leftWidth }"
+    >
       <slot name="left" />
     </div>
-    <div class="splitter-handle" @mousedown="handleMouseDown($event, 'left')">
+    <div
+      class="splitter-handle"
+      @mousedown="handleMouseDown($event, 'left')"
+    >
       <div class="splitter-handle-bar" />
     </div>
-    <div class="splitter-pane center" :style="{ flex: 1 }">
+    <div
+      class="splitter-pane center"
+      :style="{ flex: 1 }"
+    >
       <slot name="center" />
     </div>
-    <div class="splitter-handle" @mousedown="handleMouseDown($event, 'right')">
+    <div
+      class="splitter-handle"
+      @mousedown="handleMouseDown($event, 'right')"
+    >
       <div class="splitter-handle-bar" />
     </div>
-    <div class="splitter-pane right" :style="{ width: rightWidth }">
+    <div
+      class="splitter-pane right"
+      :style="{ width: rightWidth }"
+    >
       <slot name="right" />
     </div>
   </div>
