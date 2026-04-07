@@ -2,6 +2,8 @@ import { ChildProcess, spawn } from 'child_process'
 import { app, dialog } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as http from 'http'
+import * as net from 'net'
 import { logger } from './logger'
 
 export class BackendManager {
@@ -61,7 +63,7 @@ export class BackendManager {
   }
 
   private startWithExecutable(backendPath: string, resolve: (value: boolean) => void): void {
-    this.spawnProcess(backendPath, [], (success: boolean, exitCode: number | null) => {
+    this.spawnProcess(backendPath, [], (success: boolean, exitCode?: number | null) => {
       if (!success && exitCode === 255) {
         logger.log('[BackendManager] 打包可执行文件启动失败，回退到 Python 源码模式')
         this.startWithPythonSource(resolve)
@@ -116,7 +118,9 @@ export class BackendManager {
     this.isBackendStarted = true
     const iconv = require('iconv-lite')
     let backendStarted = false
+    let portCheckInterval: NodeJS.Timeout | null = null
 
+    // 监听进程输出，仅用于日志记录
     this.backendProcess.stdout?.on('data', (data) => {
       let output: string
       try {
@@ -125,28 +129,6 @@ export class BackendManager {
         output = data.toString()
       }
       logger.log(`[Backend] ${output}`)
-
-      if (!backendStarted) {
-        const startupKeywords = [
-          'Started server process',
-          'Application startup complete',
-          'Uvicorn running',
-          'FastAPI 应用启动成功',
-          '服务器配置',
-          'Running on http://',
-          'Listening on http://',
-          'http://localhost:5000'
-        ]
-        for (const keyword of startupKeywords) {
-          if (output.includes(keyword)) {
-            logger.log(`[BackendManager] 检测到启动关键词: ${keyword}`)
-            backendStarted = true
-            logger.log('[BackendManager] 后端服务启动完成')
-            callback(true)
-            return
-          }
-        }
-      }
     })
 
     this.backendProcess.stderr?.on('data', (data) => {
@@ -157,35 +139,15 @@ export class BackendManager {
         output = data.toString()
       }
       console.error(`[Backend] ${output}`)
-
-      if (!backendStarted) {
-        const startupKeywords = [
-          'Started server process',
-          'Application startup complete',
-          'Uvicorn running',
-          'FastAPI 应用启动成功',
-          '服务器配置',
-          'Running on http://',
-          'Listening on http://',
-          'http://localhost:5000'
-        ]
-
-        for (const keyword of startupKeywords) {
-          if (output.includes(keyword)) {
-            logger.log(`[BackendManager] 检测到启动关键词: ${keyword}`)
-            backendStarted = true
-            logger.log('[BackendManager] 后端服务启动完成')
-            callback(true)
-            return
-          }
-        }
-      }
     })
 
     this.backendProcess.on('error', (error) => {
       console.error('[BackendManager] 启动后端服务失败:', error)
       dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${(error as Error).message}`)
       this.isBackendStarted = false
+      if (portCheckInterval) {
+        clearInterval(portCheckInterval)
+      }
       callback(false)
     })
 
@@ -193,6 +155,9 @@ export class BackendManager {
       logger.log(`[BackendManager] 后端服务退出，代码: ${code}, 信号: ${signal}`)
       this.backendProcess = null
       this.isBackendStarted = false
+      if (portCheckInterval) {
+        clearInterval(portCheckInterval)
+      }
       if (!backendStarted) {
         if (code === 1) {
           logger.log('[BackendManager] 后端服务可能因为端口绑定失败而退出，但已尝试启动')
@@ -203,13 +168,91 @@ export class BackendManager {
       }
     })
 
-    setTimeout(() => {
-      if (!backendStarted) {
-        console.error('[BackendManager] 后端服务启动超时')
-        this.isBackendStarted = false
+    // 开始检查端口是否可用
+    let checkCount = 0
+    const maxChecks = 60 // 30秒 / 500ms = 60次
+    
+    portCheckInterval = setInterval(() => {
+      this.checkBackendPort((isAvailable) => {
+        if (isAvailable) {
+          if (!backendStarted) {
+            backendStarted = true
+            logger.log('[BackendManager] 后端服务启动完成（端口检查成功）')
+            if (portCheckInterval) {
+              clearInterval(portCheckInterval)
+            }
+            callback(true)
+          }
+        } else {
+          checkCount++
+          if (checkCount >= maxChecks) {
+            if (!backendStarted) {
+              console.error('[BackendManager] 后端服务启动超时')
+              this.isBackendStarted = false
+              if (portCheckInterval) {
+                clearInterval(portCheckInterval)
+              }
+              callback(false)
+            }
+          }
+        }
+      })
+    }, 500) // 每500毫秒检查一次
+  }
+
+  private checkBackendPort(callback: (isAvailable: boolean) => void): void {
+    // 首先尝试使用 HTTP 请求检查
+    const options = {
+      hostname: 'localhost',
+      port: this.backendPort,
+      path: '/api/status',
+      method: 'GET',
+      timeout: 1000
+    }
+
+    const req = http.request(options, (res) => {
+      logger.log(`[BackendManager] 后端服务 HTTP 检查成功，状态码: ${res.statusCode}`)
+      callback(true)
+    })
+
+    req.on('error', () => {
+      // HTTP 请求失败，尝试使用 TCP 连接检查端口是否开放
+      this.checkPortWithTcp(this.backendPort, callback)
+    })
+
+    req.setTimeout(1000, () => {
+      req.destroy()
+      this.checkPortWithTcp(this.backendPort, callback)
+    })
+
+    req.end()
+  }
+
+  private checkPortWithTcp(port: number, callback: (isAvailable: boolean) => void): void {
+    const socket = new net.Socket()
+    let isConnected = false
+
+    socket.setTimeout(1000)
+
+    socket.on('connect', () => {
+      isConnected = true
+      logger.log(`[BackendManager] 后端服务端口 ${port} 检查成功（TCP 连接）`)
+      socket.end()
+      callback(true)
+    })
+
+    socket.on('error', () => {
+      if (!isConnected) {
         callback(false)
       }
-    }, 30000)
+    })
+
+    socket.on('timeout', () => {
+      socket.destroy()
+      callback(false)
+    })
+
+    socket.connect(port, 'localhost')
   }
 
   stopBackendService(): void {
