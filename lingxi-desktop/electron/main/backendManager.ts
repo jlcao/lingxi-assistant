@@ -45,118 +45,12 @@ export class BackendManager {
         }
 
         if (!backendPath) {
-          logger.log('[BackendManager] 后端可执行文件不存在，进入开发模式，直接连接后端端口')
-          this.isBackendStarted = true
-          resolve(true)
+          this.startWithPythonSource(resolve)
           return
         }
         logger.log(`[BackendManager] 启动后端服务: ${backendPath}`)
 
-        this.backendProcess = spawn(backendPath, [], {
-          detached: false,
-          stdio: 'pipe',
-          killSignal: 'SIGTERM',
-          env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
-        })
-
-        this.isBackendStarted = true
-        const iconv = require('iconv-lite')
-        let backendStarted = false
-
-        this.backendProcess.stdout?.on('data', (data) => {
-          let output: string
-          try {
-            output = iconv.decode(data, 'gbk')
-          } catch (e) {
-            output = data.toString()
-          }
-          logger.log(`[Backend] ${output}`)
-
-          if (!backendStarted) {
-            const startupKeywords = [
-              'Started server process',
-              'Application startup complete',
-              'Uvicorn running',
-              'FastAPI 应用启动成功',
-              '服务器配置',
-              'Running on http://',
-              'Listening on http://',
-              'http://localhost:5000'
-            ]
-            for (const keyword of startupKeywords) {
-              if (output.includes(keyword)) {
-                logger.log(`[BackendManager] 检测到启动关键词: ${keyword}`)
-                backendStarted = true
-                logger.log('[BackendManager] 后端服务启动完成')
-                resolve(true)
-                break
-              }
-            }
-          }
-        })
-
-        this.backendProcess.stderr?.on('data', (data) => {
-          let output: string
-          try {
-            output = iconv.decode(data, 'gbk')
-          } catch (e) {
-            output = data.toString()
-          }
-          console.error(`[Backend] ${output}`)
-
-          if (!backendStarted) {
-            const startupKeywords = [
-              'Started server process',
-              'Application startup complete',
-              'Uvicorn running',
-              'FastAPI 应用启动成功',
-              '服务器配置',
-              'Running on http://',
-              'Listening on http://',
-              'http://localhost:5000'
-            ]
-
-            for (const keyword of startupKeywords) {
-              if (output.includes(keyword)) {
-                logger.log(`[BackendManager] 检测到启动关键词: ${keyword}`)
-                backendStarted = true
-                logger.log('[BackendManager] 后端服务启动完成')
-                resolve(true)
-                break
-              }
-            }
-          }
-        })
-
-        this.backendProcess.on('error', (error) => {
-          console.error('[BackendManager] 启动后端服务失败:', error)
-          dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${(error as Error).message}`)
-          this.isBackendStarted = false
-          resolve(false)
-        })
-
-        this.backendProcess.on('exit', (code, signal) => {
-          logger.log(`[BackendManager] 后端服务退出，代码: ${code}, 信号: ${signal}`)
-          this.backendProcess = null
-          this.isBackendStarted = false
-          if (!backendStarted) {
-            if (code === 1) {
-              logger.log('[BackendManager] 后端服务可能因为端口绑定失败而退出，但已尝试启动')
-              resolve(true)
-            } else {
-              resolve(false)
-            }
-          }
-        })
-
-        setTimeout(() => {
-          if (!backendStarted) {
-            console.error('[BackendManager] 后端服务启动超时')
-            this.isBackendStarted = false
-            resolve(false)
-          }
-        }, 30000)
-
+        this.startWithExecutable(backendPath, resolve)
       } catch (error) {
         console.error('[BackendManager] 启动后端服务时出错:', error)
         dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${(error as Error).message}`)
@@ -164,6 +58,158 @@ export class BackendManager {
         resolve(false)
       }
     })
+  }
+
+  private startWithExecutable(backendPath: string, resolve: (value: boolean) => void): void {
+    this.spawnProcess(backendPath, [], (success: boolean, exitCode: number | null) => {
+      if (!success && exitCode === 255) {
+        logger.log('[BackendManager] 打包可执行文件启动失败，回退到 Python 源码模式')
+        this.startWithPythonSource(resolve)
+      } else {
+        resolve(success)
+      }
+    })
+  }
+
+  private startWithPythonSource(resolve: (value: boolean) => void): void {
+    let appPath = app.getAppPath()
+    if (appPath.endsWith('.asar')) {
+      appPath = path.dirname(appPath)
+    }
+
+    const projectRoot = path.dirname(appPath)
+    const startWebServer = path.join(projectRoot, 'start_web_server.py')
+    const venvPython = process.platform === 'win32'
+      ? path.join(projectRoot, 'lingxi', '.venv', 'Scripts', 'python.exe')
+      : path.join(projectRoot, 'lingxi', '.venv', 'bin', 'python3')
+
+    let pythonPath = venvPython
+    if (!fs.existsSync(venvPython)) {
+      pythonPath = process.platform === 'win32' ? 'python' : 'python3'
+      logger.log('[BackendManager] 未找到虚拟环境 Python，使用系统 Python')
+    } else {
+      logger.log(`[BackendManager] 使用虚拟环境 Python: ${venvPython}`)
+    }
+
+    if (!fs.existsSync(startWebServer)) {
+      logger.log('[BackendManager] 未找到 start_web_server.py，进入开发模式')
+      this.isBackendStarted = true
+      resolve(true)
+      return
+    }
+
+    logger.log(`[BackendManager] 使用 Python 源码模式启动后端: ${pythonPath} ${startWebServer}`)
+
+    this.spawnProcess(pythonPath, [startWebServer], (success: boolean) => {
+      resolve(success)
+    })
+  }
+
+  private spawnProcess(command: string, args: string[], callback: (success: boolean, exitCode?: number | null) => void): void {
+    this.backendProcess = spawn(command, args, {
+      detached: false,
+      stdio: 'pipe',
+      killSignal: 'SIGTERM',
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+    })
+
+    this.isBackendStarted = true
+    const iconv = require('iconv-lite')
+    let backendStarted = false
+
+    this.backendProcess.stdout?.on('data', (data) => {
+      let output: string
+      try {
+        output = iconv.decode(data, 'gbk')
+      } catch (e) {
+        output = data.toString()
+      }
+      logger.log(`[Backend] ${output}`)
+
+      if (!backendStarted) {
+        const startupKeywords = [
+          'Started server process',
+          'Application startup complete',
+          'Uvicorn running',
+          'FastAPI 应用启动成功',
+          '服务器配置',
+          'Running on http://',
+          'Listening on http://',
+          'http://localhost:5000'
+        ]
+        for (const keyword of startupKeywords) {
+          if (output.includes(keyword)) {
+            logger.log(`[BackendManager] 检测到启动关键词: ${keyword}`)
+            backendStarted = true
+            logger.log('[BackendManager] 后端服务启动完成')
+            callback(true)
+            return
+          }
+        }
+      }
+    })
+
+    this.backendProcess.stderr?.on('data', (data) => {
+      let output: string
+      try {
+        output = iconv.decode(data, 'gbk')
+      } catch (e) {
+        output = data.toString()
+      }
+      console.error(`[Backend] ${output}`)
+
+      if (!backendStarted) {
+        const startupKeywords = [
+          'Started server process',
+          'Application startup complete',
+          'Uvicorn running',
+          'FastAPI 应用启动成功',
+          '服务器配置',
+          'Running on http://',
+          'Listening on http://',
+          'http://localhost:5000'
+        ]
+
+        for (const keyword of startupKeywords) {
+          if (output.includes(keyword)) {
+            logger.log(`[BackendManager] 检测到启动关键词: ${keyword}`)
+            backendStarted = true
+            logger.log('[BackendManager] 后端服务启动完成')
+            callback(true)
+            return
+          }
+        }
+      }
+    })
+
+    this.backendProcess.on('error', (error) => {
+      console.error('[BackendManager] 启动后端服务失败:', error)
+      dialog.showErrorBox('后端服务启动失败', `无法启动后端服务: ${(error as Error).message}`)
+      this.isBackendStarted = false
+      callback(false)
+    })
+
+    this.backendProcess.on('exit', (code, signal) => {
+      logger.log(`[BackendManager] 后端服务退出，代码: ${code}, 信号: ${signal}`)
+      this.backendProcess = null
+      this.isBackendStarted = false
+      if (!backendStarted) {
+        if (code === 1) {
+          logger.log('[BackendManager] 后端服务可能因为端口绑定失败而退出，但已尝试启动')
+          callback(true, code)
+        } else {
+          callback(false, code)
+        }
+      }
+    })
+
+    setTimeout(() => {
+      if (!backendStarted) {
+        console.error('[BackendManager] 后端服务启动超时')
+        this.isBackendStarted = false
+        callback(false)
+      }
+    }, 30000)
   }
 
   stopBackendService(): void {

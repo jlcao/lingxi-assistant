@@ -31,3 +31,27 @@
 - backend.spec现在支持跨Linux/Windows平台直接构建，无需修改配置
 - 图标统一使用PNG格式，支持所有平台构建
 - 若需要生成AppImage/deb安装包，需要先安装imagemagick和icnsutils依赖
+
+## 2026-04-07 - 修复Linux下PyInstaller打包后端启动失败问题
+
+### What was done:
+- 修复start_all.sh中requirements.txt路径错误（从lingxi目录内改为项目根目录）
+- 重构backendManager.ts启动逻辑，添加Python源码回退机制：
+  - 优先尝试启动PyInstaller打包的可执行文件
+  - 检测退出码255（libpython3.12.so加载失败）时自动回退
+  - 回退时使用虚拟环境Python直接运行start_web_server.py
+  - 如果虚拟环境不存在则使用系统Python
+  - 如果start_web_server.py不存在则进入开发模式
+- 将启动逻辑抽取为spawnProcess方法，避免代码重复
+
+### Testing:
+- npm run build 构建成功
+- 启动应用验证：打包可执行文件失败后自动回退到Python源码模式
+- 后端成功启动在http://localhost:5000
+- API请求正常返回200状态码
+- 前端页面正常加载
+
+### Notes:
+- 这是Linux特有的PyInstaller问题，打包后的可执行文件无法找到libpython3.12.so.1.0
+- 回退机制确保在任何环境下都能启动后端服务
+- 开发模式下如果找不到源码文件，会假设外部后端已运行
