@@ -122,13 +122,13 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[python_exe_name],  # 排除解释器的 UPX 压缩
-    name='lingxi-backend',  # 统一目录名称，与可执行文件名保持一致
+    name='backend',  # 使用统一的目录名称，确保跨平台兼容性
 )
 
 # ========== 核心优化4：添加打包后路径验证钩子（可选） ==========
 # 用于在打包完成后验证关键文件是否存在
 def verify_build():
-    build_dir = os.path.join(project_root, 'dist', 'lingxi-backend')
+    build_dir = os.path.join(project_root, 'dist', 'backend')
     # 验证 Python 解释器是否存在
     python_exe = os.path.join(build_dir, python_exe_name)
     if os.path.exists(python_exe):
