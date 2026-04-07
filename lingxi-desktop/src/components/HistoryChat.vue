@@ -23,7 +23,19 @@
     <div class="history-chat-list">
       <div class="history-chat-list-header">
         <span class="header-title">会话历史</span>
-        <span class="header-count">{{ sessions.length }}</span>
+        <div class="header-actions">
+          <span class="header-count">{{ sessions.length }}</span>
+          <el-button
+            v-if="sessions.length > 0"
+            size="small"
+            type="danger"
+            text
+            @click="handleDeleteAllSessions"
+          >
+            <el-icon class="mr-1"><Delete /></el-icon>
+            删除所有
+          </el-button>
+        </div>
       </div>
       <div v-if="sessions.length === 0" class="empty-state">
         <el-icon class="empty-icon"><Document /></el-icon>
@@ -281,6 +293,30 @@ async function handleCommand(command: string, session: any) {
     }
   }
 }
+
+async function handleDeleteAllSessions() {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除所有会话吗？此操作无法撤销，所有会话数据将被永久删除。',
+      '确认删除所有会话',
+      {
+        confirmButtonText: '删除所有',
+        cancelButtonText: '取消',
+        type: 'danger',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+    
+    // 调用后端 API 删除所有会话
+    await apiService.client.deleteAllSessions()
+    
+    // 清空前端会话列表
+    appStore.setSessions([])
+    appStore.setCurrentSession(null)
+  } catch {
+    console.log('Delete all sessions cancelled')
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -374,6 +410,21 @@ async function handleCommand(command: string, session: any) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-actions .el-button {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.header-actions .el-button .mr-1 {
+  margin-right: 4px;
 }
 
 .header-title {

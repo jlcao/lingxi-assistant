@@ -103,6 +103,10 @@ export class ApiClient {
     return this.client.delete(`/api/sessions/${sessionId}`)
   }
 
+  async deleteAllSessions(): Promise<ApiResponse<{ success: boolean; deleted_sessions_count: number }>> {
+    return this.client.delete('/api/sessions')
+  }
+
   async updateSessionName(sessionId: string, name: string): Promise<ApiResponse<{ success: boolean; message: string; updated_at: string }>> {
     return this.client.patch(`/api/sessions/${sessionId}`, { title: name })
   }

@@ -330,3 +330,44 @@ async def clear_session_history(session_id: str) -> Dict[str, Any]:
             message="清空会话历史失败",
             error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
         )
+
+
+@router.delete("/sessions", response_model=ApiResponse)
+async def delete_all_sessions() -> Dict[str, Any]:
+    """删除所有会话
+
+    Returns:
+        删除结果
+    """
+    try:
+        assistant = get_assistant()
+        if not assistant:
+            return ApiResponse(
+                code=503,
+                message="助手服务未初始化",
+                error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
+            )
+
+        # 获取所有会话
+        sessions = assistant.session_manager.list_all_sessions()
+        deleted_count = 0
+        
+        # 逐个删除会话
+        for session in sessions:
+            session_id = session.get("sessionId")
+            if session_id:
+                assistant.session_manager.delete_session(session_id)
+                deleted_count += 1
+
+        return ApiResponse(
+            code=0,
+            message="success",
+            data={"success": True, "deleted_sessions_count": deleted_count, "message": f"已删除 {deleted_count} 个会话"}
+        )
+    except Exception as e:
+        logger.error(f"删除所有会话失败：{e}", exc_info=True)
+        return ApiResponse(
+            code=500,
+            message="删除所有会话失败",
+            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+        )
