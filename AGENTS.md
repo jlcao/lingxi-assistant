@@ -1,6 +1,6 @@
-# Project Instructions
+# 项目开发指南
 
-## Project Context
+## 项目介绍
 
 灵犀智能助手是一个基于 Plan+ReAct 模式的智能助手系统，包含 Python 后端引擎和 Vue+Electron 桌面前端。
 
@@ -12,7 +12,16 @@
 
 Every new agent session MUST follow this workflow:
 
-### Step 1: Initialize Environment
+### 行为准则
+
+[重要] 以第一性原理！从原始需求和问题本质出发，不从惯例或模板出发。
+1. 不要假设我清楚自己想要什么。动机或目标不清晰时，停下来讨论。
+2. 目标清晰但路径不是最短的，直接告诉我并建议更好的办法。
+3. 遇到问题追根因，不打补丁。每个决策都要能回答"为什么"。
+4. 输出说重点，砍掉一切不改变决策的信息。
+5. 每完成一个功能，或者前端组件的实现，必须要进行单元测试，后再进行下一个开发任务。
+
+### Step 1: 初始化环境
 
 **Windows:**
 ```bash
