@@ -88,7 +88,7 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
         # task_level = assistant.classifier.classify(request.task).get("level", "simple")
         session_id = request.session_id or f"session_{uuid.uuid4().hex[:8]}"
         task_id = f"{session_id}_task_{uuid.uuid4().hex[:8]}"
-        
+
         # 提前创建任务记录，确保任务状态可以查询
         task_manager = get_task_manager()
         task_manager.create_task(
@@ -98,7 +98,7 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
             user_input=request.task,
             task_level='simple'
         )
-        
+
         if(request.async_mode):
             async def _async_task_wrapper():
                 try:
@@ -112,7 +112,7 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
                     import logging
                     logger = logging.getLogger(__name__)
                     logger.error(f"异步任务执行失败: {e}", exc_info=True)
-            
+
             asyncio.create_task(_async_task_wrapper())
             response = {"sessionId": session_id, "taskId": task_id,"status":"running"}
         else:
@@ -236,7 +236,7 @@ async def cancel_task(task_id: str) -> Dict[str, Any]:
     try:
         from lingxi.core.context.task_context_manager import TaskContextManager
         from lingxi.core.session.task_manager import TaskManager
-        
+
         assistant = get_assistant()
         if not assistant:
             return ApiResponse(
@@ -248,7 +248,7 @@ async def cancel_task(task_id: str) -> Dict[str, Any]:
         # 先尝试使用 TaskContextManager 终止正在执行的任务
         task_context_manager = TaskContextManager()
         await task_context_manager.stop_task(task_id)
-  
+
         return ApiResponse(
             code=0,
             message="success",
@@ -257,8 +257,8 @@ async def cancel_task(task_id: str) -> Dict[str, Any]:
                 "message": "任务已取消",
                 "task_id": task_id
             }
-        )    
-            
+        )
+
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()

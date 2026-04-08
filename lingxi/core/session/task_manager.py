@@ -430,18 +430,40 @@ class TaskManager:
             created_at = row[13]
             updated_at = row[14]
             
+            # 修复时间戳时区问题：将UTC时间转换为本地时间
+            import pytz
+            local_tz = pytz.timezone('Asia/Shanghai')
+            utc_tz = pytz.utc
+            
             # 转换创建时间
             if isinstance(created_at, datetime):
+                if created_at.tzinfo is None:
+                    # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                    created_at = utc_tz.localize(created_at)
+                    # 然后转换为本地时间
+                    created_at = created_at.astimezone(local_tz)
+                else:
+                    # 如果有时区信息，转换为本地时间
+                    created_at = created_at.astimezone(local_tz)
                 created_at_timestamp = int(created_at.timestamp() * 1000)
             elif isinstance(created_at, str):
                 try:
                     # 尝试解析字符串时间戳
                     created_at_dt = datetime.fromisoformat(created_at)
+                    if created_at_dt.tzinfo is None:
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        created_at_dt = utc_tz.localize(created_at_dt)
+                        # 然后转换为本地时间
+                        created_at_dt = created_at_dt.astimezone(local_tz)
                     created_at_timestamp = int(created_at_dt.timestamp() * 1000)
                 except:
                     try:
                         # 尝试另一种格式
                         created_at_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        created_at_dt = utc_tz.localize(created_at_dt)
+                        # 然后转换为本地时间
+                        created_at_dt = created_at_dt.astimezone(local_tz)
                         created_at_timestamp = int(created_at_dt.timestamp() * 1000)
                     except:
                         created_at_timestamp = int(time.time() * 1000)
@@ -450,16 +472,33 @@ class TaskManager:
             
             # 转换更新时间
             if isinstance(updated_at, datetime):
+                if updated_at.tzinfo is None:
+                    # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                    updated_at = utc_tz.localize(updated_at)
+                    # 然后转换为本地时间
+                    updated_at = updated_at.astimezone(local_tz)
+                else:
+                    # 如果有时区信息，转换为本地时间
+                    updated_at = updated_at.astimezone(local_tz)
                 updated_at_timestamp = int(updated_at.timestamp() * 1000)
             elif isinstance(updated_at, str):
                 try:
                     # 尝试解析字符串时间戳
                     updated_at_dt = datetime.fromisoformat(updated_at)
+                    if updated_at_dt.tzinfo is None:
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        updated_at_dt = utc_tz.localize(updated_at_dt)
+                        # 然后转换为本地时间
+                        updated_at_dt = updated_at_dt.astimezone(local_tz)
                     updated_at_timestamp = int(updated_at_dt.timestamp() * 1000)
                 except:
                     try:
                         # 尝试另一种格式
                         updated_at_dt = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S')
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        updated_at_dt = utc_tz.localize(updated_at_dt)
+                        # 然后转换为本地时间
+                        updated_at_dt = updated_at_dt.astimezone(local_tz)
                         updated_at_timestamp = int(updated_at_dt.timestamp() * 1000)
                     except:
                         updated_at_timestamp = int(time.time() * 1000)

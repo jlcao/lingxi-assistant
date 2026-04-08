@@ -114,6 +114,8 @@
         <el-button
           :type="isTaskRunning ? 'danger' : 'primary'"
           size="small"
+          :loading="isStopping"
+          :disabled="isStopping"
           @click="handleButtonClick"
         >
           {{ isTaskRunning ? '终止' : '发送' }}
@@ -142,6 +144,7 @@ const model = ref('gim4.7')
 const defaultOption = ref('default')
 const isDragging = ref(false)
 const thinkingMode = ref(false)
+const isStopping = ref(false)
 
 const currentSession = computed(() => {
   return appStore.sessions.find(s => s.sessionId === appStore.currentSessionId)
@@ -299,11 +302,38 @@ function handleButtonClick() {
 }
 
 async function handleStopTask() {
-  if (currentTaskId.value) {
+  if (currentTaskId.value && appStore.currentSessionId) {
     try {
-      await apiService.client.cancelTask(currentTaskId.value)
+      // 设置停止中状态，显示加载效果
+      isStopping.value = true
+      
+      // 调用cancel接口
+      const response = await apiService.client.cancelTask(currentTaskId.value)
+      
+      // 接口返回成功后，更新状态
+      if (response.code === 0) {
+        // 更新会话状态
+        const session = appStore.sessions.find(s => s.sessionId === appStore.currentSessionId)
+        if (session) {
+          session.isTaskRunning = false
+          session.currentTaskId = null
+        }
+        
+        // 更新任务状态为stopped
+        appStore.updateTaskStatus(appStore.currentSessionId, currentTaskId.value, 'stopped')
+        
+        // 查找并更新任务对象
+        const task = session?.tasks?.find(t => t.taskId === currentTaskId.value)
+        if (task) {
+          task.status = 'stopped'
+          task.result = '任务已被用户终止'
+        }
+      }
     } catch (error) {
       console.error('Failed to stop task:', error)
+    } finally {
+      // 无论成功失败，都关闭加载状态
+      isStopping.value = false
     }
   }
 }

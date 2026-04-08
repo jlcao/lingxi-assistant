@@ -49,7 +49,7 @@
                 class="message-status"
                 :class="task.status"
               >
-                {{ task.status === 'running' ? '执行中' : task.status === 'completed' ? '已完成' : task.status==='interrupted' ? '中断':'失败' }}
+                {{ task.status === 'running' ? '执行中' : task.status === 'completed' ? '已完成' : task.status === 'stopped' ? '已终止' : task.status==='interrupted' ? '中断':'失败' }}
               </span>
             </div>
 
@@ -118,8 +118,8 @@
                   >
                     <span class="step-index">{{ ((step?.stepIndex) ?? index) }}.</span>
                     <span class="step-description">{{ step?.description }}</span>
-                    <span class="step-status">{{ step?.status === 'running' ? '执行中' : step?.status === 'completed' ? '已完成'
-                      : task.status==='interrupted' ? '中断':'失败' }}</span>
+                    <span class="step-status">{{ step?.status === 'running' ? '执行中' : step?.status === 'completed' ? '已完成' : step?.status === 'stopped' ? '已终止' 
+                      : task.status==='interrupted' ? '中断' : task.status === 'stopped' ? '已终止' : '失败' }}</span>
                     <span class="step-expand-icon">{{ isStepExpanded(task.taskId, index) ? '▼' : '▶' }}</span>
                   </div>
 
@@ -487,6 +487,11 @@ function isPlanExpanded(turnId: string): boolean {
     background-color: #fff2f0;
     color: #ff4d4f;
   }
+
+  &.stopped {
+    background-color: #fff7e6;
+    color: #fa8c16;
+  }
 }
 
 .message-thought {
@@ -639,6 +644,10 @@ function isPlanExpanded(turnId: string): boolean {
         background-color: #fff2f0;
       }
 
+      &.stopped {
+        background-color: #fff7e6;
+      }
+
       .step-header {
         display: flex;
         align-items: center;
@@ -672,6 +681,11 @@ function isPlanExpanded(turnId: string): boolean {
 
           &.failed {
             background-color: #ff4d4f;
+            color: white;
+          }
+
+          &.stopped {
+            background-color: #fa8c16;
             color: white;
           }
         }

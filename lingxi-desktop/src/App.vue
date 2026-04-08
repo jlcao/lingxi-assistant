@@ -132,6 +132,11 @@ function setupWebSocketListeners() {
     console.log('Task started:', data)
     appStore.setCurrentTask(data.sessionId, data.taskId)
     appStore.updateTaskStatus(data.sessionId, data.taskId, 'running')
+    // 更新会话的isTaskRunning状态
+    const session = appStore.sessions.find(s => s.sessionId === data.sessionId)
+    if (session) {
+      session.isTaskRunning = true
+    }
     // 查找是否已存在临时助手消息
     if(data.taskInfo){
       // 确保task对象包含planThinking和planThinkingContent属性，并处理时间戳
@@ -154,6 +159,11 @@ function setupWebSocketListeners() {
     console.log('Task ended:', data)
     appStore.setCurrentTask(data.sessionId, null)
     appStore.updateTaskStatus(data.sessionId, data.taskId, 'completed')
+    // 更新会话的isTaskRunning状态
+    const session = appStore.sessions.find(s => s.sessionId === data.sessionId)
+    if (session) {
+      session.isTaskRunning = false
+    }
     // 更新助手消息的内容
     if (data.result && data.taskInfo) {
       // 确保时间戳是数字格式
@@ -181,7 +191,11 @@ function setupWebSocketListeners() {
     if (sessionId && taskId) {
       appStore.setCurrentTask(sessionId, null)
       appStore.updateTaskStatus(sessionId, taskId, 'stopped')
-      
+      // 更新会话的isTaskRunning状态
+      const session = appStore.sessions.find(s => s.sessionId === sessionId)
+      if (session) {
+        session.isTaskRunning = false
+      }
       // 更新任务数据，设置 result 为终止信息
       const taskData = {
         taskId: taskId,
@@ -289,6 +303,11 @@ function setupWebSocketListeners() {
     console.log('Task failed:', data)
     appStore.setCurrentTask(data.sessionId, null)
     appStore.updateTaskStatus(data.sessionId, data.taskId, 'failed')
+    // 更新会话的isTaskRunning状态
+    const session = appStore.sessions.find(s => s.sessionId === data.sessionId)
+    if (session) {
+      session.isTaskRunning = false
+    }
     // 找到对应的助手消息，添加失败信息
     if(data.taskInfo){
       // 确保时间戳是数字格式
