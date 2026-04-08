@@ -133,7 +133,7 @@ class SessionStoreSubscriber:
                     self.logger.debug(f"会话 title 为默认值，已更新摘要：session={session_id}, summary={summary[:50]}...")
             
             # 检查任务是否已存在，避免重复创建
-            existing_task = self.taskManage.get_task(session_id, task_id)
+            existing_task = self.taskManage.get_task(task_id)
             if existing_task:
                 self.logger.debug(f"任务已存在，跳过创建：session={session_id}, task={task_id}")
                 return

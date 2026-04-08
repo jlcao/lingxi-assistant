@@ -18,7 +18,7 @@ from lingxi.core.event import global_event_publisher
 class AsyncLingxiAssistant(BaseAssistant):
     """异步灵犀智能助手"""
 
-    async def process_input(self, user_input: str, session_id: str = "default", stream: bool = False, thinking_mode: bool = False):
+    async def process_input(self, user_input: str, session_id: str = "default", task_id: str = None, stream: bool = False, thinking_mode: bool = False):
         """异步处理用户输入
 
         Args:
@@ -32,17 +32,12 @@ class AsyncLingxiAssistant(BaseAssistant):
         """
         self.logger.debug(f"异步处理用户输入：{user_input}")
 
-        try:
-            install_result = self._check_install_skill_intent(user_input)
-            if install_result:
-                skill_path, skill_name = install_result
-                success = await self.install_skill_async(skill_path, skill_name)
-                if success:
-                    response = f"技能安装成功：{skill_path}"
-                else:
-                    response = f"技能安装失败：{skill_path}"
-                return response
+        from lingxi.core.context.task_context_manager import TaskContextManager
+        from lingxi.core.context.task_context import TaskStoppedException
+        
+        task_context_manager = TaskContextManager()
 
+        try:
             # 根据配置决定是否启用历史压缩
             history = self.session_manager.get_history(session_id)
             engine = AsyncPlanReActEngine(self.config, self.action_caller, self.session_manager)
@@ -52,6 +47,7 @@ class AsyncLingxiAssistant(BaseAssistant):
             context = TaskContext(
                 user_input=user_input,
                 session_id=session_id,
+                task_id=task_id,
                 session_history=history,
                 stream=stream,
                 workspace_path=get_workspace_path(),
@@ -62,8 +58,44 @@ class AsyncLingxiAssistant(BaseAssistant):
             self.context_manager._build_soul_and_memory(context)
             self.context_manager._build_memory_context(context)
             
-            response = await engine.process(context)
-            return response
+            # 注册任务
+            await task_context_manager.register_task(context)
+            
+            if stream:
+                # 流式模式：返回异步生成器
+                async def stream_generator():
+                    try:
+                        # engine.process() 是协程，需要先 await 获取异步生成器
+                        response = await engine.process(context)
+                        async for chunk in response:
+                            yield chunk
+                    except TaskStoppedException:
+                        # 任务被终止
+                        self.logger.info(f"任务被终止: task_id={context.task_id}")
+                        self._publish_task_stop(context=context,result="任务被终止")
+                        yield {
+                            "type": "task_stopped",
+                            "result": "任务已被用户终止",
+                            "task_id": context.task_id
+                        }
+                    except Exception as e:
+                        import traceback
+                        error_trace = traceback.format_exc()
+                        self.logger.error(f"流式处理失败：{e}\n{error_trace}")
+                        self._publish_task_failed(context=context,error=str(e))
+                        yield {"type": "error", "message": f"处理失败：{str(e)}"}
+                    finally:
+                        # 注销任务
+                        await task_context_manager.unregister_task(context.task_id)
+                return stream_generator()
+            else:
+                # 非流式模式：直接等待结果
+                try:
+                    response = await engine.process(context)
+                    return context.task_info
+                finally:
+                    # 注销任务
+                    await task_context_manager.unregister_task(context.task_id)
         except Exception as e:
             import traceback
             error_trace = traceback.format_exc()
@@ -75,7 +107,7 @@ class AsyncLingxiAssistant(BaseAssistant):
                 return error_generator()
             return error_response
 
-    async def stream_process_input(self, user_input: str, session_id: str = "default", thinking_mode: bool = False):
+    async def stream_process_input(self, user_input: str, session_id: str = "default", task_id: str = None, thinking_mode: bool = False):
         """异步流式处理用户输入
 
         Args:
@@ -99,6 +131,7 @@ class AsyncLingxiAssistant(BaseAssistant):
         context = TaskContext(
             user_input=user_input,
             session_id=session_id,
+            task_id=task_id,
             session_history=history,
             stream=True,
             workspace_path=get_workspace_path(),
@@ -112,29 +145,10 @@ class AsyncLingxiAssistant(BaseAssistant):
         await task_context_manager.register_task(context)
         
         try:
-            # 发送任务开始事件
-            if self.websocket_manager:
-                await self.websocket_manager.send_event(
-                    session_id,
-                    "task_start",
-                    context.execution_id,
-                    task_id=context.task_id
-                )
-            
             # 调用执行引擎
             response = await engine.process(context)
             async for chunk in response:
-                yield chunk
-                
-            # 任务完成
-            """ if self.websocket_manager:
-                await self.websocket_manager.send_event(
-                    session_id,
-                    "task_end1",
-                    context.execution_id,
-                    task_id=context.task_id
-                ) """
-                
+                yield chunk 
         except TaskStoppedException:
             # 任务被终止
             self.logger.info(f"任务被终止: task_id={context.task_id}")

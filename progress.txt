@@ -39,3 +39,22 @@
 ### Notes:
 - 虽然复制文件时有些文件被占用（可能是由于虚拟环境正在使用），但核心打包功能正常
 - 项目现在能够在 Windows 和 Linux 平台上使用相同的打包逻辑
+
+## 2026-04-08 - Task: 修复异步任务执行和状态查询功能
+
+### What was done:
+- 修复了 tasks.py 中异步任务执行的问题，使用 asyncio.create_task() 正确启动协程
+- 修改了状态查询接口，从 /tasks/{execution_id}/status 改为 /tasks/{task_id}/status
+- 使用 task_manager.restore_task() 方法获取任务状态
+- 创建了单元测试文件 test_tasks_route.py
+- 添加了 5 个测试用例，验证路由功能
+
+### Testing:
+- 运行 pytest lingxi/tests/test_tasks_route.py -v
+- 所有 5 个测试用例都通过了
+- 测试覆盖：路由存在性、同步模式、异步模式、状态查询端点、查询不存在的任务
+
+### Notes:
+- 异步任务现在可以正常执行，不会有 coroutine was never awaited 警告
+- 可以通过返回的 taskId 查询任务执行状态
+- 单元测试覆盖了主要功能场景

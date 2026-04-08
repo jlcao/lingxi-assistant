@@ -101,7 +101,7 @@ class TaskManager:
 
         return task_id
 
-    def get_task(self, session_id: str, task_id: str) -> Optional[Task]:
+    def get_task(self, task_id: str) -> Optional[Task]:
         """获取任务
 
         Args:
@@ -241,6 +241,7 @@ class TaskManager:
         self.db_manager.execute_sql(sql, (plan, task_id))
 
         self.logger.debug(f"任务计划已保存，session_id: {session_id}, task_id: {task_id}")
+
 
     def restore_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         """恢复任务状态

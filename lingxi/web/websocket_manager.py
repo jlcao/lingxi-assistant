@@ -511,7 +511,7 @@ class WebSocketManager:
         try:
             # 调用异步助手，获取异步生成器
             # 注意：stream_process_input 是异步生成器函数，直接返回异步生成器对象
-            response_generator = self.assistant.stream_process_input(message, session_id, thinking_mode)
+            response_generator = self.assistant.stream_process_input(message, session_id, thinking_mode=thinking_mode)
             
             # 遍历异步生成器并发送消息
             async for chunk in response_generator:

@@ -8,7 +8,7 @@
       >
       <span class="title-bar-text">Lingxi 助手</span>
     </div>
-    <div class="title-bar-center">
+    <!--<div class="title-bar-center">
       <el-input
         v-model="searchText"
         placeholder="搜索"
@@ -16,7 +16,7 @@
         size="small"
         class="title-bar-search"
       />
-    </div>
+    </div>-->
     <div class="title-bar-right">
       <WorkspaceStatus />
       <div class="title-bar-status">

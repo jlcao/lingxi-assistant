@@ -6,15 +6,21 @@ from lingxi.core.utils.exceptions import map_exception_to_error_code
 import uuid
 import time
 import traceback
+import asyncio
 
 router = APIRouter()
+
+def get_task_manager():
+    """懒加载 TaskManager"""
+    from lingxi.core.session.task_manager import TaskManager
+    return TaskManager()
 
 
 class ExecuteTaskRequest(BaseModel):
     """执行任务请求模型"""
-    task: str
-    session_id: str = "default"
-    model_override: Optional[str] = None
+    task: str  # 任务内容
+    session_id: str = None  # 会话ID
+    async_mode: bool = False  # 是否异步执行
 
 
 class RetryTaskRequest(BaseModel):
@@ -71,9 +77,6 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
                 message="助手服务未初始化",
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
-
-        execution_id = str(uuid.uuid4())
-
         if not request.task:
             return ApiResponse(
                 code=400,
@@ -83,28 +86,39 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
 
         # 移除任务分级，统一使用 simple 级别
         # task_level = assistant.classifier.classify(request.task).get("level", "simple")
-        task_level = "simple"  # 默认级别
-        model = request.model_override or assistant.config.get("llm", {}).get("model", "qwen3.5-plus")
+        session_id = request.session_id or f"session_{uuid.uuid4().hex[:8]}"
+        task_id = f"{session_id}_task_{uuid.uuid4().hex[:8]}"
+        
+        # 提前创建任务记录，确保任务状态可以查询
+        task_manager = get_task_manager()
+        task_manager.create_task(
+            session_id=session_id,
+            task_id=task_id,
+            task_type='task',
+            user_input=request.task,
+            task_level='simple'
+        )
+        
+        if(request.async_mode):
+            async def _async_task_wrapper():
+                try:
+                    # process_input 是 async def 函数，需要 await 调用
+                    result = await assistant.process_input(request.task, session_id=session_id, task_id=task_id, stream=True)
+                    # 如果返回的是异步生成器，需要迭代它
+                    if hasattr(result, '__aiter__'):
+                        async for _ in result:
+                            pass
+                except Exception as e:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"异步任务执行失败: {e}", exc_info=True)
+            
+            asyncio.create_task(_async_task_wrapper())
+            response = {"sessionId": session_id, "taskId": task_id,"status":"running"}
+        else:
+            response = await assistant.process_input(request.task , session_id=session_id, task_id=task_id )
 
-        task_info = {
-            "execution_id": execution_id,
-            "task": request.task,
-            "task_level": task_level,
-            "model": model,
-            "status": "running",
-            "created_at": time.time(),
-            "updated_at": time.time()
-        }
-
-        response = await assistant.process_input(request.task, request.session_id)
-
-        task_info.update({
-            "status": "completed",
-            "result": {"content": response},
-            "updated_at": time.time()
-        })
-
-        return ApiResponse(code=0, message="success", data=task_info)
+        return ApiResponse(code=0, message="success", data=response)
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"执行任务失败 - 错误类型: {type(e).__name__}")
@@ -117,12 +131,12 @@ async def execute_task(request: ExecuteTaskRequest) -> Dict[str, Any]:
         )
 
 
-@router.get("/tasks/{execution_id}/status", response_model=ApiResponse)
-async def get_task_status(execution_id: str) -> Dict[str, Any]:
+@router.get("/tasks/{task_id}/status", response_model=ApiResponse)
+async def get_task_status(task_id: str) -> Dict[str, Any]:
     """获取任务状态
 
     Args:
-        execution_id: 执行ID
+        task_id: 任务ID
 
     Returns:
         任务状态信息
@@ -136,35 +150,26 @@ async def get_task_status(execution_id: str) -> Dict[str, Any]:
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
 
-        checkpoint = assistant.session_manager.restore_checkpoint(execution_id)
-        if not checkpoint:
+        task_info = assistant.session_manager.task_manager.get_task(task_id)
+        if not task_info:
             return ApiResponse(
                 code=404,
                 message="任务不存在",
-                error={"error_code": "NOT_FOUND", "error_detail": f"任务 {execution_id} 不存在"}
+                error={"error_code": "NOT_FOUND", "error_detail": f"任务 {task_id} 不存在"}
             )
 
         return ApiResponse(
             code=0,
             message="success",
-            data={
-                "execution_id": execution_id,
-                "task": checkpoint.get("task", ""),
-                "task_level": checkpoint.get("task_level", "unknown"),
-                "model": checkpoint.get("model", "unknown"),
-                "status": checkpoint.get("execution_status", "unknown"),
-                "current_step": checkpoint.get("current_step_idx", 0),
-                "total_steps": len(checkpoint.get("plan", [])),
-                "result": checkpoint.get("result"),
-                "created_at": checkpoint.get("timestamp", 0),
-                "updated_at": checkpoint.get("updated_at", 0)
-            }
+            data=task_info
         )
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         return ApiResponse(
             code=500,
             message="获取任务状态失败",
-            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+            error={"error_code": "INTERNAL_ERROR", "error_detail": f"{str(e)}\n{error_trace}"}
         )
 
 
@@ -218,17 +223,20 @@ async def retry_task(execution_id: str, request: RetryTaskRequest) -> Dict[str, 
         )
 
 
-@router.post("/tasks/{execution_id}/cancel", response_model=ApiResponse)
-async def cancel_task(execution_id: str) -> Dict[str, Any]:
+@router.post("/tasks/{task_id}/cancel", response_model=ApiResponse)
+async def cancel_task(task_id: str) -> Dict[str, Any]:
     """取消任务
 
     Args:
-        execution_id: 执行ID
+        task_id: 任务ID
 
     Returns:
         取消结果
     """
     try:
+        from lingxi.core.context.task_context_manager import TaskContextManager
+        from lingxi.core.session.task_manager import TaskManager
+        
         assistant = get_assistant()
         if not assistant:
             return ApiResponse(
@@ -237,31 +245,27 @@ async def cancel_task(execution_id: str) -> Dict[str, Any]:
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
 
-        checkpoint = assistant.session_manager.restore_checkpoint(execution_id)
-        if not checkpoint:
-            return ApiResponse(
-                code=404,
-                message="任务不存在",
-                error={"error_code": "NOT_FOUND", "error_detail": f"任务 {execution_id} 不存在"}
-            )
-
-        checkpoint["execution_status"] = "cancelled"
-        assistant.session_manager.save_checkpoint(execution_id, checkpoint)
-
+        # 先尝试使用 TaskContextManager 终止正在执行的任务
+        task_context_manager = TaskContextManager()
+        await task_context_manager.stop_task(task_id)
+  
         return ApiResponse(
             code=0,
             message="success",
             data={
                 "success": True,
                 "message": "任务已取消",
-                "execution_id": execution_id
+                "task_id": task_id
             }
-        )
+        )    
+            
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         return ApiResponse(
             code=500,
             message="取消任务失败",
-            error={"error_code": "INTERNAL_ERROR", "error_detail": str(e)}
+            error={"error_code": "INTERNAL_ERROR", "error_detail": f"{str(e)}\n{error_trace}"}
         )
 
 

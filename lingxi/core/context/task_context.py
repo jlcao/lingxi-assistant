@@ -40,7 +40,6 @@ class TaskContext:
         if self.task_id is None:
             import uuid
             self.task_id = f"task_{self.session_id}_{uuid.uuid4().hex[:8]}"
-            self.task_info = Task(task_id=self.task_id,session_id=self.session_id,user_input=self.user_input)
         if self.execution_id is None:
             import time
             self.execution_id = f"exec_{int(time.time())}"
@@ -49,6 +48,8 @@ class TaskContext:
         self._is_stopped = False
         # 终止事件
         self._stop_event = asyncio.Event()
+
+        self.task_info = Task(task_id=self.task_id,session_id=self.session_id,user_input=self.user_input)
     
     def stop(self):
         """终止任务"""
