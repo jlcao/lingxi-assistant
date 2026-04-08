@@ -78,7 +78,6 @@ export const useAppStore = defineStore('app', () => {
         if (!task.steps) {
           task.steps = []
         }
-        debugger
         task.steps[stepIndex] = stepInfo
       }
     }

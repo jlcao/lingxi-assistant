@@ -1,5 +1,8 @@
 <template>
-  <div class="context-bar" @click="handleClick">
+  <div
+    class="context-bar"
+    @click="handleClick"
+  >
     <div class="context-bar-progress">
       <div
         class="context-bar-fill"

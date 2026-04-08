@@ -1,5 +1,8 @@
 <template>
-  <div id="app" class="app-container">
+  <div
+    id="app"
+    class="app-container"
+  >
     <TitleBar />
     <ResumeBanner v-if="activeCheckpoints.length > 0" />
     <EdgeWidget v-if="isEdgeHidden" />

@@ -1,9 +1,10 @@
-import { ChildProcess, spawn } from 'child_process'
+import { ChildProcess, spawn, execSync } from 'child_process'
 import { app, dialog } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as http from 'http'
 import * as net from 'net'
+import iconv from 'iconv-lite'
 import { logger } from './logger'
 
 export class BackendManager {
@@ -116,7 +117,6 @@ export class BackendManager {
     })
 
     this.isBackendStarted = true
-    const iconv = require('iconv-lite')
     let backendStarted = false
     let portCheckInterval: NodeJS.Timeout | null = null
 
@@ -256,7 +256,6 @@ export class BackendManager {
   }
 
   stopBackendService(): void {
-    const { execSync } = require('child_process')
     try {
       if (!this.backendProcess) {
         logger.log('[BackendManager] 后端进程已不存在，无需停止')
@@ -299,7 +298,6 @@ export class BackendManager {
             timeout: 3000
           })
 
-          const iconv = require('iconv-lite')
           const output = iconv.decode(Buffer.from(result, 'binary'), 'gbk')
           logger.log(`[BackendManager] taskkill执行成功: ${output.trim()}`)
           isStopping = false
@@ -321,7 +319,6 @@ export class BackendManager {
             encoding: 'binary',
             timeout: 3000
           })
-          const iconv = require('iconv-lite')
           const killAllOutput = iconv.decode(Buffer.from(killAllResult, 'binary'), 'gbk')
           logger.log(`[BackendManager] 强制杀掉所有后端进程成功: ${killAllOutput.trim()}`)
         } catch (killAllError: any) {

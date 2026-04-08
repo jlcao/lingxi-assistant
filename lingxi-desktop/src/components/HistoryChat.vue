@@ -2,10 +2,20 @@
   <div class="history-chat">
     <div class="history-chat-workspace">
       <div class="workspace-info">
-        <el-icon class="workspace-icon" @click="handleSelectWorkspace"><FolderOpened /></el-icon>
+        <el-icon
+          class="workspace-icon"
+          @click="handleSelectWorkspace"
+        >
+          <FolderOpened />
+        </el-icon>
         <div class="workspace-details">
-          <div class="workspace-label">当前工作区</div>
-          <div class="workspace-path" :title="workspaceStore.workspacePath || '未设置'">
+          <div class="workspace-label">
+            当前工作区
+          </div>
+          <div
+            class="workspace-path"
+            :title="workspaceStore.workspacePath || '未设置'"
+          >
             {{ workspaceStore.workspacePath || '未设置工作区路径' }}
           </div>
         </div>
@@ -16,7 +26,9 @@
         class="new-session-btn"
         @click="handleNewSession"
       >
-        <el-icon class="btn-icon"><Plus /></el-icon>
+        <el-icon class="btn-icon">
+          <Plus />
+        </el-icon>
         新建会话
       </el-button>
     </div>
@@ -32,19 +44,30 @@
             text
             @click="handleDeleteAllSessions"
           >
-            <el-icon class="mr-1"><Delete /></el-icon>
+            <el-icon class="mr-1">
+              <Delete />
+            </el-icon>
             删除所有
           </el-button>
         </div>
       </div>
-      <div v-if="sessions.length === 0" class="empty-state">
-        <el-icon class="empty-icon"><Document /></el-icon>
-        <div class="empty-text">暂无会话历史</div>
-        <div class="empty-hint">点击上方"新建会话"开始对话</div>
+      <div
+        v-if="sessions.length === 0"
+        class="empty-state"
+      >
+        <el-icon class="empty-icon">
+          <Document />
+        </el-icon>
+        <div class="empty-text">
+          暂无会话历史
+        </div>
+        <div class="empty-hint">
+          点击上方"新建会话"开始对话
+        </div>
       </div>
       <div
-        v-else
         v-for="session in sessions"
+        v-else
         :key="session.sessionId"
         class="history-chat-item"
         :class="{ active: session.sessionId === currentSessionId }"
@@ -54,7 +77,10 @@
           <el-icon><ChatDotRound /></el-icon>
         </div>
         <div class="session-content">
-          <div class="session-name" :title="session.title">
+          <div
+            class="session-name"
+            :title="session.title"
+          >
             {{ session.title }}
           </div>
           <div class="session-meta">
@@ -62,18 +88,32 @@
           </div>
         </div>
         <div class="session-actions">
-          <el-dropdown @command="(command) => handleCommand(command, session)" trigger="click">
-            <el-button link size="small" class="action-button">
+          <el-dropdown
+            trigger="click"
+            @command="(command) => handleCommand(command, session)"
+          >
+            <el-button
+              link
+              size="small"
+              class="action-button"
+            >
               <el-icon><MoreFilled /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="rename">
-                  <el-icon class="menu-icon"><Edit /></el-icon>
+                  <el-icon class="menu-icon">
+                    <Edit />
+                  </el-icon>
                   <span>重命名</span>
                 </el-dropdown-item>
-                <el-dropdown-item command="delete" divided>
-                  <el-icon class="menu-icon danger-icon"><Delete /></el-icon>
+                <el-dropdown-item
+                  command="delete"
+                  divided
+                >
+                  <el-icon class="menu-icon danger-icon">
+                    <Delete />
+                  </el-icon>
                   <span class="danger-text">删除会话</span>
                 </el-dropdown-item>
               </el-dropdown-menu>

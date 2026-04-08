@@ -5,14 +5,24 @@
     width="700px"
     :close-on-click-modal="false"
   >
-    <el-steps :active="currentStep" finish-status="success" align-center>
+    <el-steps
+      :active="currentStep"
+      finish-status="success"
+      align-center
+    >
       <el-step title="选择目录" />
       <el-step title="创建.lingxi" />
       <el-step title="完成" />
     </el-steps>
     
-    <div class="step-content" style="margin-top: 24px;">
-      <div v-show="currentStep === 0" class="step-1">
+    <div
+      class="step-content"
+      style="margin-top: 24px;"
+    >
+      <div
+        v-show="currentStep === 0"
+        class="step-1"
+      >
         <el-result
           icon="info"
           title="选择工作目录"
@@ -49,7 +59,10 @@
         </el-result>
       </div>
       
-      <div v-show="currentStep === 1" class="step-2">
+      <div
+        v-show="currentStep === 1"
+        class="step-2"
+      >
         <el-result
           icon="success"
           title="正在初始化工作目录"
@@ -61,13 +74,18 @@
                 :percentage="initializationProgress"
                 :status="initializationStatus"
               />
-              <div class="status-text">{{ statusText }}</div>
+              <div class="status-text">
+                {{ statusText }}
+              </div>
             </div>
           </template>
         </el-result>
       </div>
       
-      <div v-show="currentStep === 2" class="step-3">
+      <div
+        v-show="currentStep === 2"
+        class="step-3"
+      >
         <el-result
           icon="success"
           title="工作目录初始化完成"
@@ -82,7 +100,10 @@
                 <li><code>.lingxi/skills/</code> - 存放工作目录技能</li>
               </ul>
               
-              <el-button type="primary" @click="openWorkspace">
+              <el-button
+                type="primary"
+                @click="openWorkspace"
+              >
                 打开工作目录
               </el-button>
             </div>
@@ -91,12 +112,20 @@
       </div>
     </div>
     
-    <template #footer v-if="currentStep < 2">
-      <el-button @click="handleCancel" v-if="currentStep === 0">取消</el-button>
+    <template
+      v-if="currentStep < 2"
+      #footer
+    >
+      <el-button
+        v-if="currentStep === 0"
+        @click="handleCancel"
+      >
+        取消
+      </el-button>
       <el-button 
         type="primary" 
-        @click="handleNext"
         :disabled="!canNext"
+        @click="handleNext"
       >
         {{ currentStep === 0 ? '下一步' : '完成' }}
       </el-button>

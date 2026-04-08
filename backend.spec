@@ -122,7 +122,7 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[python_exe_name],  # 排除解释器的 UPX 压缩
-    name='backend',
+    name='backend',  # 使用统一的目录名称，确保跨平台兼容性
 )
 
 # ========== 核心优化4：添加打包后路径验证钩子（可选） ==========

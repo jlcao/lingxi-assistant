@@ -1,6 +1,8 @@
 <template>
   <div class="resume-banner">
-    <el-icon class="resume-banner-icon"><InfoFilled /></el-icon>
+    <el-icon class="resume-banner-icon">
+      <InfoFilled />
+    </el-icon>
     <span class="resume-banner-text">
       您有 {{ activeCheckpoints.length }} 个未完成的任务，点击继续
     </span>

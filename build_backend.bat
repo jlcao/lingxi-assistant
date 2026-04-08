@@ -4,10 +4,21 @@ setlocal enabledelayedexpansion
 
 :: ========== 定义路径（引号包裹，避免空格/特殊字符问题） ==========
 set "PROJECT_ROOT=%~dp0"
+set "VENV_DIR=%PROJECT_ROOT%.venv"
 set "DIST_DIR=%PROJECT_ROOT%dist"
 set "FRONTEND_DIR=%PROJECT_ROOT%lingxi-desktop\electron\main\backend"
 
+:: ========== 激活虚拟环境 ==========
+echo [0/5] 激活虚拟环境...
+if exist "%VENV_DIR%\Scripts\activate.bat" (
+    call "%VENV_DIR%\Scripts\activate.bat"
+    echo 虚拟环境激活成功！
+) else (
+    echo 警告：未找到虚拟环境激活脚本，将使用系统Python
+)
+
 :: ========== 清理旧构建文件 ==========
+echo.
 echo [1/5] 清理历史构建文件...
 if exist "%DIST_DIR%" (
     rmdir /s /q "%DIST_DIR%"
@@ -51,7 +62,7 @@ if errorlevel 1 (
 echo.
 echo [5/5] 复制打包产物到前端目录...
 mkdir "%FRONTEND_DIR%" >nul 2>&1
-xcopy "%DIST_DIR%\lingxi-backend" "%FRONTEND_DIR%" /s /e /y
+xcopy "%DIST_DIR%\backend" "%FRONTEND_DIR%" /s /e /y
 if errorlevel 1 (
     echo 警告：部分文件复制失败，但核心打包已完成！
 ) else (
