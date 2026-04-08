@@ -218,12 +218,12 @@ async def retry_task(execution_id: str, request: RetryTaskRequest) -> Dict[str, 
         )
 
 
-@router.post("/tasks/{execution_id}/cancel", response_model=ApiResponse)
-async def cancel_task(execution_id: str) -> Dict[str, Any]:
+@router.post("/tasks/{task_id}/cancel", response_model=ApiResponse)
+async def cancel_task(task_id: str) -> Dict[str, Any]:
     """取消任务
 
     Args:
-        execution_id: 执行ID
+        task_id: 任务ID
 
     Returns:
         取消结果
@@ -237,16 +237,31 @@ async def cancel_task(execution_id: str) -> Dict[str, Any]:
                 error={"error_code": "SERVICE_UNAVAILABLE", "error_detail": "助手服务未初始化"}
             )
 
-        checkpoint = assistant.session_manager.restore_checkpoint(execution_id)
-        if not checkpoint:
+        # 真正停止正在运行的任务
+        from lingxi.core.context.task_context_manager import TaskContextManager
+        task_context_manager = TaskContextManager()
+        success = await task_context_manager.stop_task(task_id)
+        
+        if not success:
             return ApiResponse(
                 code=404,
-                message="任务不存在",
-                error={"error_code": "NOT_FOUND", "error_detail": f"任务 {execution_id} 不存在"}
+                message="任务不存在或已完成",
+                error={"error_code": "NOT_FOUND", "error_detail": f"任务 {task_id} 不存在或已完成"}
             )
-
-        checkpoint["execution_status"] = "cancelled"
-        assistant.session_manager.save_checkpoint(execution_id, checkpoint)
+        
+        # 尝试标记检查点为已取消（如果存在）
+        try:
+            # 遍历所有检查点，找到匹配的task_id
+            checkpoints = assistant.session_manager.list_active_checkpoints()
+            for checkpoint in checkpoints:
+                if checkpoint.get("task_id") == task_id or checkpoint.get("taskId") == task_id:
+                    checkpoint["execution_status"] = "cancelled"
+                    execution_id = checkpoint.get("execution_id") or checkpoint.get("executionId")
+                    if execution_id:
+                        assistant.session_manager.save_checkpoint(execution_id, checkpoint)
+                    break
+        except Exception as e:
+            logger.warning(f"标记检查点为已取消失败: {e}")
 
         return ApiResponse(
             code=0,
@@ -254,7 +269,7 @@ async def cancel_task(execution_id: str) -> Dict[str, Any]:
             data={
                 "success": True,
                 "message": "任务已取消",
-                "execution_id": execution_id
+                "task_id": task_id
             }
         )
     except Exception as e:
