@@ -242,6 +242,8 @@ class SkillCache:
         for file_path in skill_dir_path.rglob('*'):
             if file_path.is_file() and self._should_cache_file(file_path):
                 relative_path = str(file_path.relative_to(skill_dir_path))
+                # 统一使用正斜杠作为路径分隔符
+                relative_path = relative_path.replace('\\', '/')
                 try:
                     content = file_path.read_text(encoding='utf-8')
                     file_hash = self._compute_content_hash(content)
@@ -268,6 +270,9 @@ class SkillCache:
         if skill_id not in self._file_cache:
             return None
         
+        # 统一使用正斜杠作为路径分隔符
+        relative_path = relative_path.replace('\\', '/')
+        
         skill_cache = self._file_cache[skill_id]
         entry = skill_cache.get_file(relative_path)
         
@@ -277,6 +282,10 @@ class SkillCache:
         if entry.is_expired(self._ttl):
             self.logger.debug(f"文件缓存过期: {skill_id}/{relative_path},重新加载")
             self.cache_skill_files(skill_id, skill_cache.skill_dir)
+            # 重新获取缓存条目
+            entry = skill_cache.get_file(relative_path)
+            if entry is None:
+                return None
 
         result_str = entry.content.replace('skill_dir', skill_cache.skill_dir)
         
