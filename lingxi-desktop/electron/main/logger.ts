@@ -7,8 +7,8 @@ export class Logger {
   private logDir: string
   private logFile: string
   private errorFile: string
-  private originalLog: Function
-  private originalError: Function
+  private originalLog: (...args: any[]) => void
+  private originalError: (...args: any[]) => void
 
   constructor() {
     // 获取运行目录（可执行文件所在目录）

@@ -9,6 +9,9 @@ declare global {
 
   interface Window {
     electronAPI: {
+      system: {
+        getBackendPort: () => number
+      }
       window: {
         minimize: () => Promise<void>
         toggle: () => Promise<void>

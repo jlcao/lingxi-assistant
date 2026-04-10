@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -100,7 +101,7 @@ class TaskManager:
 
         return task_id
 
-    def get_task(self, session_id: str, task_id: str) -> Optional[Task]:
+    def get_task(self, task_id: str) -> Optional[Task]:
         """获取任务
 
         Args:
@@ -240,6 +241,7 @@ class TaskManager:
         self.db_manager.execute_sql(sql, (plan, task_id))
 
         self.logger.debug(f"任务计划已保存，session_id: {session_id}, task_id: {task_id}")
+
 
     def restore_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         """恢复任务状态
@@ -424,6 +426,85 @@ class TaskManager:
 
         tasks = []
         for row in rows:
+            # 处理时间戳，确保返回数字类型的时间戳（毫秒）
+            created_at = row[13]
+            updated_at = row[14]
+            
+            # 修复时间戳时区问题：将UTC时间转换为本地时间
+            import pytz
+            local_tz = pytz.timezone('Asia/Shanghai')
+            utc_tz = pytz.utc
+            
+            # 转换创建时间
+            if isinstance(created_at, datetime):
+                if created_at.tzinfo is None:
+                    # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                    created_at = utc_tz.localize(created_at)
+                    # 然后转换为本地时间
+                    created_at = created_at.astimezone(local_tz)
+                else:
+                    # 如果有时区信息，转换为本地时间
+                    created_at = created_at.astimezone(local_tz)
+                created_at_timestamp = int(created_at.timestamp() * 1000)
+            elif isinstance(created_at, str):
+                try:
+                    # 尝试解析字符串时间戳
+                    created_at_dt = datetime.fromisoformat(created_at)
+                    if created_at_dt.tzinfo is None:
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        created_at_dt = utc_tz.localize(created_at_dt)
+                        # 然后转换为本地时间
+                        created_at_dt = created_at_dt.astimezone(local_tz)
+                    created_at_timestamp = int(created_at_dt.timestamp() * 1000)
+                except:
+                    try:
+                        # 尝试另一种格式
+                        created_at_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        created_at_dt = utc_tz.localize(created_at_dt)
+                        # 然后转换为本地时间
+                        created_at_dt = created_at_dt.astimezone(local_tz)
+                        created_at_timestamp = int(created_at_dt.timestamp() * 1000)
+                    except:
+                        created_at_timestamp = int(time.time() * 1000)
+            else:
+                created_at_timestamp = int(time.time() * 1000)
+            
+            # 转换更新时间
+            if isinstance(updated_at, datetime):
+                if updated_at.tzinfo is None:
+                    # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                    updated_at = utc_tz.localize(updated_at)
+                    # 然后转换为本地时间
+                    updated_at = updated_at.astimezone(local_tz)
+                else:
+                    # 如果有时区信息，转换为本地时间
+                    updated_at = updated_at.astimezone(local_tz)
+                updated_at_timestamp = int(updated_at.timestamp() * 1000)
+            elif isinstance(updated_at, str):
+                try:
+                    # 尝试解析字符串时间戳
+                    updated_at_dt = datetime.fromisoformat(updated_at)
+                    if updated_at_dt.tzinfo is None:
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        updated_at_dt = utc_tz.localize(updated_at_dt)
+                        # 然后转换为本地时间
+                        updated_at_dt = updated_at_dt.astimezone(local_tz)
+                    updated_at_timestamp = int(updated_at_dt.timestamp() * 1000)
+                except:
+                    try:
+                        # 尝试另一种格式
+                        updated_at_dt = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S')
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        updated_at_dt = utc_tz.localize(updated_at_dt)
+                        # 然后转换为本地时间
+                        updated_at_dt = updated_at_dt.astimezone(local_tz)
+                        updated_at_timestamp = int(updated_at_dt.timestamp() * 1000)
+                    except:
+                        updated_at_timestamp = int(time.time() * 1000)
+            else:
+                updated_at_timestamp = int(time.time() * 1000)
+            
             task_data = {
                 "taskId": row[0],
                 "sessionId": row[1],
@@ -438,8 +519,8 @@ class TaskManager:
                 "errorInfo": row[10],
                 "inputTokens": row[11],
                 "outputTokens": row[12],
-                "createdAt": row[13],
-                "updatedAt": row[14],
+                "createdAt": created_at_timestamp,
+                "updatedAt": updated_at_timestamp,
                 "steps": self.step_manager.get_steps_for_frontend(row[0])
             }
             tasks.append(task_data)

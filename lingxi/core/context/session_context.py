@@ -62,7 +62,7 @@ class SessionContext:
         retention_config = context_config.get("retention", {})
         self.user_input_keep_turns = retention_config.get("user_input_keep_turns", 10)
         self.tool_result_keep_turns = retention_config.get("tool_result_keep_turns", 5)
-        self.task_boundary_archive = retention_config.get("task_boundary_archive", True)
+        self.task_boundary_archive = retention_config.get("task_boundary_archive", True)  #待实现
 
         compression_config = context_config.get("compression", {})
         self.compression_strategy = compression_config.get("strategy", "hybrid")

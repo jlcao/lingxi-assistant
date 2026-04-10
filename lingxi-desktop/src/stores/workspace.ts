@@ -1,6 +1,8 @@
 import type { FileChange, WorkspaceFilesChangedEvent, WorkspaceInfo } from '@/types'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { useWsStore } from './wsStore'
+import { apiService } from '@/api/apiService'
 
 const DEBOUNCE_MS = 500
 const MIN_REFRESH_INTERVAL = 1000
@@ -35,9 +37,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   async function loadCurrentWorkspace() {
     try {
       console.log('[WorkspaceStore] loadCurrentWorkspace called')
-      const result = await window.electronAPI.workspace.getCurrent()
+      const result = await apiService.client.getWorkspaceCurrent()
       console.log('[WorkspaceStore] loadCurrentWorkspace result:', result)
-      currentWorkspace.value = result
+      // 按照统一的 API 响应格式处理
+      if (result && result.code === 0 && result.data) {
+        currentWorkspace.value = result.data
+      }
       await loadWorkspaceSkills()
     } catch (error) {
       console.error('[WorkspaceStore] 加载工作目录失败:', error)
@@ -46,8 +51,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   async function loadWorkspaceSkills() {
     try {
-      const skills = await window.electronAPI.api.getSkills()
-      workspaceSkillsCount.value = (skills || []).filter(
+      const skills = await apiService.client.getSkills()
+      console.log('[WorkspaceStore] loadWorkspaceSkills result:', skills)
+      // 按照统一的 API 响应格式处理
+      let skillsList: any[] = []
+      if (skills && skills.code === 0 && skills.data && skills.data.skills) {
+        skillsList = skills.data.skills
+      }
+      workspaceSkillsCount.value = skillsList.filter(
         skill => skill.source === 'workspace'
       ).length
     } catch (error) {
@@ -73,8 +84,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function switchWorkspace(path: string, force = false) {
-    const result = await window.electronAPI.workspace.switch(path, force)
-    if (result.success) {
+    const result = await apiService.client.switchWorkspace(path, force)
+    console.log('[WorkspaceStore] switchWorkspace result:', result)
+    // 按照统一的 API 响应格式处理
+    if (result && result.code === 0) {
       await loadCurrentWorkspace()
       await reloadSessions()
     }
@@ -86,11 +99,11 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       // 使用工作目录特定的 API 获取会话列表
       const currentPath = currentWorkspace.value?.workspace
       const sessionsResult = currentPath 
-        ? await window.electronAPI.api.getWorkspaceSessions(currentPath)
-        : await window.electronAPI.api.getSessions()
+        ? await apiService.client.getWorkspaceSessions(currentPath)
+        : await apiService.client.getSessions()
       console.log('获取到的会话列表:', sessionsResult)
-      // 处理返回结果
-      const sessions = sessionsResult.sessions || (sessionsResult as any[])
+      // 按照统一的 API 响应格式处理
+      const sessions = sessionsResult.data?.sessions || []
       const formattedSessions = (sessions || []).map((session: any) => ({
         sessionId: session.sessionId || session.id,
         title: session.title || session.name || '新会话',
@@ -106,7 +119,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       appStore.setSessions(formattedSessions)
 
       if (formattedSessions && formattedSessions.length > 0) {
-        appStore.setCurrentSession(formattedSessions[0].id)
+        appStore.setCurrentSession(formattedSessions[0].sessionId)
       } else {
         appStore.setCurrentSession(null)
         appStore.setTurns([])
@@ -119,7 +132,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   async function initializeWorkspace(path?: string) {
-    const result = await window.electronAPI.workspace.initialize(path)
+    const result = await apiService.client.initializeWorkspace(path)
+    console.log('[WorkspaceStore] initializeWorkspace result:', result)
     await loadCurrentWorkspace()
     return result
   }
@@ -168,7 +182,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function setupFileChangeListener() {
-    window.electronAPI.ws.onWorkspaceFilesChanged((data: WorkspaceFilesChangedEvent) => {
+    const wsStore = useWsStore()
+    wsStore.onWorkspaceFilesChanged((data: WorkspaceFilesChangedEvent) => {
       handleWorkspaceFilesChanged(data)
     })
     console.log('[Workspace] 文件变动监听器已设置')

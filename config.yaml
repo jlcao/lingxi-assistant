@@ -13,42 +13,29 @@ context_management:
     critical_threshold: 0.9
     max_tokens: 8000
 engine:
+  enable_plan: true
   default: react
   max_steps: 50
   timeout: 60
-execution_mode:
-  complex:
-    enable_replanning: true
-    max_loop_per_step: 5
-    max_plan_steps: 8
-    max_replan_count: 2
-    max_step_retries: 3
-    name: plan_react
-  simple:
-    max_loop_per_step: 3
-    max_plan_steps: 3
-    name: plan_react
-  trivial:
-    max_tokens: 1000
-    name: direct
+python_interpreter: D:/resources/lingxi-assistant/venv/Scripts/python.exe
 llm:
-  api_key: your-dashscope-api-key-here
-  base_url: https://coding.dashscope.aliyuncs.com/v1
-  default_model: qwen3.5-plus
+  api_key: 0f52b7ab-cb78-40f1-b99f-3cb7734dd16d
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  default_model: doubao-seed-2-0-lite-260215
   max_tokens: 32000
-  model: qwen3.5-plus
+  model: doubao-seed-2-0-lite-260215
   models:
     complex:
       max_tokens: 32000
-      model: qwen3.5-plus
+      model: doubao-seed-2-0-lite-260215
       temperature: 0.7
     simple:
       max_tokens: 32000
-      model: qwen3.5-plus
+      model: doubao-seed-2-0-lite-260215
       temperature: 0.7
     trivial:
       max_tokens: 32000
-      model: qwen3.5-plus
+      model: doubao-seed-2-0-lite-260215
       temperature: 0.7
   provider: openai
   temperature: 0.7

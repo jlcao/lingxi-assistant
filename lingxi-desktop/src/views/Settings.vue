@@ -4,50 +4,108 @@
       <h2>设置</h2>
     </div>
     <div class="settings-content">
-      <el-form :model="config" label-width="120px">
+      <el-form
+        :model="config"
+        label-width="120px"
+      >
         <el-form-item label="API 地址">
-          <el-input v-model="config.apiUrl" placeholder="http://localhost:8000" />
+          <el-input
+            v-model="config.apiUrl"
+            placeholder="http://localhost:8000"
+          />
         </el-form-item>
         <el-form-item label="WebSocket 地址">
-          <el-input v-model="config.wsUrl" placeholder="ws://localhost:8000/ws" />
+          <el-input
+            v-model="config.wsUrl"
+            placeholder="ws://localhost:8000/ws"
+          />
         </el-form-item>
         <el-form-item label="默认模型">
-          <el-select v-model="config.model" placeholder="选择模型">
-            <el-option label="GPT-4" value="gpt-4" />
-            <el-option label="GPT-3.5 Turbo" value="gpt-3.5-turbo" />
-            <el-option label="Qwen Max" value="qwen-max" />
-            <el-option label="Qwen Turbo" value="qwen-turbo" />
+          <el-select
+            v-model="config.model"
+            placeholder="选择模型"
+          >
+            <el-option
+              label="GPT-4"
+              value="gpt-4"
+            />
+            <el-option
+              label="GPT-3.5 Turbo"
+              value="gpt-3.5-turbo"
+            />
+            <el-option
+              label="Qwen Max"
+              value="qwen-max"
+            />
+            <el-option
+              label="Qwen Turbo"
+              value="qwen-turbo"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="最大 Token">
-          <el-input-number v-model="config.maxTokens" :min="1000" :max="128000" />
+          <el-input-number
+            v-model="config.maxTokens"
+            :min="1000"
+            :max="128000"
+          />
         </el-form-item>
         <el-form-item label="超时时间（秒）">
-          <el-input-number v-model="config.timeout" :min="10" :max="300" />
+          <el-input-number
+            v-model="config.timeout"
+            :min="10"
+            :max="300"
+          />
         </el-form-item>
         <el-form-item label="主题">
           <el-radio-group v-model="config.theme">
-            <el-radio label="light">浅色</el-radio>
-            <el-radio label="dark">深色</el-radio>
-            <el-radio label="auto">自动</el-radio>
+            <el-radio label="light">
+              浅色
+            </el-radio>
+            <el-radio label="dark">
+              深色
+            </el-radio>
+            <el-radio label="auto">
+              自动
+            </el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="语言">
-          <el-select v-model="config.language" placeholder="选择语言">
-            <el-option label="简体中文" value="zh-CN" />
-            <el-option label="English" value="en-US" />
+          <el-select
+            v-model="config.language"
+            placeholder="选择语言"
+          >
+            <el-option
+              label="简体中文"
+              value="zh-CN"
+            />
+            <el-option
+              label="English"
+              value="en-US"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="自动保存">
           <el-switch v-model="config.autoSave" />
         </el-form-item>
         <el-form-item label="断点有效期（天）">
-          <el-input-number v-model="config.checkpointExpiry" :min="1" :max="30" />
+          <el-input-number
+            v-model="config.checkpointExpiry"
+            :min="1"
+            :max="30"
+          />
         </el-form-item>
       </el-form>
       <div class="settings-footer">
-        <el-button @click="handleCancel">取消</el-button>
-        <el-button type="primary" @click="handleSave">保存</el-button>
+        <el-button @click="handleCancel">
+          取消
+        </el-button>
+        <el-button
+          type="primary"
+          @click="handleSave"
+        >
+          保存
+        </el-button>
       </div>
     </div>
   </div>
@@ -58,6 +116,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Config } from '../../types'
 import { ElMessage } from 'element-plus'
+import { apiService } from '../api/apiService'
 
 const router = useRouter()
 
@@ -79,8 +138,8 @@ onMounted(async () => {
 
 async function loadConfig() {
   try {
-    const data = await window.electronAPI.api.getConfig()
-    config.value = { ...config.value, ...data }
+    const data = await apiService.client.getConfig()
+    config.value = { ...config.value, ...data.data }
   } catch (error) {
     console.error('Failed to load config:', error)
   }
@@ -88,7 +147,7 @@ async function loadConfig() {
 
 async function handleSave() {
   try {
-    await window.electronAPI.api.updateConfig(config.value)
+    await apiService.client.updateConfig(config.value)
     ElMessage.success('设置已保存')
     router.back()
   } catch (error) {

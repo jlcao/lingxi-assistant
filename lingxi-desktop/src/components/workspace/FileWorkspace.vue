@@ -4,14 +4,30 @@
       <span class="file-workspace-title">工作区目录</span>
     </div>
     <div class="file-workspace-tree">
-      <div v-if="!currentWorkspace" class="empty-workspace">
-        <el-icon class="empty-icon"><FolderOpened /></el-icon>
-        <div class="empty-text">未设置工作区</div>
-        <div class="empty-hint">点击左侧工作区图标选择目录</div>
+      <div
+        v-if="!currentWorkspace"
+        class="empty-workspace"
+      >
+        <el-icon class="empty-icon">
+          <FolderOpened />
+        </el-icon>
+        <div class="empty-text">
+          未设置工作区
+        </div>
+        <div class="empty-hint">
+          点击左侧工作区图标选择目录
+        </div>
       </div>
-      <div v-else-if="loading" class="loading-workspace">
-        <el-icon class="loading-icon"><Loading /></el-icon>
-        <div class="loading-text">加载中...</div>
+      <div
+        v-else-if="loading"
+        class="loading-workspace"
+      >
+        <el-icon class="loading-icon">
+          <Loading />
+        </el-icon>
+        <div class="loading-text">
+          加载中...
+        </div>
       </div>
       <el-tree
         v-else-if="fileTree.length > 0"
@@ -26,37 +42,116 @@
         <template #default="{ node, data }">
           <div class="file-tree-node">
             <span class="file-icon">
-              <svg v-if="data.isDirectory" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon folder-icon" :class="{ 'folder-open': node.expanded }">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              <svg
+                v-if="data.isDirectory"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="icon folder-icon"
+                :class="{ 'folder-open': node.expanded }"
+              >
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
               </svg>
-              <svg v-else-if="isImageFile(data.label)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon image-icon">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
+              <svg
+                v-else-if="isImageFile(data.label)"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="icon image-icon"
+              >
+                <rect
+                  x="3"
+                  y="3"
+                  width="18"
+                  height="18"
+                  rx="2"
+                  ry="2"
+                />
+                <circle
+                  cx="8.5"
+                  cy="8.5"
+                  r="1.5"
+                />
+                <polyline points="21 15 16 10 5 21" />
               </svg>
-              <svg v-else-if="isCodeFile(data.label)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon code-icon">
-                <polyline points="16 18 22 12 16 6"></polyline>
-                <polyline points="8 6 2 12 8 18"></polyline>
+              <svg
+                v-else-if="isCodeFile(data.label)"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="icon code-icon"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
               </svg>
-              <svg v-else-if="isDocFile(data.label)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon doc-icon">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                <polyline points="14 2 14 8 20 8"></polyline>
-                <line x1="16" y1="13" x2="8" y2="13"></line>
-                <line x1="16" y1="17" x2="8" y2="17"></line>
-                <polyline points="10 9 9 9 8 9"></polyline>
+              <svg
+                v-else-if="isDocFile(data.label)"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="icon doc-icon"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line
+                  x1="16"
+                  y1="13"
+                  x2="8"
+                  y2="13"
+                />
+                <line
+                  x1="16"
+                  y1="17"
+                  x2="8"
+                  y2="17"
+                />
+                <polyline points="10 9 9 9 8 9" />
               </svg>
-              <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon file-icon">
-                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                <polyline points="13 2 13 9 20 9"></polyline>
+              <svg
+                v-else
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="icon file-icon"
+              >
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                <polyline points="13 2 13 9 20 9" />
               </svg>
             </span>
             <span class="file-tree-node-text">{{ node.label }}</span>
           </div>
         </template>
       </el-tree>
-      <div v-else class="empty-workspace">
-        <el-icon class="empty-icon"><FolderOpened /></el-icon>
-        <div class="empty-text">目录为空</div>
+      <div
+        v-else
+        class="empty-workspace"
+      >
+        <el-icon class="empty-icon">
+          <FolderOpened />
+        </el-icon>
+        <div class="empty-text">
+          目录为空
+        </div>
       </div>
     </div>
     
@@ -72,7 +167,9 @@
       <template #dropdown>
         <el-dropdown-menu>
           <el-dropdown-item command="openInExplorer">
-            <el-icon class="menu-icon"><FolderOpened /></el-icon>
+            <el-icon class="menu-icon">
+              <FolderOpened />
+            </el-icon>
             在资源管理器中打开
           </el-dropdown-item>
         </el-dropdown-menu>
@@ -84,6 +181,7 @@
 <script setup lang="ts">
 import { useAppStore } from '@/stores/app'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useWsStore } from '@/stores/wsStore'
 import { FolderOpened, Loading } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
@@ -179,7 +277,7 @@ function handleNodeContextMenu(event: MouseEvent, data: TreeNode) {
 }
 
 // 双击处理函数（使用单击事件检测双击）
-let clickTimeout: NodeJS.Timeout | null = null
+let clickTimeout: number | null = null
 let lastClickNode: TreeNode | null = null
 
 async function handleNodeClick(data: TreeNode, node: any, event: MouseEvent) {
@@ -282,7 +380,8 @@ onMounted(async () => {
 onUnmounted(() => {
   console.log('[FileWorkspace] onUnmounted called')
   workspaceStore.setDirectoryTreeRefreshCallback(null)
-  window.electronAPI.ws.removeAllListeners('ws:workspace-files-changed')
+  const wsStore = useWsStore()
+  wsStore.removeAllListeners('workspace_files_changed')
 })
 
 watch(currentWorkspace, async (newWorkspace) => {

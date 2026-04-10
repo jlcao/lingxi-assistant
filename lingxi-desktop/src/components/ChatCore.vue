@@ -1,26 +1,44 @@
 <template>
   <div class="chat-core">
     <div class="chat-core-header">
-      <div class="chat-core-title">{{ currentSessionName }}</div>
+      <div class="chat-core-title">
+        {{ currentSessionName }}
+      </div>
       <div class="chat-core-actions">
         <el-dropdown @command="handleMoreCommand">
-          <el-button size="small" text>...</el-button>
+          <el-button
+            size="small"
+            text
+          >
+            ...
+          </el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="rename">
-                <el-icon class="mr-2"><Edit /></el-icon>
+                <el-icon class="mr-2">
+                  <Edit />
+                </el-icon>
                 重命名会话
               </el-dropdown-item>
               <el-dropdown-item command="clear">
-                <el-icon class="mr-2"><Delete /></el-icon>
+                <el-icon class="mr-2">
+                  <Delete />
+                </el-icon>
                 清除历史
               </el-dropdown-item>
-              <el-dropdown-item command="delete" type="danger">
-                <el-icon class="mr-2"><Delete /></el-icon>
+              <el-dropdown-item
+                command="delete"
+                type="danger"
+              >
+                <el-icon class="mr-2">
+                  <Delete />
+                </el-icon>
                 删除会话
               </el-dropdown-item>
               <el-dropdown-item command="export">
-                <el-icon class="mr-2"><Download /></el-icon>
+                <el-icon class="mr-2">
+                  <Download />
+                </el-icon>
                 导出会话
               </el-dropdown-item>
             </el-dropdown-menu>
@@ -31,11 +49,13 @@
     <div class="chat-core-content">
       <MessageList />
     </div>
-    <div class="chat-core-input" 
-         :class="{ 'dragging': isDragging }"
-         @dragover.prevent="handleDragOver"
-         @dragleave="handleDragLeave"
-         @drop.prevent="handleDrop">
+    <div
+      class="chat-core-input" 
+      :class="{ 'dragging': isDragging }"
+      @dragover.prevent="handleDragOver"
+      @dragleave="handleDragLeave"
+      @drop.prevent="handleDrop"
+    >
       <el-input
         v-model="inputText"
         type="textarea"
@@ -55,15 +75,21 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item command="upload">
-                <el-icon class="mr-2"><Upload /></el-icon>
+                <el-icon class="mr-2">
+                  <Upload />
+                </el-icon>
                 上传文件
               </el-dropdown-item>
               <el-dropdown-item command="image">
-                <el-icon class="mr-2"><Picture /></el-icon>
+                <el-icon class="mr-2">
+                  <Picture />
+                </el-icon>
                 添加图片
               </el-dropdown-item>
               <el-dropdown-item command="code">
-                <el-icon class="mr-2"><View /></el-icon>
+                <el-icon class="mr-2">
+                  <View />
+                </el-icon>
                 代码块
               </el-dropdown-item>
               <el-dropdown-item command="emoji">
@@ -86,11 +112,13 @@
           />
         </div>
         <el-button
-          type="primary"
+          :type="isTaskRunning ? 'danger' : 'primary'"
           size="small"
-          @click="handleSend"
+          :loading="isStopping"
+          :disabled="isStopping"
+          @click="handleButtonClick"
         >
-          发送
+          {{ isTaskRunning ? '终止' : '发送' }}
         </el-button>
       </div>
     </div>
@@ -100,11 +128,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAppStore } from '../stores/app'
+import { useWsStore } from '../stores/wsStore'
+import { apiService } from '../api/apiService'
 import { Plus, Upload, Edit, Delete, Download, Picture, View, Star } from '@element-plus/icons-vue'
 import MessageList from './chat/MessageList.vue'
 import { ElMessageBox, ElSwitch } from 'element-plus'
 
+
 const appStore = useAppStore()
+const wsStore = useWsStore()
 
 const inputText = ref('')
 const mode = ref('plan')
@@ -112,6 +144,19 @@ const model = ref('gim4.7')
 const defaultOption = ref('default')
 const isDragging = ref(false)
 const thinkingMode = ref(false)
+const isStopping = ref(false)
+
+const currentSession = computed(() => {
+  return appStore.sessions.find(s => s.sessionId === appStore.currentSessionId)
+})
+
+const isTaskRunning = computed(() => {
+  return currentSession.value?.isTaskRunning || false
+})
+
+const currentTaskId = computed(() => {
+  return currentSession.value?.currentTaskId || ''
+})
 
 const currentSessionName = computed(() => {
   const session = appStore.sessions.find(s => s.sessionId === appStore.currentSessionId)
@@ -164,9 +209,7 @@ async function handleRenameSession() {
 
     if (value) {
       // 调用后端 API 更新会话名称
-      if (window.electronAPI.api.updateSessionTitle) {
-        await window.electronAPI.api.updateSessionTitle(appStore.currentSessionId, value)
-      }
+      await apiService.client.updateSessionName(appStore.currentSessionId, value)
       // 更新前端会话列表
       const updatedSessions = appStore.sessions.map(s =>
         s.sessionId === appStore.currentSessionId ? { ...s, title: value } : s
@@ -189,9 +232,7 @@ async function handleClearHistory() {
     })
 
     // 调用后端 API 清除会话历史
-    if (window.electronAPI.api.clearSessionHistory) {
-      await window.electronAPI.api.clearSessionHistory(appStore.currentSessionId)
-    }
+    await apiService.client.clearSessionHistory(appStore.currentSessionId)
     // 清空前端历史记录
     const updatedSessions = appStore.sessions.map(s =>
       s.sessionId === appStore.currentSessionId ? { ...s, tasks: [] } : s
@@ -213,9 +254,7 @@ async function handleDeleteSession() {
     })
 
     // 调用后端 API 删除会话
-    if (window.electronAPI.api.deleteSession) {
-      await window.electronAPI.api.deleteSession(appStore.currentSessionId)
-    }
+    await apiService.client.deleteSession(appStore.currentSessionId)
     // 更新前端会话列表
     const updatedSessions = appStore.sessions.filter(
       s => s.sessionId !== appStore.currentSessionId
@@ -254,44 +293,87 @@ function handleUpload() {
   window.electronAPI.file.selectFiles()
 }
 
+function handleButtonClick() {
+  if (isTaskRunning.value) {
+    handleStopTask()
+  } else {
+    handleSend()
+  }
+}
+
+async function handleStopTask() {
+  if (currentTaskId.value && appStore.currentSessionId) {
+    try {
+      // 设置停止中状态，显示加载效果
+      isStopping.value = true
+      
+      // 调用cancel接口
+      const response = await apiService.client.cancelTask(currentTaskId.value)
+      
+      // 接口返回成功后，更新状态
+      if (response.code === 0) {
+        // 更新会话状态
+        const session = appStore.sessions.find(s => s.sessionId === appStore.currentSessionId)
+        if (session) {
+          session.isTaskRunning = false
+          session.currentTaskId = null
+        }
+        
+        // 更新任务状态为stopped
+        appStore.updateTaskStatus(appStore.currentSessionId, currentTaskId.value, 'stopped')
+        
+        // 查找并更新任务对象
+        const task = session?.tasks?.find(t => t.taskId === currentTaskId.value)
+        if (task) {
+          task.status = 'stopped'
+          task.result = '任务已被用户终止'
+        }
+      }
+    } catch (error) {
+      console.error('Failed to stop task:', error)
+    } finally {
+      // 无论成功失败，都关闭加载状态
+      isStopping.value = false
+    }
+  }
+}
+
 async function handleSend() {
   if (inputText.value.trim()) {
     const userMessage = inputText.value.trim()
 
     // 如果没有当前会话，创建一个新会话
     if (!appStore.currentSessionId) {
-      try {
-        const result = await window.electronAPI.api.createSession('新会话')
-        if (result && result.session_id) {
-          appStore.setCurrentSession(result.session_id)
-          appStore.setSessions([...appStore.sessions, {
-            sessionId: result.session_id,
-            title: '新会话',
-            userName: '',
-            tasks: [],
-            totalTokens: 0,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          }])
-        } else {
-          throw new Error('创建会话失败')
+          try {
+            const result = await apiService.client.createSession({ user_name: '新会话' })
+            if (result.data && result.data.session_id) {
+              appStore.setCurrentSession(result.data.session_id)
+              appStore.setSessions([...appStore.sessions, {
+                sessionId: result.data.session_id,
+                title: result.data.first_message || '新会话',
+                userName: '',
+                tasks: [],
+                totalTokens: 0,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                currentTaskId: null,
+                isTaskRunning: false
+              }])
+            } else {
+              throw new Error('创建会话失败')
+            }
+          } catch (error) {
+            console.error('Failed to create session:', error)
+            return
+          }
         }
-      } catch (error) {
-        console.error('Failed to create session:', error)
-        return
-      }
-    }
 
     inputText.value = ''
 
     // 通过 WebSocket 发送消息到后端
-    if (window.electronAPI?.ws && appStore.currentSessionId) {
+    if (appStore.currentSessionId) {
       try {
-        await window.electronAPI.ws.sendMessage(
-          userMessage,
-          appStore.currentSessionId,
-          thinkingMode.value
-        )
+        wsStore.sendMessage(userMessage, appStore.currentSessionId)
       } catch (error) {
         console.error('Failed to send message:', error)
       }

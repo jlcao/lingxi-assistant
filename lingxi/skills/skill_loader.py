@@ -6,8 +6,11 @@ import json
 import yaml
 import logging
 import importlib.util
+import subprocess
+import sys
 from typing import Dict, List, Optional, Any
 from pathlib import Path
+from lingxi.utils.config import get_workspace_path
 
 
 class SkillLoader:
@@ -53,8 +56,36 @@ class SkillLoader:
         self.cache = cache  # 新增缓存引用
         self.sandbox = sandbox  # 新增沙箱引用，用于路径转换
 
+        # ========== 新增：内置Python解释器路径处理 ==========
+        self.python_interpreter = self._get_bundled_python_interpreter()
+        self.logger.debug(f"使用的Python解释器路径: {self.python_interpreter}")
+
         self.logger.debug(f"初始化技能加载器，内置技能目录: {self.builtin_skills_dir}, 用户技能目录: {self.user_skills_dir}")
         self._initialized = True
+
+    def _get_bundled_python_interpreter(self) -> str:
+        """获取打包EXE内置的Python解释器路径"""
+        # 判断是否是PyInstaller打包后的环境
+        if getattr(sys, 'frozen', False):
+            # _MEIPASS 是PyInstaller解压临时文件的目录（--onefile打包时）
+            base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+            python_exe = "python.exe" if sys.platform == "win32" else "python3"
+            
+            # 拼接Python解释器路径（适配不同打包方式）
+            python_path = os.path.join(base_path, python_exe)
+            
+            # 兜底：如果临时目录找不到，用sys.executable所在目录（--onedir打包）
+            if not os.path.exists(python_path):
+                python_path = os.path.join(os.path.dirname(sys.executable), python_exe)
+            
+            # 最终兜底：使用当前运行的Python解释器
+            if not os.path.exists(python_path):
+                python_path = sys.executable
+                
+            return python_path
+        else:
+            # 非打包环境，返回当前运行的Python解释器
+            return sys.executable
 
     def scan_and_register(self, registry) -> int:
         """扫描技能目录并自动注册所有技能
@@ -98,14 +129,31 @@ class SkillLoader:
                 self.logger.error(f"技能配置缺少 name 字段：{skill_dir}")
                 return False
             
-            # 调用 registry 的注册方法
-            if hasattr(registry, 'register_skill_from_dir'):
-                registry.register_skill_from_dir(skill_dir)
+            # 检查是否有 main.py 文件
+            has_main_py = os.path.exists(os.path.join(skill_dir, "main.py"))
+            
+            # 根据是否有 main.py 文件选择注册方法
+            if has_main_py and hasattr(registry, 'register_skill_from_dir'):
+                registry.register_skill_from_dir(Path(skill_dir))
                 self.logger.info(f"注册技能成功：{skill_id}")
             elif hasattr(registry, 'register_skill'):
-                # 使用原始调用方式：只传 config
-                registry.register_skill(skill_config)
-                self.logger.info(f"注册技能成功：{skill_id}")
+                # 兼容两种 registry 实现：
+                # 1. registry.py: register_skill(name, description, author, version, parameters)
+                # 2. registry_memory.py: register_skill(skill_config)
+                try:
+                    # 尝试使用分开参数的方式（registry.py）
+                    registry.register_skill(
+                        name=skill_config.get('name', skill_id),
+                        description=skill_config.get('description', ''),
+                        author=skill_config.get('author', ''),
+                        version=skill_config.get('version', '1.0.0'),
+                        parameters=skill_config.get('parameters')
+                    )
+                    self.logger.info(f"注册技能成功：{skill_id}")
+                except TypeError:
+                    # 如果失败，使用字典方式（registry_memory.py）
+                    registry.register_skill(skill_config)
+                    self.logger.info(f"注册技能成功：{skill_id}")
             else:
                 self.logger.error(f"Registry 对象没有 register_skill 方法")
                 return False
@@ -128,10 +176,17 @@ class SkillLoader:
         skill_dirs = []
 
         self.logger.info(f"开始扫描技能目录，内置技能目录: {self.builtin_skills_dir}, 用户技能目录: {self.user_skills_dir}")
-
         # 扫描内置技能目录
-        for skills_path in [self.builtin_skills_dir, self.user_skills_dir]:
+        workspace_skills_dir = f"{get_workspace_path()}/.lingxi/skills"
+        for skills_path in [self.builtin_skills_dir, self.user_skills_dir, workspace_skills_dir]:
             try:
+                # ========== 修复：适配打包后的路径 ==========
+                # 处理打包后相对路径的问题
+                if getattr(sys, 'frozen', False):
+                    # 打包后，基于EXE所在目录构建绝对路径
+                    exe_dir = os.path.dirname(sys.executable)
+                    skills_path = os.path.join(exe_dir, skills_path)
+                
                 skills_path_obj = Path(skills_path)
                 self.logger.info(f"扫描技能目录: {skills_path}, 存在: {skills_path_obj.exists()}")
                 if not skills_path_obj.exists():
@@ -216,6 +271,14 @@ class SkillLoader:
                         self.logger.debug(f"SKILL.md 内容已缓存：{skill_id}")
                 except Exception as e:
                     self.logger.warning(f"读取 SKILL.md 内容失败：{e}")
+                
+                # 缓存技能目录下的所有文件
+                if self.cache:
+                    try:
+                        cached_count = self.cache.cache_skill_files(skill_id, skill_dir)
+                        self.logger.debug(f"技能文件已缓存：{skill_id} ({cached_count} 个文件)")
+                    except Exception as e:
+                        self.logger.warning(f"缓存技能文件失败：{e}")
             
             return config
         
@@ -285,35 +348,8 @@ class SkillLoader:
             self.logger.error(f"加载 SKILL.md 失败：{e}")
             return None
     
-    def _parse_parameters(self, input_schema: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """解析输入参数配置
-
-        Args:
-            input_schema: 输入参数模式
-
-        Returns:
-            参数列表
-        """
-        parameters = []
-
-        if not input_schema:
-            return parameters
-
-        properties = input_schema.get("properties", {})
-        required_fields = input_schema.get("required", [])
-
-        for param_name, param_config in properties.items():
-            parameters.append({
-                "name": param_name,
-                "type": param_config.get("type", "string"),
-                "required": param_name in required_fields,
-                "description": param_config.get("description", "")
-            })
-
-        return parameters
-
     def _load_local_skill_module(self, skill_dir: str, skill_id: str):
-        """加载本地技能模块
+        """加载本地技能模块（适配打包后的Python环境）
 
         Args:
             skill_dir: 技能目录路径
@@ -334,11 +370,18 @@ class SkillLoader:
             return
 
         try:
+            # ========== 修复：适配打包环境的模块加载 ==========
+            # 方案1：优先使用importlib（保持原有逻辑，但添加路径修复）
             module_name = f"skill_{skill_id.replace('.', '_')}"
 
+            # 将技能目录添加到Python路径
+            sys.path.insert(0, skill_dir)
+            
             spec = importlib.util.spec_from_file_location(module_name, main_py_path)
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
+                # 修复：设置模块的__file__属性为绝对路径
+                module.__file__ = main_py_path
                 spec.loader.exec_module(module)
 
                 self.loaded_modules[skill_id] = module
@@ -352,12 +395,26 @@ class SkillLoader:
                     self.logger.debug(f"本地技能初始化函数已调用: {skill_id}")
 
                 self.logger.debug(f"本地技能模块加载成功: {skill_id}")
+            else:
+                # 方案2：如果importlib加载失败，使用内置Python解释器执行
+                self.logger.warning(f"importlib加载失败，使用subprocess执行: {skill_id}")
+                self.loaded_modules[skill_id] = {
+                    'type': 'external',
+                    'path': main_py_path,
+                    'skill_dir': skill_dir
+                }
 
         except Exception as e:
             self.logger.error(f"加载本地技能模块失败 {skill_id}: {e}")
+            # 降级方案：记录为外部执行模式
+            self.loaded_modules[skill_id] = {
+                'type': 'external',
+                'path': main_py_path,
+                'skill_dir': skill_dir
+            }
 
     def execute_local_skill(self, skill_id: str, parameters: Dict[str, Any]) -> str:
-        """执行本地技能（统一处理所有MCP格式技能）
+        """执行本地技能（适配打包后的Python环境，统一处理所有MCP格式技能）
 
         Args:
             skill_id: 技能ID
@@ -377,18 +434,67 @@ class SkillLoader:
         module = self.loaded_modules[skill_id]
 
         try:
-            if hasattr(module, "execute"):
-                result = module.execute(parameters)
+            # ========== 修复：支持两种执行模式 ==========
+            # 模式1：已加载的Python模块（原有逻辑）
+            if isinstance(module, type(sys)):  # 判断是否是模块对象
+                if hasattr(module, "execute"):
+                    result = module.execute(parameters)
 
-                if isinstance(result, dict):
-                    if result.get("success"):
-                        return result.get("result", "")
+                    if isinstance(result, dict):
+                        if result.get("success"):
+                            return result.get("result", "")
+                        else:
+                            return result.get("error", "技能执行失败")
                     else:
-                        return result.get("error", "技能执行失败")
+                        return str(result)
                 else:
-                    return str(result)
+                    return f"错误: 技能模块缺少execute函数: {skill_id}"
+            
+            # 模式2：外部执行模式（使用内置Python解释器）
+            elif isinstance(module, dict) and module.get('type') == 'external':
+                main_py_path = module.get('path')
+                if not main_py_path or not os.path.exists(main_py_path):
+                    return f"错误: 技能文件不存在: {main_py_path}"
+                
+                # 将参数写入临时JSON文件（传递给外部脚本）
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+                    json.dump(parameters, f)
+                    params_file = f.name
+                
+                # 使用内置Python解释器执行脚本
+                cmd = [
+                    self.python_interpreter,
+                    main_py_path,
+                    '--params', params_file
+                ]
+                
+                self.logger.debug(f"执行外部技能: {' '.join(cmd)}")
+                
+                result = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    encoding="utf-8",
+                    cwd=module.get('skill_dir'),
+                    timeout=300  # 5分钟超时
+                )
+                
+                # 删除临时参数文件
+                try:
+                    os.unlink(params_file)
+                except:
+                    pass
+                
+                if result.returncode == 0:
+                    return result.stdout.strip()
+                else:
+                    error_msg = f"技能执行失败 (返回码: {result.returncode}): {result.stderr.strip()}"
+                    self.logger.error(error_msg)
+                    return error_msg
+            
             else:
-                return f"错误: 技能模块缺少execute函数: {skill_id}"
+                return f"错误: 不支持的技能模块类型: {skill_id}"
 
         except Exception as e:
             self.logger.error(f"执行技能失败 {skill_id}: {e}")
@@ -414,7 +520,7 @@ class SkillLoader:
             if key in path_params and isinstance(value, str):
                 # 如果是相对路径，转换为基于工作目录的绝对路径
                 if not Path(value).is_absolute():
-                    workspace_root = self.sandbox.get_workspace_root()
+                    workspace_root = self.sandbox.get_workspace_root() if self.sandbox else Path.cwd()
                     normalized_value = str(workspace_root / value)
                     self.logger.debug(f"路径转换: {skill_id}.{key}: {value} -> {normalized_value}")
                     normalized[key] = normalized_value
@@ -451,7 +557,12 @@ class SkillLoader:
             self.logger.debug(f"开始安装技能: {skill_source}")
 
             target_dir_name = skill_name if skill_name else source_path.name
-            target_dir = Path(self.user_skills_dir).resolve() / target_dir_name
+            # ========== 修复：适配打包后的目标路径 ==========
+            if getattr(sys, 'frozen', False):
+                exe_dir = os.path.dirname(sys.executable)
+                target_dir = Path(exe_dir).resolve() / self.user_skills_dir / target_dir_name
+            else:
+                target_dir = Path(self.user_skills_dir).resolve() / target_dir_name
 
             if target_dir.exists():
                 if not overwrite:

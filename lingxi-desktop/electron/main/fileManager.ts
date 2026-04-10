@@ -81,7 +81,6 @@ export class FileManager {
 
   validateFilePath(filePath: string): boolean {
     try {
-      const path = require('path')
       const resolvedPath = path.resolve(filePath)
       return !resolvedPath.includes('..')
     } catch {

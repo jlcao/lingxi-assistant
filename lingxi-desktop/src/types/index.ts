@@ -11,12 +11,36 @@ export interface ApiResponse<T> {
 export interface Session {
   id: string
   name: string
-  createdAt: number
-  updatedAt: number
+  createdAt?: number
+  updatedAt?: number
   userName?: string
-  hasCheckpoint: boolean
-  checkpointCount: number
+  hasCheckpoint?: boolean
+  checkpointCount?: number
   checkpointExpiry?: number
+  currentTaskId?: string | null
+  tasks?: Task[]
+  isTaskRunning?: boolean
+  sessionId?: string
+  title?: string
+  taskCount?: number
+  firstMessage?: string
+}
+
+export interface Task {
+  taskId: string
+  task_type?: 'simple' | 'complex' | 'trivial'
+  user_input?: string
+  status: 'running' | 'completed' | 'failed' | 'paused' | 'stopped'
+  current_step_idx?: number
+  total_steps?: number
+  created_at?: string
+  createdAt?: number
+  updatedAt?: number
+  steps?: Step[]
+  planThinking?: boolean
+  planThinkingContent?: string
+  plan?: string
+  result?: string
 }
 
 export interface HistoryResponse {
@@ -142,13 +166,14 @@ export interface Step {
   step_id: UUID
   step_index: number
   step_type: 'thinking' | 'action'
-  description: string
-  thought: string
-  result: string
-  skill_call: string | null
-  status: 'completed' | 'failed' | 'running'
+  description?: string
+  thought?: string
+  result?: string
+  skill_call?: string | null
+  status?: 'completed' | 'failed' | 'running'
   result_description?: string
-  created_at: DateTime
+  created_at?: DateTime
+  isThinking?: boolean
 }
 
 export interface Checkpoint {
@@ -374,4 +399,73 @@ export interface WorkspaceFilesChangedEvent {
   session_id?: string
   task_id?: string
   changes: FileChange[]
+}
+
+export interface TaskStartData {
+  sessionId: string
+  taskId: string
+  taskInfo?: any
+}
+
+export interface TaskEndData {
+  sessionId: string
+  taskId: string
+  result: string
+  taskInfo?: any
+}
+
+export interface TaskFailedData {
+  sessionId: string
+  taskId: string
+  error: string
+  taskInfo?: any
+}
+
+export interface StepStartData {
+  sessionId: string
+  taskId: string
+  stepIndex: number
+  stepInfo: Step
+}
+
+export interface StepEndData {
+  sessionId: string
+  taskId: string
+  stepIndex: number
+  stepInfo: Step
+}
+
+export interface ThinkStartData {
+  sessionId: string
+  taskId: string
+  stepIndex?: number
+  taskInfo?: any
+  stepInfo?: any
+}
+
+export interface ThinkStreamData {
+  sessionId: string
+  taskId: string
+  stepIndex?: number
+  content: string
+}
+
+export interface ThinkFinalData {
+  sessionId: string
+  taskId: string
+  stepIndex?: number
+  content?: string
+  taskInfo?: any
+}
+
+export interface PlanStartData {
+  sessionId: string
+  taskId: string
+  title: string
+}
+
+export interface PlanFinalData {
+  sessionId: string
+  taskId: string
+  plan: string
 }

@@ -62,7 +62,7 @@ class SubAgentScheduler:
     def __init__(
         self,
         session_manager,
-        skill_caller,
+        action_caller,
         config: Dict[str, Any]
     ):
         """
@@ -70,11 +70,11 @@ class SubAgentScheduler:
         
         Args:
             session_manager: SessionManager 实例（复用现有）
-            skill_caller: SkillCaller 实例（复用现有）
+            action_caller: ActionCaller 实例（复用现有）
             config: 系统配置
         """
         self.session_manager = session_manager
-        self.skill_caller = skill_caller
+        self.action_caller = action_caller
         self.config = config
         self.active_tasks: Dict[str, SubAgentTask] = {}
         self.max_concurrent = config.get("max_concurrent", 5)

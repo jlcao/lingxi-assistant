@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from lingxi.utils.config import load_config
 from lingxi.utils.logging import setup_logging
 from lingxi.utils.uvicorn_logging_fix import patch_uvicorn_logging
-from lingxi.web.routes import tasks, checkpoints, skills, config as config_router, sessions, workspace, chat
+from lingxi.web.routes import tasks, checkpoints, skills, config as config_router, sessions, workspace
 from lingxi.web.state import set_assistant, get_assistant, get_websocket_manager
 from lingxi.core.event.SessionStore_subscriber import SessionStoreSubscriber
 from lingxi.core.assistant.async_main import AsyncLingxiAssistant
@@ -43,7 +43,7 @@ app.include_router(skills.router, prefix="/api", tags=["skills"])
 app.include_router(config_router.router, prefix="/api", tags=["config"])
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(workspace.router, prefix="/api", tags=["workspace"])
-app.include_router(chat.router)
+
 
 # 可选的 resources 路由（如果 psutil 可用）
 try:
@@ -73,16 +73,16 @@ async def startup_event():
     else:
         logger.info("使用已初始化的助手实例")
         # 修复：确保现有实例的资源引用已完整设置
-        if hasattr(assistant, 'skill_caller') and hasattr(assistant.skill_caller, 'workspace_manager'):
-            workspace_manager = assistant.skill_caller.workspace_manager
+        if hasattr(assistant, 'action_caller') and hasattr(assistant.action_caller, 'workspace_manager'):
+            workspace_manager = assistant.action_caller.workspace_manager
             if workspace_manager:
                 workspace_manager.set_resources(
-                    sandbox=assistant.skill_caller.sandbox,
-                    skill_caller=assistant.skill_caller,
-                    skill_system=assistant.skill_caller.skill_system if hasattr(assistant.skill_caller, 'skill_system') else None,
+                    sandbox=assistant.action_caller.sandbox,
+                    action_caller=assistant.action_caller,
+                    skill_system=assistant.action_caller.skill_system if hasattr(assistant.action_caller, 'skill_system') else None,
                     session_store=assistant.session_manager if hasattr(assistant, 'session_manager') else None
                 )
-                logger.info("已修复现有实例的 workspace_manager 资源引用（sandbox、skill_caller、skill_system、session_store）")
+                logger.info("已修复现有实例的 workspace_manager 资源引用（sandbox、action_caller、skill_system、session_store）")
         
         # 确保会话存储订阅者已初始化
         assistant.init_session_store_subscriber()

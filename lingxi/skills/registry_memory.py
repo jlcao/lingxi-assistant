@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """技能注册表（纯内存版本）"""
 
-import os
-import json
 import logging
-import yaml
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
@@ -19,6 +16,7 @@ class SkillRegistry:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
+    
     def __init__(self, config: Dict[str, Any]):
         """初始化技能注册表
 
@@ -27,41 +25,12 @@ class SkillRegistry:
         """
         self.logger = logging.getLogger(__name__)
 
-        # 技能配置文件路径（存储启用/禁用状态）
-        self.config_path = config.get("skills", {}).get("config_path", "data/skills_config.json")
-
         # 技能缓存
         self.skill_cache: Dict[str, Dict[str, Any]] = {}
 
-        # 加载技能配置
-        #self._load_config()
-
-        self.logger.debug(f"初始化技能注册表（纯内存版本）: {self.config_path}")
+        self.logger.debug("初始化技能注册表（纯内存版本）")
         
-        self._initialized = True 
-
-    def _load_config(self):
-        """加载技能配置文件"""
-        if os.path.exists(self.config_path):
-            try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    self.skill_cache = config.get("skills", {})
-                self.logger.debug(f"加载技能配置: {len(self.skill_cache)} 个技能")
-            except Exception as e:
-                self.logger.error(f"加载技能配置失败: {e}")
-                self.skill_cache = {}
-        else:
-            self.skill_cache = {}
-
-    def _save_config(self):
-        """保存技能配置文件"""
-        try:
-            os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump({"skills": self.skill_cache}, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            self.logger.error(f"保存技能配置失败: {e}")
+        self._initialized = True
 
     def register_skill(self, skill_config: Dict[str, Any]) -> bool:
         """注册技能
@@ -94,7 +63,6 @@ class SkillRegistry:
                 "config": skill_config  # 保存完整配置
             }
 
-            self._save_config()
             self.logger.debug(f"注册技能: {skill_id}")
             return True
 
@@ -114,7 +82,6 @@ class SkillRegistry:
         try:
             if name in self.skill_cache:
                 del self.skill_cache[name]
-                self._save_config()
                 self.logger.debug(f"注销技能: {name}")
                 return True
             else:
@@ -137,7 +104,6 @@ class SkillRegistry:
         try:
             if name in self.skill_cache:
                 self.skill_cache[name]["enabled"] = enabled
-                self._save_config()
                 self.logger.debug(f"{'启用' if enabled else '禁用'}技能: {name}")
                 return True
             else:
@@ -198,48 +164,24 @@ class SkillRegistry:
             ]
     
     def register_skill_from_dir(self, skill_dir: Path, source: str = "global"):
-        """从目录注册技能
+        """从目录注册技能（纯存储，不加载模块）
         
         Args:
             skill_dir: 技能目录
             source: 技能来源（global/workspace）
         """
-        import importlib.util
-        
-        if not (skill_dir / "main.py").exists():
-            raise ValueError(f"技能目录缺少 main.py: {skill_dir}")
-        
-        # 加载技能模块
-        spec = importlib.util.spec_from_file_location(
-            f"skill_{skill_dir.name}",
-            skill_dir / "main.py"
-        )
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        
-        # 获取技能信息
-        if hasattr(module, 'get_skill_info'):
-            skill_info = module.get_skill_info()
-            skill_info['source'] = source
-            skill_info['path'] = str(skill_dir)
-            skill_info['enabled'] = True
-            
-            self.skill_cache[skill_info['name']] = skill_info
-            self.logger.info(f"注册技能：{skill_info['name']} (source={source})")
-        else:
-            # 如果没有 get_skill_info，使用默认信息
-            skill_info = {
-                "name": skill_dir.name,
-                "skill_id": skill_dir.name,
-                "description": f"技能：{skill_dir.name}",
-                "source": source,
-                "path": str(skill_dir),
-                "enabled": True,
-                "version": "1.0.0",
-                "author": ""
-            }
-            self.skill_cache[skill_dir.name] = skill_info
-            self.logger.info(f"注册技能：{skill_dir.name} (source={source})")
+        skill_info = {
+            "name": skill_dir.name,
+            "skill_id": skill_dir.name,
+            "description": f"技能：{skill_dir.name}",
+            "source": source,
+            "path": str(skill_dir),
+            "enabled": True,
+            "version": "1.0.0",
+            "author": ""
+        }
+        self.skill_cache[skill_dir.name] = skill_info
+        self.logger.info(f"注册技能：{skill_dir.name} (source={source})")
     
     def unregister_workspace_skills(self):
         """注销工作目录级别的技能"""

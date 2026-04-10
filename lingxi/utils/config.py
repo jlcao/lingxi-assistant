@@ -23,19 +23,19 @@ DEFAULT_CONFIG = {
         "base_url": "https://coding.dashscope.aliyuncs.com/v1",
         "model": "qwen3.5-plus",
         "temperature": 0.7,
-        "max_tokens": 2048,
+        "max_tokens": 10000,
         "timeout": 30,
         "provider": "openai" ,
         "temperature": 0.7,
         "timeout": 300,
         "models": {
             "complex": {
-                "max_tokens": 32000 ,  
+                "max_tokens": 10000 ,  
                 "model": "qwen3.5-plus",
                 "temperature": 0.7
             },
             "simple": {
-                "max_tokens": 32000,
+                "max_tokens": 10000,
                 "model": "qwen3.5-plus",
                 "temperature": 0.7
             }
@@ -76,6 +76,24 @@ DEFAULT_CONFIG = {
         "default": "react",
         "max_steps": 50,
         "timeout": 60
+    },
+    "context_management": {
+        "token_budget": {
+            "max_tokens": 100000,
+            "compression_trigger": 0.7,
+            "critical_threshold": 0.9
+        },
+        "retention": {
+            "user_input_keep_turns": 10,
+            "tool_result_keep_turns": 5,
+            "task_boundary_archive": True
+        },
+        "compression": {
+            "strategy": "hybrid",
+            "summary_ratio": 0.3,
+            "enable_llm_summary": True,
+            "preserve_entities": True
+        }
     },
     "security": {
         "sandbox": {
@@ -175,10 +193,10 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
             logger.error(f"加载项目配置文件失败：{e}")
     else:
         logger.warning("未找到项目配置文件")
-    
+
     # 2. 加载用户目录配置 (~/.lingxi/conf/config.yml)
     user_config_path = GLOBAL_LINGXI_DIR / "conf" / "config.yml"
-    
+
     if user_config_path.exists():
         logger.info(f"加载用户目录配置：{user_config_path}")
         try:
@@ -197,10 +215,10 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
             logger.info(f"默认配置已成功写入：{user_config_path}")
         except Exception as e:
             logger.error(f"初始化用户目录配置失败：{e}")
-    
+
     # 3. 加载工作目录配置 (.lingxi/conf/config.yml)
     workspace_config_path = Path.cwd() / ".lingxi" / "conf" / "config.yml"
-    
+
     if workspace_config_path.exists():
         logger.info(f"加载工作目录配置：{workspace_config_path}")
         try:
@@ -210,6 +228,12 @@ def load_config(config_path: str = None, initial_config: Dict[str, Any] = None) 
                     config = _merge_configs(config, workspace_config)
         except Exception as e:
             logger.error(f"加载工作目录配置失败：{e}")
+
+    # 打印最终使用的配置路径
+    logger.info("配置加载完成，使用的配置路径优先级：")
+    logger.info(f"1. 项目配置文件：{'已加载' if config_path and os.path.exists(config_path) else '未找到'}")
+    logger.info(f"2. 用户目录配置：{'已加载' if user_config_path.exists() else '未找到'}")
+    logger.info(f"3. 工作目录配置：{'已加载' if workspace_config_path.exists() else '未找到'}")
     
     # 4. 合并初始配置（如果提供）
     if initial_config:
@@ -348,7 +372,7 @@ def _ensure_directories(config: Dict[str, Any]):
     if getattr(sys, 'frozen', False):
         # 打包后的应用，技能目录在 resources/app.asar.unpacked/lingxi/skills/builtin
         try:
-            bundled_skills_dir = Path(sys.executable).parent / "resources" / "app.asar.unpacked" / "lingxi" / "skills" / "builtin"
+            bundled_skills_dir = Path(sys.executable).parent / "resources" / "backend" / "_internal" / "lingxi" / "skills" / "builtin"
             if not bundled_skills_dir.exists():
                 # 尝试另一个可能的路径
                 bundled_skills_dir = Path(sys.executable).parent / "resources" / "app.asar" / "lingxi" / "skills" / "builtin"

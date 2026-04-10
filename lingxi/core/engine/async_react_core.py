@@ -6,12 +6,11 @@
 import json
 import logging
 import time
-from turtle import st
 from typing import Dict, List, Optional, Any, Union
 from collections.abc import AsyncGenerator
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
-from lingxi.core.context.task_context import TaskContext
+from lingxi.core.context.task_context import TaskContext, TaskStoppedException
 from lingxi.core.llm.async_llm_client import AsyncLLMClient
 from lingxi.core.session.session_models import Step
 from .base import BaseEngine
@@ -21,16 +20,16 @@ from lingxi.utils.config import get_workspace_path
 class AsyncReActCore(BaseEngine):
     """异步 ReAct 引擎核心逻辑"""
 
-    def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager=None, websocket_manager=None):
+    def __init__(self, config: Dict[str, Any], action_caller=None, session_manager=None, websocket_manager=None):
         """初始化异步 ReAct 核心
 
         Args:
             config: 系统配置
-            skill_caller: 技能调用器
+            action_caller: 行动调用器
             session_manager: 会话管理器
             websocket_manager: WebSocket 管理器
         """
-        super().__init__(config, skill_caller, session_manager, websocket_manager)
+        super().__init__(config, action_caller, session_manager, websocket_manager)
 
         self.max_steps = int(config.get("engine", {}).get("max_steps", 50))
         self.timeout = int(config.get("engine", {}).get("timeout", 60))
@@ -62,7 +61,7 @@ class AsyncReActCore(BaseEngine):
             消息列表
         """
         # 获取可用技能列表
-        available_skills = self.skill_caller.list_available_skills(enabled_only=True) if self.skill_caller else []
+        available_skills = self.action_caller.list_available_skills(enabled_only=True) if self.action_caller else []
         skills_list = PromptTemplates.format_skills_list(available_skills)
 
         # 获取系统信息
@@ -227,11 +226,103 @@ class AsyncReActCore(BaseEngine):
             self.logger.error(f"LLM 流式响应失败：{e}", exc_info=True)
             raise
 
+    def _extract_json_fields(self, text: str) -> Optional[Dict[str, Any]]:
+        """使用正则表达式从文本中提取JSON字段（处理格式不正确的JSON）"""
+        import re
+        import json
+        result = {}
+
+        # 提取 thought 字段（支持多行和包含引号的内容）
+        thought_start = text.find('"thought"')
+        if thought_start != -1:
+            colon_pos = text.find(':', thought_start)
+            if colon_pos != -1:
+                first_quote = text.find('"', colon_pos)
+                if first_quote != -1:
+                    i = first_quote + 1
+                    escape_next = False
+                    while i < len(text):
+                        char = text[i]
+                        if escape_next:
+                            escape_next = False
+                            i += 1
+                            continue
+                        if char == '\\':
+                            escape_next = True
+                            i += 1
+                            continue
+                        if char == '"':
+                            thought_value = text[first_quote + 1:i]
+                            thought_value = thought_value.replace('\\n', '\n').replace('\\t', '\t').replace('\\r', '\r')
+                            result['thought'] = thought_value
+                            break
+                        i += 1
+
+        # 提取 description 字段
+        desc_match = re.search(r'"description"\s*:\s*"([^"]*)"', text)
+        if desc_match:
+            result['description'] = desc_match.group(1)
+
+        # 提取 action 字段
+        action_match = re.search(r'"action"\s*:\s*"([^"]*)"', text)
+        if action_match:
+            result['action'] = action_match.group(1)
+
+        # 提取 action_type 字段
+        action_type_match = re.search(r'"action_type"\s*:\s*"([^"]*)"', text)
+        if action_type_match:
+            result['action_type'] = action_type_match.group(1)
+
+        # 提取 action_input 字段
+        action_input_start = text.find('"action_input"')
+        if action_input_start != -1:
+            colon_pos = text.find(':', action_input_start)
+            if colon_pos != -1:
+                i = colon_pos + 1
+                while i < len(text) and text[i].isspace():
+                    i += 1
+
+                if i < len(text):
+                    if text[i] == '{':
+                        brace_count = 1
+                        j = i + 1
+                        while j < len(text) and brace_count > 0:
+                            if text[j] == '{':
+                                brace_count += 1
+                            elif text[j] == '}':
+                                brace_count -= 1
+                            j += 1
+
+                        action_input_str = text[i:j]
+                        try:
+                            action_input = json.loads(action_input_str)
+                            result['action_input'] = action_input
+                        except json.JSONDecodeError:
+                            action_input = {}
+                            cwd_match = re.search(r'"cwd"\s*:\s*"([^"]*)"', action_input_str)
+                            if cwd_match:
+                                action_input['cwd'] = cwd_match.group(1)
+                            command_match = re.search(r'"command"\s*:\s*"([^"]*)"', action_input_str)
+                            if command_match:
+                                command = command_match.group(1)
+                                command = command.replace('\\n', '\n').replace('\\t', '\t')
+                                action_input['command'] = command
+                            shell_type_match = re.search(r'"shell_type"\s*:\s*"([^"]*)"', action_input_str)
+                            if shell_type_match:
+                                action_input['shell_type'] = shell_type_match.group(1)
+                            result['action_input'] = action_input
+                    elif text[i] == '"':
+                        second_quote = text.find('"', i + 1)
+                        if second_quote != -1:
+                            result['action_input'] = text[i + 1:second_quote]
+
+        return result if result else None
+
     def _parse_response(self, response: str) -> Optional[Dict[str, Any]]:
         """解析 LLM 响应（支持 JSON 和文本两种格式）"""
         import json
         import re
-        
+
         if not response:
             return None
 
@@ -264,9 +355,14 @@ class AsyncReActCore(BaseEngine):
                             return parsed
                         except Exception as aggressive_error:
                             self.logger.error(f"激进清理后仍然失败：{aggressive_error}")
+                            # 尝试使用正则表达式提取字段
+                            self.logger.debug("尝试使用正则表达式提取JSON字段")
+                            extracted = self._extract_json_fields(response)
+                            if extracted:
+                                return extracted
                             raise e
         except Exception as e:
-            self.logger.error(f"JSON 格式解析失败：{e}，尝试文本格式",e, exc_info=True)
+            self.logger.error(f"JSON 格式解析失败：{e}，尝试文本格式", exc_info=True)
             return {"status": "error", "message": str(e)}
 
     async def _execute_step(    
@@ -315,18 +411,34 @@ class AsyncReActCore(BaseEngine):
         full_response = ""
         usage = None
         self._publish_think_start(context, step_index, "")
-        async for response_chunk in self._process_llm_response(messages, task_level, stream, thinking_mode):
-            chunk_type = response_chunk["type"]
-            
-            if chunk_type == "thought_chunk":
-                content = response_chunk["content"]
-                self._publish_think_stream(context, step_index, content)
-                yield response_chunk
-            elif chunk_type == "complete":
-                full_response = response_chunk["response"]
-                usage = response_chunk.get("usage")
-                self.logger.debug(f"收到完整响应，长度：{len(full_response) if full_response else 0}")
-                break
+        try:
+            async for response_chunk in self._process_llm_response(messages, task_level, stream, thinking_mode):
+                # 检查终止
+                context.check_stopped()
+                
+                chunk_type = response_chunk["type"]
+                
+                if chunk_type == "thought_chunk":
+                    content = response_chunk["content"]
+                    self._publish_think_stream(context, step_index, content)
+                    yield response_chunk
+                elif chunk_type == "complete":
+                    full_response = response_chunk["response"]
+                    usage = response_chunk.get("usage")
+                    self.logger.debug(f"收到完整响应，长度：{len(full_response) if full_response else 0}")
+                    break
+        except TaskStoppedException as e:
+            raise
+        except Exception as e:
+            self.logger.error(f"处理LLM响应时出错：{e}", exc_info=True)
+            step.status = "failed"
+            step.error = str(e)
+            step.result = str(e)
+            step.description = str(e)
+            self._publish_step_end(context, step_index)
+            self._publish_task_failed(context, str(e))
+            yield {"parsed": None, "usage": None}
+            raise
         
         parsed = self._parse_response(full_response)
         self._publish_think_end(context, step_index, parsed.get("thought", "") if parsed else "")
@@ -401,10 +513,16 @@ class AsyncReActCore(BaseEngine):
         messages = self._build_initial_messages(context, history_context)
         step_index = 0
         for step in range(self.max_steps):
+            # 检查是否已终止
+            context.check_stopped()
+            
             self.logger.debug(f"步骤 {step + 1}/{self.max_steps}")
             step_index = step + 1
             step_result = []
             async for chunk in self._execute_step(step_index, messages, task_level, context):
+                # 在执行步骤期间也检查
+                context.check_stopped()
+                
                 if(chunk.get("parsed") is not None):
                     step_result = chunk
                 else:

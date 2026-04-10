@@ -47,6 +47,7 @@ class ReadSkillTool(ToolBase):
         Args:
             parameters: 工具参数，包含:
                 - skill_name: 技能名称（必填）
+                - file_path: 文件相对路径（可填，为 None 时默认读SKILL.md）
             
         Returns:
             执行结果字典，格式：
@@ -56,7 +57,8 @@ class ReadSkillTool(ToolBase):
                 "error": ""  # 错误信息（成功时为空）
             }
         """
-        skill_name = parameters.get("skill_name")
+        skill_name = parameters.get("skill_name") #技能名称
+        file_path = parameters.get("file_path") #文件相对路径
         
         result = {
             "status": "F",
@@ -69,18 +71,18 @@ class ReadSkillTool(ToolBase):
             result["error"] = "缺少必要参数: skill_name"
             return result
         
-        if not self.skill_system:
-            result["error"] = "SkillSystem 未设置，无法读取技能"
-            return result
+        if file_path is None:
+            file_path = f"SKILL.md"
+            
         
         # 从 SkillSystem 的缓存中读取 SKILL.md 内容
         skill_cache = self.skill_system.cache
-        self.logger.debug(f"尝试读取 SKILL.md，skill_name={skill_name}, skill_system={self.skill_system}, cache={skill_cache}")
+        self.logger.debug(f"尝试读取 {file_path}，skill_name={skill_name}, skill_system={self.skill_system}, cache={skill_cache}")
         if skill_cache:
-            cached_content = skill_cache.get_md_content(skill_name)
-            self.logger.debug(f"get_md_content 返回结果：{cached_content}")
+            cached_content = skill_cache.get_file_content(skill_name, file_path)
+            self.logger.debug(f"get_file_content 返回结果：{cached_content}")
             if cached_content:
-                self.logger.info(f"从缓存读取 SKILL.md：{skill_name}")
+                self.logger.info(f"从缓存读取 {file_path}：{skill_name}")
                 result["status"] = "S"
                 result["content"] = cached_content
                 return result
@@ -92,7 +94,7 @@ class ReadSkillTool(ToolBase):
             self.logger.info(f"从文件系统加载 SKILL.md：{skill_name}")
             # 重新缓存
             if skill_cache:
-                skill_md_path = self._find_skill_md_path(skill_name)
+                skill_md_path = self._find_skill_file_path(skill_name)
                 if skill_md_path:
                     skill_cache.set_md_content(skill_name, content, skill_md_path)
             result["status"] = "S"
@@ -100,18 +102,19 @@ class ReadSkillTool(ToolBase):
             return result
         
         # 如果文件系统中也没有，返回错误
-        self.logger.warning(f"缓存和文件系统中均未找到 SKILL.md：{skill_name}")
-        result["error"] = f"缓存中未找到 SKILL.md：{skill_name}"
+        self.logger.warning(f"缓存和文件系统中均未找到 {file_path}：{skill_name}")
+        result["error"] = f"缓存中未找到 {file_path}：{skill_name}"
         return result
     
-    def _find_skill_md_path(self, skill_name: str) -> Optional[str]:
-        """查找技能的 SKILL.md 文件路径
+    def _find_skill_file_path(self, skill_name: str, file_path: str = "SKILL.md") -> Optional[str]:
+        """查找技能的文件路径
         
         Args:
             skill_name: 技能名称
+            file_path: 文件相对路径，默认为 SKILL.md
             
         Returns:
-            SKILL.md 文件路径，如果未找到返回 None
+            文件路径，如果未找到返回 None
         """
         # 获取技能目录配置
         skills_config = self.skill_system.loader
@@ -124,32 +127,33 @@ class ReadSkillTool(ToolBase):
                 continue
             try:
                 skill_dir = Path(skills_path) / skill_name
-                skill_md_path = skill_dir / "SKILL.md"
-                if skill_md_path.exists():
-                    return str(skill_md_path)
+                skill_file_path = skill_dir / file_path
+                if skill_file_path.exists():
+                    return str(skill_file_path)
             except Exception:
                 continue
         
         return None
     
-    def _load_from_filesystem(self, skill_name: str) -> Optional[str]:
-        """从文件系统加载 SKILL.md 内容
+    def _load_from_filesystem(self, skill_name: str, file_path: str = "SKILL.md") -> Optional[str]:
+        """从文件系统加载指定文件内容
         
         Args:
             skill_name: 技能名称
+            file_path: 文件相对路径，默认为 SKILL.md
             
         Returns:
-            SKILL.md 内容，如果未找到返回 None
+            文件内容，如果未找到返回 None
         """
-        skill_md_path = self._find_skill_md_path(skill_name)
-        if not skill_md_path:
+        skill_file_path = self._find_skill_file_path(skill_name, file_path)
+        if not skill_file_path:
             return None
         
         try:
-            with open(skill_md_path, 'r', encoding='utf-8') as f:
+            with open(skill_file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
-            self.logger.error(f"读取 SKILL.md 失败：{e}")
+            self.logger.error(f"读取文件失败：{e}")
             return None
     
     def validate_parameters(self, parameters: Dict[str, Any]) -> Optional[str]:

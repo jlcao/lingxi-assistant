@@ -249,7 +249,7 @@ class PromptTemplates:
 ## 系统工具
 file : 用于对本地文本文件进行安全、可控的读取/删除/创建/改操作，支持整文件/行级两种粒度，带文件大小安全限制 
 execute : 用于执行shell命令，支持powershell、bash等多种shell类型
-read_skill : 用于读取技能的详细使用说明
+read_skill : 用于读取技能的详细使用说明，默认读取 SKILL.md 文件，可指定该技能下面的其它文件读取，传入 file_path 参数即可
 
 ## 工具调用示例
 - file 工具调用示例
@@ -281,7 +281,8 @@ read_skill : 用于读取技能的详细使用说明
 
 ```json
 {{
-  "skill_name": "技能名称，字符串，必填"
+  "skill_name": "技能名称，字符串，必填",
+  "file_path": "文件相对路径，字符串，可填，默认 SKILL.md"
 }}
 ```
 
@@ -315,7 +316,7 @@ qwen3.5-plus
 {{"thought": "用户要求创建 test.txt 文件并写入内容", "description": "创建文件", "action": "file","action_type":"tool", "action_input": {{"file_path": "test.txt","operation_type": "create", "content": "hello world!!!"}}}}
 {{"thought": "用户要求读取 data.txt 前5行文件", "description": "读取文件", "action": "file","action_type":"tool", "action_input": {{"file_path": "data.txt","operation_type": "read", "operate_scope": "line", "line_params": {{"start_line": 1, "end_line": 5}}}}}}
 {{"thought": "用户要求读取 data.txt 前5行文件包含 python 关键词的行内容，返回行内容", "description": "读取文件", "action": "file","action_type":"tool", "action_input": {{"file_path": "data.txt","operation_type": "read", "operate_scope": "line", "line_params": {{"filter_rule": "python","start_line": 1, "end_line": 50}}}}}}
-{{"thought": "我需要查看技能的详细使用说明", "description": "加载技能说明", "action": "read_skill","action_type":"tool", "action_input": {{"skill_name": "xlsx"}}}}
+{{"thought": "我需要查看技能的详细使用说明", "description": "加载技能说明文件", "action": "read_skill","action_type":"tool", "action_input": {{"skill_name": "xlsx","file_path": "SKILL.md"}}}}
 {{"thought": "用户要求分析 Excel 文件", "description": "分析 Excel", "action": "xlsx","action_type":"skill", "action_input": {{"file_path": "data.xlsx", "operation": "read"}}}}
 {{"thought": "任务已完成，返回最终答案", "description": "完成任务", "action": "finish","action_type":"tool", "action_input": "任务已成功完成"}}
 

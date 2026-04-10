@@ -1,6 +1,8 @@
 <template>
   <div class="resume-banner">
-    <el-icon class="resume-banner-icon"><InfoFilled /></el-icon>
+    <el-icon class="resume-banner-icon">
+      <InfoFilled />
+    </el-icon>
     <span class="resume-banner-text">
       您有 {{ activeCheckpoints.length }} 个未完成的任务，点击继续
     </span>
@@ -27,6 +29,7 @@ import { InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/app'
 import { storeToRefs } from 'pinia'
+import { apiService } from '../api/apiService'
 
 const appStore = useAppStore()
 const { activeCheckpoints } = storeToRefs(appStore)
@@ -35,12 +38,12 @@ async function handleResume() {
   if (activeCheckpoints.value.length > 0) {
     const checkpoint = activeCheckpoints.value[0]
     try {
-      await window.electronAPI.api.resumeCheckpoint(checkpoint.sessionId)
+      await apiService.client.resumeCheckpoint(checkpoint.sessionId)
       ElMessage.success('任务已恢复')
       
       // 刷新 checkpoint 列表
-      const checkpoints = await window.electronAPI.api.getCheckpoints()
-      const formattedCheckpoints = (checkpoints || []).map((cp: any) => ({
+      const checkpoints = await apiService.client.getCheckpoints()
+      const formattedCheckpoints = (checkpoints.data.checkpoints || []).map((cp: any) => ({
         id: cp.session_id,
         sessionId: cp.session_id,
         name: cp.state?.task || '未命名任务',
@@ -58,12 +61,12 @@ async function handleDismiss() {
   if (activeCheckpoints.value.length > 0) {
     const checkpoint = activeCheckpoints.value[0]
     try {
-      await window.electronAPI.api.deleteCheckpoint(checkpoint.sessionId)
+      await apiService.client.deleteCheckpoint(checkpoint.sessionId)
       ElMessage.success('已忽略该任务')
       
       // 刷新 checkpoint 列表
-      const checkpoints = await window.electronAPI.api.getCheckpoints()
-      const formattedCheckpoints = (checkpoints || []).map((cp: any) => ({
+      const checkpoints = await apiService.client.getCheckpoints()
+      const formattedCheckpoints = (checkpoints.data.checkpoints || []).map((cp: any) => ({
         id: cp.session_id,
         sessionId: cp.session_id,
         name: cp.state?.task || '未命名任务',

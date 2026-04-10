@@ -1,41 +1,48 @@
 {
   "skills": {
-    "memory": {
-      "skill_id": "memory",
-      "skill_name": "memory",
-      "version": "1.0.0",
-      "type": "local",
-      "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
-      "author": "Lingxi Team",
+    "financial_news": {
+      "name": "financial_news",
+      "skill_id": "financial_news",
+      "description": "技能：financial_news",
+      "source": "global",
+      "path": "/Users/caojl/Desktop/workspace/.lingxi/skills/financial_news",
       "enabled": true,
-      "config": {
-        "name": "memory",
-        "description": "记忆管理方法，支持记忆保存、查找、更新、删除、统计",
-        "version": "1.0.0",
-        "trigger_conditions": "用户要求查看、列出、管理记忆时触发",
-        "execution_guidelines": "1. 支持分类过滤 2. 支持数量限制 3. 显示统计信息",
-        "author": "Lingxi Team",
-        "license": "MIT",
-        "depend": "内置file工具（read/search/write/delete）",
-        "storage_path": "user_dir/.lingxi/memory/MEMORY.md",
-        "skill_id": "memory"
-      }
+      "version": "1.0.0",
+      "author": ""
     },
-    "spawn_subagent": {
-      "skill_id": "spawn_subagent",
-      "skill_name": "spawn_subagent",
+    "xlsx": {
+      "name": "xlsx",
+      "skill_id": "xlsx",
+      "description": "技能：xlsx",
+      "source": "global",
+      "path": "/Users/caojl/Desktop/workspace/.lingxi/skills/xlsx",
+      "enabled": true,
+      "version": "1.0.0",
+      "author": ""
+    },
+    "pdf": {
+      "name": "pdf",
+      "skill_id": "pdf",
+      "description": "技能：pdf",
+      "source": "global",
+      "path": "/Users/caojl/Desktop/workspace/.lingxi/skills/pdf",
+      "enabled": true,
+      "version": "1.0.0",
+      "author": ""
+    },
+    "skill-creator": {
+      "skill_id": "skill-creator",
+      "skill_name": "skill-creator",
       "version": "1.0.0",
       "type": "local",
-      "description": "创建子代理来执行任务，当你的任务特别复杂的时候，你可以创建一个子代理来执行任务",
-      "author": "Lingxi Team",
+      "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+      "author": "",
       "enabled": true,
       "config": {
-        "name": "spawn_subagent",
-        "description": "创建子代理来执行任务，当你的任务特别复杂的时候，你可以创建一个子代理来执行任务",
-        "version": "1.0.0",
-        "author": "Lingxi Team",
-        "license": "MIT",
-        "skill_id": "spawn_subagent"
+        "name": "skill-creator",
+        "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+        "license": "Complete terms in LICENSE.txt",
+        "skill_id": "skill-creator"
       }
     }
   }

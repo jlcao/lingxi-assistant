@@ -9,6 +9,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from lingxi.web.websocket_message import WebSocketMessage
 from lingxi.web.websocket_connection import WebSocketConnection
 from lingxi.core.assistant.async_main import AsyncLingxiAssistant
+from lingxi.core.context.task_context_manager import TaskContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +38,12 @@ class WebSocketManager:
         self.active_connections: Dict[str, WebSocketConnection] = {}
         self.session_connections: Dict[str, Set[str]] = {}
         self.assistant = assistant
+        # 设置 websocket_manager 引用到 assistant
+        if assistant:
+            assistant.websocket_manager = self
         self.connection_counter = 0
         self.stream_callbacks: Dict[str, Callable] = {}
+        self.task_context_manager = TaskContextManager()
         self._initialized = True
 
     async def connect(self, websocket: WebSocket, session_id: str = None) -> str:
@@ -149,7 +154,10 @@ class WebSocketManager:
             if message_type == 'command':
                 await self._handle_command_message(connection, data)
             elif message_type == 'stream_chat':
-                await self._handle_stream_chat(connection, data)
+                # 使用 create_task 实现并发处理，避免阻塞消息接收
+                asyncio.create_task(self._handle_stream_chat(connection, data))
+            elif message_type == 'stop_task':
+                await self._handle_stop_task(connection, data)
             elif message_type == 'session':
                 await self._handle_session_message(connection, data)
             elif message_type == 'checkpoint':
@@ -192,6 +200,29 @@ class WebSocketManager:
         except Exception as e:
             logger.error(f"处理流式聊天失败：{e}", exc_info=True)
             await self._send_error(connection, f"处理流式聊天失败：{str(e)}")
+
+    async def _handle_stop_task(self, connection: WebSocketConnection, data: Dict[str, Any]):
+        """处理终止任务消息
+
+        Args:
+            connection: WebSocket 连接
+            data: 消息数据
+        """
+        task_id = data.get('taskId') or data.get('task_id')
+        
+        if not task_id:
+            await self._send_error(connection, "taskId 不能为空")
+            return
+
+        try:
+            success = await self.task_context_manager.stop_task(task_id)
+            if success:
+                await self._send_success(connection, {"task_id": task_id, "message": "任务已终止"})
+            else:
+                await self._send_error(connection, "任务不存在或已完成")
+        except Exception as e:
+            logger.error(f"终止任务失败: {e}", exc_info=True)
+            await self._send_error(connection, f"终止任务失败: {str(e)}")
 
     async def _handle_command_message(self, connection: WebSocketConnection, data: Dict[str, Any]):
         """处理命令消息
@@ -299,7 +330,7 @@ class WebSocketManager:
         action = data.get('action', '')
 
         if action == 'list':
-            skills = self.assistant.skill_caller.list_available_skills(enabled_only=True)
+            skills = self.assistant.action_caller.list_available_skills(enabled_only=True)
             await self._send_success(connection, {"skills": skills})
         elif action == 'install':
             skill_source = data.get('skill_source')
@@ -309,12 +340,9 @@ class WebSocketManager:
             if not skill_source:
                 await self._send_error(connection, "技能源路径不能为空")
                 return
-
-            success = self.assistant.install_skill(skill_source, skill_name, overwrite)
-            if success:
-                await self._send_success(connection, f"技能安装成功：{skill_source}")
-            else:
-                await self._send_error(connection, f"技能安装失败：{skill_source}")
+            
+            # 使用 create_task 实现并发处理，避免阻塞消息接收
+            asyncio.create_task(self._install_skill_async(connection, skill_source, skill_name, overwrite))
         else:
             await self._send_error(connection, f"未知技能操作：{action}")
 
@@ -345,6 +373,25 @@ class WebSocketManager:
             await self._send_success(connection, {"search_results": results})
         else:
             await self._send_error(connection, f"未知上下文操作：{action}")
+
+    async def _install_skill_async(self, connection: WebSocketConnection, skill_source: str, skill_name: str, overwrite: bool):
+        """异步安装技能
+
+        Args:
+            connection: WebSocket 连接
+            skill_source: 技能源路径
+            skill_name: 技能名称
+            overwrite: 是否覆盖
+        """
+        try:
+            success = await self.assistant.install_skill_async(skill_source, skill_name, overwrite)
+            if success:
+                await self._send_success(connection, f"技能安装成功：{skill_source}")
+            else:
+                await self._send_error(connection, f"技能安装失败：{skill_source}")
+        except Exception as e:
+            logger.error(f"异步安装技能失败：{e}", exc_info=True)
+            await self._send_error(connection, f"技能安装异常：{str(e)}")
 
     async def _handle_ping(self, connection: WebSocketConnection):
         """处理 ping 消息
@@ -387,7 +434,7 @@ class WebSocketManager:
         elif command == 'status':
             return self.assistant.session_manager.get_checkpoint_status(session_id)
         elif command == 'skills':
-            return self.assistant.skill_caller.list_available_skills(enabled_only=True)
+            return self.assistant.action_caller.list_available_skills(enabled_only=True)
         elif command == 'context-stats':
             return self.assistant.session_manager.get_context_stats()
         elif command == 'compress':
@@ -464,7 +511,7 @@ class WebSocketManager:
         try:
             # 调用异步助手，获取异步生成器
             # 注意：stream_process_input 是异步生成器函数，直接返回异步生成器对象
-            response_generator = self.assistant.stream_process_input(message, session_id, thinking_mode)
+            response_generator = self.assistant.stream_process_input(message, session_id, thinking_mode=thinking_mode)
             
             # 遍历异步生成器并发送消息
             async for chunk in response_generator:

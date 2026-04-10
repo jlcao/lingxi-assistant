@@ -3,15 +3,20 @@
   "version": "0.3.0",
   "description": "Lingxi Agent 终端助手 - V2.0 纯客户端架构",
   "main": "dist-electron/main/index.js",
-  "author": "Lingxi Team",
+  "author": {
+    "name": "Lingxi Team",
+    "email": "team@lingxi.com"
+  },
+  "homepage": "https://github.com/lingxi/lingxi-desktop",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "npm run build && electron-builder",
-    "build:win": "npm run build && electron-builder --win",
+    "build:win": "npm run build && npx electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux",
     "test:e2e": "npx playwright test",
@@ -43,6 +48,7 @@
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
     "eslint": "^8.56.0",
+    "eslint-plugin-vue": "^9.27.0",
     "playwright-electron": "^0.5.0",
     "prettier": "^3.1.1",
     "sass": "^1.69.5",
@@ -75,14 +81,15 @@
         "nsis",
         "portable"
       ],
-      "icon": "src/assets/images/logo_256x256.ico"
+      "icon": "src/assets/images/logo_256x256.png",
+      "forceCodeSigning": false
     },
     "mac": {
       "target": [
         "dmg",
         "zip"
       ],
-      "icon": "src/assets/images/logo_256x256.ico",
+      "icon": "src/assets/images/logo_256x256.png",
       "category": "public.app-category.productivity"
     },
     "linux": {
@@ -90,8 +97,9 @@
         "AppImage",
         "deb"
       ],
-      "icon": "src/assets/images/logo_256x256.ico",
-      "category": "Utility"
+      "icon": "src/assets/images/logo_256x256.png",
+      "category": "Utility",
+      "maintainer": "Lingxi Team <team@lingxi.com>"
     }
   }
 }

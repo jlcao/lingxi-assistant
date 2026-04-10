@@ -2,10 +2,20 @@
   <div class="history-chat">
     <div class="history-chat-workspace">
       <div class="workspace-info">
-        <el-icon class="workspace-icon" @click="handleSelectWorkspace"><FolderOpened /></el-icon>
+        <el-icon
+          class="workspace-icon"
+          @click="handleSelectWorkspace"
+        >
+          <FolderOpened />
+        </el-icon>
         <div class="workspace-details">
-          <div class="workspace-label">当前工作区</div>
-          <div class="workspace-path" :title="workspaceStore.workspacePath || '未设置'">
+          <div class="workspace-label">
+            当前工作区
+          </div>
+          <div
+            class="workspace-path"
+            :title="workspaceStore.workspacePath || '未设置'"
+          >
             {{ workspaceStore.workspacePath || '未设置工作区路径' }}
           </div>
         </div>
@@ -16,23 +26,48 @@
         class="new-session-btn"
         @click="handleNewSession"
       >
-        <el-icon class="btn-icon"><Plus /></el-icon>
+        <el-icon class="btn-icon">
+          <Plus />
+        </el-icon>
         新建会话
       </el-button>
     </div>
     <div class="history-chat-list">
       <div class="history-chat-list-header">
         <span class="header-title">会话历史</span>
-        <span class="header-count">{{ sessions.length }}</span>
-      </div>
-      <div v-if="sessions.length === 0" class="empty-state">
-        <el-icon class="empty-icon"><Document /></el-icon>
-        <div class="empty-text">暂无会话历史</div>
-        <div class="empty-hint">点击上方"新建会话"开始对话</div>
+        <div class="header-actions">
+          <span class="header-count">{{ sessions.length }}</span>
+          <el-button
+            v-if="sessions.length > 0"
+            size="small"
+            type="danger"
+            text
+            @click="handleDeleteAllSessions"
+          >
+            <el-icon class="mr-1">
+              <Delete />
+            </el-icon>
+            删除所有
+          </el-button>
+        </div>
       </div>
       <div
-        v-else
+        v-if="sessions.length === 0"
+        class="empty-state"
+      >
+        <el-icon class="empty-icon">
+          <Document />
+        </el-icon>
+        <div class="empty-text">
+          暂无会话历史
+        </div>
+        <div class="empty-hint">
+          点击上方"新建会话"开始对话
+        </div>
+      </div>
+      <div
         v-for="session in sessions"
+        v-else
         :key="session.sessionId"
         class="history-chat-item"
         :class="{ active: session.sessionId === currentSessionId }"
@@ -42,7 +77,10 @@
           <el-icon><ChatDotRound /></el-icon>
         </div>
         <div class="session-content">
-          <div class="session-name" :title="session.title">
+          <div
+            class="session-name"
+            :title="session.title"
+          >
             {{ session.title }}
           </div>
           <div class="session-meta">
@@ -50,18 +88,32 @@
           </div>
         </div>
         <div class="session-actions">
-          <el-dropdown @command="(command) => handleCommand(command, session)" trigger="click">
-            <el-button link size="small" class="action-button">
+          <el-dropdown
+            trigger="click"
+            @command="(command) => handleCommand(command, session)"
+          >
+            <el-button
+              link
+              size="small"
+              class="action-button"
+            >
               <el-icon><MoreFilled /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="rename">
-                  <el-icon class="menu-icon"><Edit /></el-icon>
+                  <el-icon class="menu-icon">
+                    <Edit />
+                  </el-icon>
                   <span>重命名</span>
                 </el-dropdown-item>
-                <el-dropdown-item command="delete" divided>
-                  <el-icon class="menu-icon danger-icon"><Delete /></el-icon>
+                <el-dropdown-item
+                  command="delete"
+                  divided
+                >
+                  <el-icon class="menu-icon danger-icon">
+                    <Delete />
+                  </el-icon>
                   <span class="danger-text">删除会话</span>
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -80,6 +132,7 @@ import { ChatDotRound, Delete, Document, Edit, FolderOpened, MoreFilled, Plus } 
 import { ElMessageBox } from 'element-plus'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
+import { apiService } from '@/api/apiService'
 
 const appStore = useAppStore()
 const workspaceStore = useWorkspaceStore()
@@ -94,26 +147,26 @@ async function handleSelectWorkspace() {
     const selectedPath = await window.electronAPI.file.selectDirectory()
     if (selectedPath) {
       // 验证工作目录
-      const validationResult = await window.electronAPI.workspace.validate(selectedPath)
+      const validationResult = await apiService.client.validateWorkspace(selectedPath)
       
       // 检查验证结果
       if (!validationResult) {
         throw new Error('验证返回数据为空')
       }
       
-      if (validationResult.valid) {
+      if (validationResult.code === 0) {
         // 调用后台切换工作区接口
-        const switchResult = await window.electronAPI.workspace.switch(selectedPath, false)
+        const switchResult = await apiService.client.switchWorkspace(selectedPath, false)
         
-        if (switchResult && switchResult.success) {
+        if (switchResult.code === 0) {
           // 重新加载工作区信息
           await workspaceStore.loadCurrentWorkspace()
           
           // 重新加载会话列表（使用工作目录特定的 API）
-          const sessionsResult = await window.electronAPI.api.getWorkspaceSessions(selectedPath)
+          const sessionsResult = await apiService.client.getWorkspaceSessions(selectedPath)
           console.log('获取到的会话列表:', sessionsResult)
           
-          const sessions = sessionsResult.sessions || []
+          const sessions = sessionsResult.data?.sessions || []
           const formattedSessions = (sessions || []).map((session: any) => ({
             sessionId: session.sessionId || session.id,
             title: session.title || session.name || '新会话',
@@ -136,7 +189,7 @@ async function handleSelectWorkspace() {
           
           alert('工作区切换成功！')
         } else {
-          throw new Error(switchResult?.error || '切换失败')
+          throw new Error(switchResult.message || '切换失败')
         }
       } else {
         throw new Error(validationResult.message || '工作目录无效')
@@ -163,18 +216,19 @@ function formatSessionTime(timestamp?: number): string {
 
 async function handleNewSession() {
   try {
-    const sessionData = await window.electronAPI.api.createSession()
+    const sessionData = await apiService.client.createSession()
+    const sessionDataPayload = sessionData.data || sessionData
     
-    const sessionId = sessionData.session_id || sessionData.sessionId
-    if (!sessionData || !sessionId) {
+    const sessionId = sessionDataPayload.session_id || sessionDataPayload.sessionId
+    if (!sessionDataPayload || !sessionId) {
       console.error('Invalid session data received:', sessionData)
       return
     }
     
     const session = {
       sessionId: sessionId,
-      title: sessionData.first_message || sessionData.firstMessage || '新会话',
-      userName: sessionData.user_name || sessionData.userName || '用户',
+      title: sessionDataPayload.first_message || sessionDataPayload.firstMessage || '新会话',
+      userName: sessionDataPayload.user_name || sessionDataPayload.userName || '用户',
       tasks: [],
       totalTokens: 0,
       createdAt: Date.now(),
@@ -197,7 +251,8 @@ async function handleSelectSession(sessionId: string) {
   appStore.setCurrentSession(sessionId)  
   try {
     console.log('Calling getSessionInfo for sessionId:', sessionId)
-    const sessionInfo = await window.electronAPI.api.getSessionInfo(sessionId)
+    const sessionInfo = await apiService.client.getSession(sessionId)
+    const sessionInfoPayload = sessionInfo.data || sessionInfo
     console.log('Received sessionInfo:', sessionInfo)
     
     // 更新会话列表中的对应会话，保留前端已有的任务数据（特别是正在处理中的任务状态）
@@ -206,7 +261,7 @@ async function handleSelectSession(sessionId: string) {
         // 如果前端已经有任务数据，保留它（包含实时状态）
         // 只有当前端没有任务数据时，才使用后端返回的任务数据
         const existingTasks = session.tasks || []
-        const backendTasks = sessionInfo.tasks || []
+        const backendTasks = sessionInfoPayload.tasks || []
         return { 
           ...session, 
           tasks: existingTasks.length > 0 ? existingTasks : backendTasks 
@@ -244,9 +299,7 @@ async function handleCommand(command: string, session: any) {
       })
       
       if (value) {
-        if (window.electronAPI.api.updateSessionTitle) {
-          await window.electronAPI.api.updateSessionTitle(session.sessionId, value)
-        }
+        await apiService.client.updateSessionName(session.sessionId, value)
         const updatedSessions = sessions.value.map(s =>
           s.sessionId === session.sessionId ? { ...s, title: value, updatedAt: Date.now() } : s
         )
@@ -268,9 +321,7 @@ async function handleCommand(command: string, session: any) {
         }
       )
       
-      if (window.electronAPI.api.deleteSession) {
-        await window.electronAPI.api.deleteSession(session.sessionId)
-      }
+      await apiService.client.deleteSession(session.sessionId)
       const updatedSessions = sessions.value.filter(s => s.sessionId !== session.sessionId)
       appStore.setSessions(updatedSessions)
       
@@ -280,6 +331,30 @@ async function handleCommand(command: string, session: any) {
     } catch {
       console.log('Delete cancelled')
     }
+  }
+}
+
+async function handleDeleteAllSessions() {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除所有会话吗？此操作无法撤销，所有会话数据将被永久删除。',
+      '确认删除所有会话',
+      {
+        confirmButtonText: '删除所有',
+        cancelButtonText: '取消',
+        type: 'danger',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+    
+    // 调用后端 API 删除所有会话
+    await apiService.client.deleteAllSessions()
+    
+    // 清空前端会话列表
+    appStore.setSessions([])
+    appStore.setCurrentSession(null)
+  } catch {
+    console.log('Delete all sessions cancelled')
   }
 }
 </script>
@@ -375,6 +450,21 @@ async function handleCommand(command: string, session: any) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-actions .el-button {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.header-actions .el-button .mr-1 {
+  margin-right: 4px;
 }
 
 .header-title {

@@ -268,13 +268,64 @@ class SessionManager:
                 first_message = first_message_row[0][:50] if first_message_row and first_message_row[0] else ""
                 cursor.close()
 
+                # 修复时间戳时区问题：将UTC时间转换为本地时间
+                import pytz
+                local_tz = pytz.timezone('Asia/Shanghai')
+                utc_tz = pytz.utc
+                
+                # 处理创建时间
+                if isinstance(created_at, datetime):
+                    if created_at.tzinfo is None:
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        created_at = utc_tz.localize(created_at)
+                        # 然后转换为本地时间
+                        created_at = created_at.astimezone(local_tz)
+                    else:
+                        # 如果有时区信息，转换为本地时间
+                        created_at = created_at.astimezone(local_tz)
+                    created_at_str = created_at.isoformat()
+                else:
+                    # 如果是字符串，解析为datetime并转换为本地时间
+                    try:
+                        created_at_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        created_at_dt = utc_tz.localize(created_at_dt)
+                        # 然后转换为本地时间
+                        created_at_dt = created_at_dt.astimezone(local_tz)
+                        created_at_str = created_at_dt.isoformat()
+                    except:
+                        created_at_str = created_at
+                
+                # 处理更新时间
+                if isinstance(updated_at, datetime):
+                    if updated_at.tzinfo is None:
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        updated_at = utc_tz.localize(updated_at)
+                        # 然后转换为本地时间
+                        updated_at = updated_at.astimezone(local_tz)
+                    else:
+                        # 如果有时区信息，转换为本地时间
+                        updated_at = updated_at.astimezone(local_tz)
+                    updated_at_str = updated_at.isoformat()
+                else:
+                    # 如果是字符串，解析为datetime并转换为本地时间
+                    try:
+                        updated_at_dt = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S')
+                        # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                        updated_at_dt = utc_tz.localize(updated_at_dt)
+                        # 然后转换为本地时间
+                        updated_at_dt = updated_at_dt.astimezone(local_tz)
+                        updated_at_str = updated_at_dt.isoformat()
+                    except:
+                        updated_at_str = updated_at
+
                 sessions.append({
                     "sessionId": session_id,
                     "title": title,
                     "taskCount": task_count,
                     "firstMessage": first_message,
-                    "createdAt": created_at,
-                    "updatedAt": updated_at,
+                    "createdAt": created_at_str,
+                    "updatedAt": updated_at_str,
                     "hasCheckpoint": False
                 })
             except Exception as e:
@@ -308,14 +359,65 @@ class SessionManager:
 
         task_list = self.task_manager.get_tasks_by_session(session_id)
 
+        # 修复时间戳时区问题：将UTC时间转换为本地时间
+        import pytz
+        local_tz = pytz.timezone('Asia/Shanghai')
+        utc_tz = pytz.utc
+        
+        # 处理创建时间
+        if isinstance(created_at, datetime):
+            if created_at.tzinfo is None:
+                # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                created_at = utc_tz.localize(created_at)
+                # 然后转换为本地时间
+                created_at = created_at.astimezone(local_tz)
+            else:
+                # 如果有时区信息，转换为本地时间
+                created_at = created_at.astimezone(local_tz)
+            created_at_str = created_at.isoformat()
+        else:
+            # 如果是字符串，解析为datetime并转换为本地时间
+            try:
+                created_at_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                created_at_dt = utc_tz.localize(created_at_dt)
+                # 然后转换为本地时间
+                created_at_dt = created_at_dt.astimezone(local_tz)
+                created_at_str = created_at_dt.isoformat()
+            except:
+                created_at_str = created_at
+        
+        # 处理更新时间
+        if isinstance(updated_at, datetime):
+            if updated_at.tzinfo is None:
+                # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                updated_at = utc_tz.localize(updated_at)
+                # 然后转换为本地时间
+                updated_at = updated_at.astimezone(local_tz)
+            else:
+                # 如果有时区信息，转换为本地时间
+                updated_at = updated_at.astimezone(local_tz)
+            updated_at_str = updated_at.isoformat()
+        else:
+            # 如果是字符串，解析为datetime并转换为本地时间
+            try:
+                updated_at_dt = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S')
+                # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                updated_at_dt = utc_tz.localize(updated_at_dt)
+                # 然后转换为本地时间
+                updated_at_dt = updated_at_dt.astimezone(local_tz)
+                updated_at_str = updated_at_dt.isoformat()
+            except:
+                updated_at_str = updated_at
+
         return {
             "session_id": session_id,
             "title": title,
             "task_count": len(task_list),
             "task_list": task_list,
             "total_tokens": total_tokens,
-            "created_at": created_at,
-            "updated_at": updated_at,
+            "created_at": created_at_str,
+            "updated_at": updated_at_str,
             "has_checkpoint": checkpoint_json is not None
         }
     
@@ -345,14 +447,65 @@ class SessionManager:
 
         task_list = self.task_manager.get_tasks_by_session_for_frontend(session_id)
 
+        # 修复时间戳时区问题：将UTC时间转换为本地时间
+        import pytz
+        local_tz = pytz.timezone('Asia/Shanghai')
+        utc_tz = pytz.utc
+        
+        # 处理创建时间
+        if isinstance(created_at, datetime):
+            if created_at.tzinfo is None:
+                # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                created_at = utc_tz.localize(created_at)
+                # 然后转换为本地时间
+                created_at = created_at.astimezone(local_tz)
+            else:
+                # 如果有时区信息，转换为本地时间
+                created_at = created_at.astimezone(local_tz)
+            created_at_str = created_at.isoformat()
+        else:
+            # 如果是字符串，解析为datetime并转换为本地时间
+            try:
+                created_at_dt = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                created_at_dt = utc_tz.localize(created_at_dt)
+                # 然后转换为本地时间
+                created_at_dt = created_at_dt.astimezone(local_tz)
+                created_at_str = created_at_dt.isoformat()
+            except:
+                created_at_str = created_at
+        
+        # 处理更新时间
+        if isinstance(updated_at, datetime):
+            if updated_at.tzinfo is None:
+                # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                updated_at = utc_tz.localize(updated_at)
+                # 然后转换为本地时间
+                updated_at = updated_at.astimezone(local_tz)
+            else:
+                # 如果有时区信息，转换为本地时间
+                updated_at = updated_at.astimezone(local_tz)
+            updated_at_str = updated_at.isoformat()
+        else:
+            # 如果是字符串，解析为datetime并转换为本地时间
+            try:
+                updated_at_dt = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S')
+                # SQLite的CURRENT_TIMESTAMP存储的是UTC时间，先添加UTC时区信息
+                updated_at_dt = utc_tz.localize(updated_at_dt)
+                # 然后转换为本地时间
+                updated_at_dt = updated_at_dt.astimezone(local_tz)
+                updated_at_str = updated_at_dt.isoformat()
+            except:
+                updated_at_str = updated_at
+
         return {
             "sessionId": session_id,
             "title": title,
             "taskCount": len(task_list),
             "tasks": task_list,
             "totalTokens": total_tokens,
-            "createdAt": created_at,
-            "updatedAt": updated_at,
+            "createdAt": created_at_str,
+            "updatedAt": updated_at_str,
             "hasCheckpoint": checkpoint_json is not None
         }
 

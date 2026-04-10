@@ -1,8 +1,14 @@
 # lingxi/core/context.py
+import asyncio
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from lingxi.core.context.session_context import SessionContext
 from lingxi.core.session.session_models import Step, Task
+
+
+class TaskStoppedException(Exception):
+    """任务被终止的异常"""
+    pass
 
 @dataclass
 class TaskContext:
@@ -34,10 +40,40 @@ class TaskContext:
         if self.task_id is None:
             import uuid
             self.task_id = f"task_{self.session_id}_{uuid.uuid4().hex[:8]}"
-            self.task_info = Task(task_id=self.task_id,session_id=self.session_id,user_input=self.user_input)
         if self.execution_id is None:
             import time
             self.execution_id = f"exec_{int(time.time())}"
+        
+        # 任务终止标志
+        self._is_stopped = False
+        # 终止事件
+        self._stop_event = asyncio.Event()
+
+        self.task_info = Task(task_id=self.task_id,session_id=self.session_id,user_input=self.user_input)
+    
+    def stop(self):
+        """终止任务"""
+        self._is_stopped = True
+        self.task_info.status='interrupted'
+        self.task_info.result='用户手动终止'
+        self._stop_event.set()
+
+    @property
+    def is_stopped(self) -> bool:
+        """检查任务是否已终止"""
+        return self._is_stopped
+
+    def check_stopped(self):
+        """检查任务是否已终止，如果是则抛出异常"""
+        if self._is_stopped:
+            raise TaskStoppedException("任务已被用户终止")
+
+    async def wait_for_stop(self, timeout: float = None):
+        """等待终止信号（可选超时）"""
+        try:
+            await asyncio.wait_for(self._stop_event.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            pass
         
     
     def get_task_level(self) -> str:

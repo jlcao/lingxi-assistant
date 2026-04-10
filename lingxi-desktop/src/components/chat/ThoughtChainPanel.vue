@@ -1,12 +1,18 @@
 <template>
   <div class="thought-chain-panel">
-    <div class="panel-header" @click="toggleExpand">
+    <div
+      class="panel-header"
+      @click="toggleExpand"
+    >
       <span class="panel-title">思考过程 ({{ chain.steps.length }} 步)</span>
       <el-icon :class="{ 'rotate': isExpanded }">
         <ArrowDown />
       </el-icon>
     </div>
-    <div v-if="isExpanded" class="panel-content">
+    <div
+      v-if="isExpanded"
+      class="panel-content"
+    >
       <div 
         v-for="(step, index) in chain.steps" 
         :key="index"
@@ -17,13 +23,22 @@
           <span class="step-type">{{ getStepTypeText(step.type) }}</span>
         </div>
         <div class="step-content">
-          <div v-if="step.thought" class="step-thought">
+          <div
+            v-if="step.thought"
+            class="step-thought"
+          >
             {{ step.thought }}
           </div>
-          <div v-if="step.action" class="step-action">
+          <div
+            v-if="step.action"
+            class="step-action"
+          >
             <strong>执行：</strong>{{ step.action }}
           </div>
-          <div v-if="step.result" class="step-result">
+          <div
+            v-if="step.result"
+            class="step-result"
+          >
             <strong>结果：</strong>{{ step.result }}
           </div>
         </div>

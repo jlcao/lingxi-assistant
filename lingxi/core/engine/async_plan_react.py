@@ -13,6 +13,7 @@ from lingxi.core.context.task_context import TaskContext
 from lingxi.core.engine.async_react_core import AsyncReActCore
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.utils.config import get_config
+from lingxi.core.context.task_context import TaskStoppedException
 
 class AsyncPlanReActEngine(AsyncReActCore):
     """异步 Plan+ReAct 引擎
@@ -20,16 +21,16 @@ class AsyncPlanReActEngine(AsyncReActCore):
     继承自 AsyncReActCore，实现完全异步的执行流程
     """
 
-    def __init__(self, config: Dict[str, Any], skill_caller=None, session_manager=None, websocket_manager=None):
+    def __init__(self, config: Dict[str, Any], action_caller=None, session_manager=None, websocket_manager=None):
         """初始化异步 Plan+ReAct 引擎
 
         Args:
             config: 系统配置
-            skill_caller: 技能调用器
+            action_caller: 行动调用器
             session_manager: 会话管理器
             websocket_manager: WebSocket 管理器
         """
-        super().__init__(config, skill_caller, session_manager, websocket_manager)
+        super().__init__(config, action_caller, session_manager, websocket_manager)
         
         config = get_config()
         complex_config = config.get("execution_mode", {}).get("complex", {})
@@ -67,6 +68,8 @@ class AsyncPlanReActEngine(AsyncReActCore):
                 if stream:
                     yield chunk
 
+        except TaskStoppedException as e:
+            raise e
         except Exception as e:
             import traceback
             self.logger.error(f"计划执行失败：{e}\n{traceback.format_exc()}")
@@ -94,17 +97,19 @@ class AsyncPlanReActEngine(AsyncReActCore):
         self._publish_task_start(context)
 
         # 分析任务
-        plan_info = await self._analyze_task_and_plan(context)
-        self.logger.debug(f"异步 Plan+ReAct 引擎处理任务：level={task_level}, task={task}")
-        if not plan_info:
-            self.logger.warning("任务分析失败，降级为父类执行")
-            async for chunk in super()._execute_task_stream(context):
-                yield chunk
-            return
+        plan_info={}
+        if(get_config().get("engine", {}).get("enable_plan", True)):
+            plan_info = await self._analyze_task_and_plan(context)
+            self.logger.debug(f"异步 Plan+ReAct 引擎处理任务：level={task_level}, task={task}")
+            if not plan_info:
+                self.logger.warning("任务分析失败，降级为父类执行")
+                async for chunk in super()._execute_task_stream(context):
+                   yield chunk
+                return
         
-        task_level = plan_info.get("level", "simple")
+        task_level = plan_info.get("level", "complex")
         context.task_info.task_type = task_level
-        context.description = plan_info.get("summary", "")
+        context.description = plan_info.get("summary", context.user_input)
 
         self._publish_plan_start(context)
         next_action = plan_info.get("next_action")
@@ -163,6 +168,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
         """
         stream = context.stream
         context.task_info.result = direct_answer
+        context.task_info.status = "completed"
         self.logger.debug(f"直接执行行动：action=finish, thought={direct_answer[:50]}...")
         self._publish_task_end(direct_answer,context)
         
@@ -184,7 +190,7 @@ class AsyncPlanReActEngine(AsyncReActCore):
             分析结果
         """
         task_info = context.task_info
-        available_skills = self.skill_caller.list_available_skills(enabled_only=True) if self.skill_caller else []
+        available_skills = self.action_caller.list_available_skills(enabled_only=True) if self.action_caller else []
         history_context = context.session_context.get_history_context()
         
         messages = PromptTemplates.build_task_analysis_messages_with_cache(

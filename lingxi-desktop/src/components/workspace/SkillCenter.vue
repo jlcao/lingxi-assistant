@@ -19,27 +19,69 @@
         @click="handleSkillClick(skill)"
       >
         <div class="skill-card-icon">
-          <el-icon v-if="skill.icon" :size="32">
+          <el-icon
+            v-if="skill.icon"
+            :size="32"
+          >
             <component :is="skill.icon" />
           </el-icon>
-          <el-icon v-else :size="32"><Grid /></el-icon>
+          <el-icon
+            v-else
+            :size="32"
+          >
+            <Grid />
+          </el-icon>
         </div>
         <div class="skill-card-info">
-          <div class="skill-card-name">{{ skill.name }}</div>
-          <div class="skill-card-description">{{ skill.description }}</div>
+          <div class="skill-card-name">
+            {{ skill.name }}
+          </div>
+          <div class="skill-card-description">
+            {{ skill.description }}
+          </div>
           <div class="skill-card-meta">
             <span class="skill-card-version">v{{ skill.version }}</span>
             <span class="skill-card-author">{{ skill.author }}</span>
           </div>
-          <div class="skill-card-source" v-if="skill.source">
-            <el-tag v-if="skill.source === 'workspace'" type="warning" size="small">工作目录</el-tag>
-            <el-tag v-else type="info" size="small">全局</el-tag>
+          <div
+            v-if="skill.source"
+            class="skill-card-source"
+          >
+            <el-tag
+              v-if="skill.source === 'workspace'"
+              type="warning"
+              size="small"
+            >
+              工作目录
+            </el-tag>
+            <el-tag
+              v-else
+              type="info"
+              size="small"
+            >
+              全局
+            </el-tag>
           </div>
         </div>
         <div class="skill-card-status">
-          <el-icon v-if="skill.status === 'available'" color="#67c23a"><CircleCheck /></el-icon>
-          <el-icon v-else-if="skill.status === 'error'" color="#f56c6c"><CircleClose /></el-icon>
-          <el-icon v-else color="#409eff"><Loading /></el-icon>
+          <el-icon
+            v-if="skill.status === 'available'"
+            color="#67c23a"
+          >
+            <CircleCheck />
+          </el-icon>
+          <el-icon
+            v-else-if="skill.status === 'error'"
+            color="#f56c6c"
+          >
+            <CircleClose />
+          </el-icon>
+          <el-icon
+            v-else
+            color="#409eff"
+          >
+            <Loading />
+          </el-icon>
         </div>
       </div>
     </div>
@@ -50,6 +92,7 @@
 import { ref, onMounted } from 'vue'
 import { Upload, Grid, CircleCheck, CircleClose, Loading } from '@element-plus/icons-vue'
 import type { Skill } from '../../types'
+import { apiService } from '../../api/apiService'
 
 const skills = ref<Skill[]>([])
 
@@ -59,8 +102,8 @@ onMounted(async () => {
 
 async function loadSkills() {
   try {
-    const data = await window.electronAPI.api.getSkills()
-    skills.value = data
+    const data = await apiService.client.getSkills()
+    skills.value = data.data.skills || []
   } catch (error) {
     console.error('Failed to load skills:', error)
   }

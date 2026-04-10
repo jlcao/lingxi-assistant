@@ -46,7 +46,7 @@ fi
 # 安装后端依赖
 echo "正在安装后端依赖..."
 cd lingxi
-pip3 install -r requirements.txt
+pip3 install -r ../requirements.txt
 if [ $? -ne 0 ]; then
     echo "错误：后端依赖安装失败。"
     read -p "按任意键退出..."

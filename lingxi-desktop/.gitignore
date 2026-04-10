@@ -7,4 +7,5 @@ release/
 .vscode/
 .idea/
 .package-lock.json
-electron/main/
+electron/main/backend/
+lingxi-desktop-analysis.md
