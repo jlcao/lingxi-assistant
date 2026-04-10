@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 from lingxi.skills.skill_system import SkillSystem
 from lingxi.core.utils.security import SecuritySandbox, SecurityError
 from lingxi.core.utils.Tool import Tool, ToolBase
-from lingxi.core.skill_executor import SkillExecutor
 
 # 创建线程池用于执行同步技能
 _skill_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="skill-executor")
@@ -49,9 +48,7 @@ class ActionCaller:
         self.sandbox = self.skill_system.sandbox
         self.tool = Tool(self.skill_system)
         
-        # 初始化技能执行器
-        self.skill_executor = SkillExecutor(self.skill_system, self.sandbox)
-        self.logger.debug("技能执行器已初始化")
+
         
         # 工作空间管理器（V4.0 新增）
         self.workspace_manager = None
@@ -141,7 +138,7 @@ class ActionCaller:
             elif tool_status == 'S':
                 return {"success": True, "result": str(tool_res), "result_description": tool_res.get('result_description')}
         else :
-            return self.skill_executor.execute_skill(skill_name, parameters)
+            return self.skill_system.execute_skill(skill_name, parameters)
 
     def _normalize_file_path(self, file_path: str) -> str:
         """将文件路径转换为绝对路径（如果是相对路径）

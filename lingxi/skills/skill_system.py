@@ -7,7 +7,8 @@ from lingxi.management import workspace
 from lingxi.skills.registry_memory import SkillRegistry
 from lingxi.skills.skill_loader import SkillLoader
 from lingxi.skills.skill_cache import SkillCache
-from lingxi.core.utils.security import SecuritySandbox
+from lingxi.core.utils.security import SecuritySandbox, SecurityError
+from lingxi.core.confirmation import DangerousSkillChecker, RiskLevel
 
 
 class SkillSystem:
@@ -124,8 +125,8 @@ class SkillSystem:
             
             self.logger.info(f"工作目录技能重新加载完成，成功注册 {count} 个技能")
     
-    def execute_skill(self, skill_name: str, parameters: Dict[str, Any] = None) -> str:
-        """执行技能（统一入口）"""
+    def execute_skill(self, skill_name: str, parameters: Dict[str, Any] = None, require_confirmation: bool = False) -> Dict[str, Any]:
+        """执行技能（统一入口，带安全检查）"""
         if parameters is None:
             parameters = {}
         
@@ -134,20 +135,55 @@ class SkillSystem:
         # 1. 检查技能是否存在
         skill_info = self.registry.get_skill(skill_name)
         if not skill_info:
-            return f"错误：技能不存在 - {skill_name}"
+            error_msg = f"技能不存在: {skill_name}"
+            self.logger.warning(error_msg)
+            return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败，技能不存在"}
         
         # 2. 检查技能是否启用
         if not skill_info.get("enabled", True):
-            return f"错误：技能未启用 - {skill_name}"
+            error_msg = f"技能未启用: {skill_name}"
+            self.logger.warning(error_msg)
+            return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败，技能未启用"}
         
-        # 3. 执行技能
+        # 3. 检查操作风险级别
+        skill_risk = DangerousSkillChecker.check_skill_risk(skill_name)
+        command_risk = RiskLevel.LOW
+        
+        # 检查命令风险（如果是 execute 操作）
+        if skill_name == "execute" and isinstance(parameters.get("command"), str):
+            command_risk = DangerousSkillChecker.check_command_risk(parameters["command"])
+        
+        # 4. 判断是否需要确认
+        needs_confirmation = (
+            skill_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL] or
+            command_risk in [RiskLevel.HIGH, RiskLevel.CRITICAL]
+        )
+        
+        if needs_confirmation and not require_confirmation:
+            error_msg = (
+                f"高危操作需要用户确认：{skill_name}\n"
+                f"风险级别：{DangerousSkillChecker.get_risk_description(skill_risk)}\n"
+                f"参数：{parameters}"
+            )
+            self.logger.warning(error_msg)
+            raise SecurityError(error_msg, "DANGEROUS_OPERATION")
+      
+        # 5. 执行技能
         try:
             result = self.loader.execute_local_skill(skill_name, parameters)
             self.logger.debug(f"技能执行成功：{skill_name}")
-            return result
+            if result is not None and "错误" in result:
+                error_msg = f"技能执行返回错误：{skill_name} - {result}"
+                self.logger.warning(error_msg)
+                return {"success": False, "result": error_msg, "result_description": f"执行技能 {skill_name} 失败"}
+            elif result is not None:    
+                return {"success": True, "result": result, "result_description": f"执行技能 {skill_name} 成功"}
+            else:
+                return {"success": True, "result": result, "result_description": f"执行技能 {skill_name} 成功，无返回结果"}
         except Exception as e:
-            self.logger.error(f"技能执行失败：{skill_name} - {e}")
-            return f"错误：技能执行失败 - {str(e)}"
+            error_msg = f"技能执行失败：{skill_name} - {str(e)}"
+            self.logger.error(error_msg)
+            return {"success": False, "error": error_msg, "result_description": f"执行技能 {skill_name} 失败"}
     
     def get_skill_info(self, skill_name: str) -> Optional[Dict[str, Any]]:
         """获取技能信息"""
