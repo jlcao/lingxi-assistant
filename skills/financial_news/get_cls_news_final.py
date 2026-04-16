@@ -4,18 +4,11 @@
 """
 
 import requests
+from bs4 import BeautifulSoup
 from datetime import datetime
 import json
 import re
 import sys
-
-# 尝试导入BeautifulSoup
-try:
-    from bs4 import BeautifulSoup
-    has_bs4 = True
-except ImportError:
-    has_bs4 = False
-    print("警告: 未安装beautifulsoup4模块，将使用备用方法")
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -30,11 +23,6 @@ def get_cls_news_selenium():
     """
     使用Selenium获取财联社新闻
     """
-    if not has_bs4:
-        print("错误: 未安装beautifulsoup4模块")
-        print("安装命令: pip install beautifulsoup4")
-        return []
-        
     try:
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
@@ -144,11 +132,6 @@ async def get_cls_news_playwright():
     """
     使用Playwright获取财联社新闻
     """
-    if not has_bs4:
-        print("错误: 未安装beautifulsoup4模块")
-        print("安装命令: pip install beautifulsoup4")
-        return []
-        
     try:
         from playwright.async_api import async_playwright
         import asyncio
@@ -274,11 +257,6 @@ def get_cls_news_requests():
     """
     使用requests获取财联社新闻（备用方法）
     """
-    if not has_bs4:
-        print("错误: 未安装beautifulsoup4模块")
-        print("安装命令: pip install beautifulsoup4")
-        return []
-        
     try:
         url = 'https://www.cls.cn/'
         response = requests.get(url, headers=HEADERS, timeout=10)
