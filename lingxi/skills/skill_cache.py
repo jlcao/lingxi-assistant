@@ -5,9 +5,13 @@ import os
 import hashlib
 import logging
 import types
+import sys
+import gc
+import weakref
 from typing import Dict, Optional, Any, List
 from datetime import datetime, timedelta
 from pathlib import Path
+from collections import OrderedDict
 
 ModuleType = types.ModuleType
 
@@ -64,38 +68,53 @@ class SkillFileCache:
 
 
 class SkillCache:
-    """技能缓存管理器"""
+    """技能缓存管理器（支持 LRU + TTL 自动回收）"""
     
-    def __init__(self, ttl: int = 300):
+    def __init__(self, ttl: int = 300, max_size: int = 100):
         """
         初始化缓存
         
         Args:
             ttl: 缓存过期时间（秒），默认 5 分钟
+            max_size: 最大缓存数量（LRU 限制），默认 100
         """
-        self._module_cache: Dict[str, dict] = {}
-        self._config_cache: Dict[str, dict] = {}
-        self._md_content_cache: Dict[str, dict] = {}
-        self._file_cache: Dict[str, SkillFileCache] = {}
+        self._module_cache: OrderedDict[str, dict] = OrderedDict()
+        self._config_cache: OrderedDict[str, dict] = OrderedDict()
+        self._md_content_cache: OrderedDict[str, dict] = OrderedDict()
+        self._file_cache: OrderedDict[str, SkillFileCache] = OrderedDict()
+        self._module_names: Dict[str, List[str]] = {}
         self._ttl = ttl
+        self._max_size = max_size
         self.logger = logging.getLogger(__name__)
     
     def get_module(self, skill_id: str) -> Optional[ModuleType]:
-        """获取缓存的技能模块"""
+        """获取缓存的技能模块（支持 LRU 更新访问时间）"""
         if skill_id not in self._module_cache:
             return None
         
         cache_entry = self._module_cache[skill_id]
         if self._is_expired(cache_entry['timestamp']):
             self.logger.debug(f"技能模块缓存过期：{skill_id}")
-            del self._module_cache[skill_id]
+            self._remove_module(skill_id)
             return None
         
+        self._module_cache.move_to_end(skill_id)
         return cache_entry.get('module')
     
     def set_module(self, skill_id: str, module: ModuleType, file_path: str) -> None:
-        """缓存技能模块"""
+        """缓存技能模块（支持 LRU 淘汰）"""
+        if skill_id in self._module_cache:
+            self._remove_module(skill_id)
+        
+        if len(self._module_cache) >= self._max_size:
+            oldest_skill_id = next(iter(self._module_cache))
+            self.logger.debug(f"LRU 淘汰最旧的缓存：{oldest_skill_id}")
+            self._remove_module(oldest_skill_id)
+        
         file_hash = self._compute_file_hash(file_path)
+        module_names = self._extract_module_names(module)
+        self._module_names[skill_id] = module_names
+        
         self._module_cache[skill_id] = {
             'module': module,
             'hash': file_hash,
@@ -104,7 +123,7 @@ class SkillCache:
         self.logger.debug(f"技能模块已缓存：{skill_id}")
     
     def get_config(self, skill_id: str) -> Optional[Dict[str, Any]]:
-        """获取缓存的技能配置"""
+        """获取缓存的技能配置（支持 LRU 更新访问时间）"""
         if skill_id not in self._config_cache:
             return None
         
@@ -114,10 +133,19 @@ class SkillCache:
             del self._config_cache[skill_id]
             return None
         
+        self._config_cache.move_to_end(skill_id)
         return cache_entry.get('config')
     
     def set_config(self, skill_id: str, config: Dict[str, Any], file_path: str) -> None:
-        """缓存技能配置"""
+        """缓存技能配置（支持 LRU 淘汰）"""
+        if skill_id in self._config_cache:
+            del self._config_cache[skill_id]
+        
+        if len(self._config_cache) >= self._max_size:
+            oldest_skill_id = next(iter(self._config_cache))
+            self.logger.debug(f"LRU 淘汰最旧的配置缓存：{oldest_skill_id}")
+            del self._config_cache[oldest_skill_id]
+        
         file_hash = self._compute_file_hash(file_path)
         self._config_cache[skill_id] = {
             'config': config,
@@ -195,11 +223,10 @@ class SkillCache:
         }
         self.logger.debug(f"SKILL.md 内容已缓存：{skill_id}")
     
-    def invalidate(self, skill_id: str) -> None:
-        """使缓存失效"""
+    def invalidate(self, skill_id):
+        """使缓存失效（同时清理 sys.modules 和引用）"""
         if skill_id in self._module_cache:
-            del self._module_cache[skill_id]
-            self.logger.debug(f"技能模块缓存已失效：{skill_id}")
+            self._remove_module(skill_id)
         
         if skill_id in self._config_cache:
             del self._config_cache[skill_id]
@@ -370,8 +397,138 @@ class SkillCache:
             'file_cache_size': len(self._file_cache),
             'file_cache_details': file_cache_stats,
             'ttl_seconds': self._ttl,
+            'max_size': self._max_size,
             'modules': list(self._module_cache.keys()),
             'configs': list(self._config_cache.keys()),
             'md_contents': list(self._md_content_cache.keys()),
             'file_cached_skills': list(self._file_cache.keys())
         }
+    
+    def _remove_module(self, skill_id: str) -> None:
+        """移除模块缓存并清理 sys.modules
+        
+        Args:
+            skill_id: 技能ID
+        """
+        if skill_id in self._module_cache:
+            module = self._module_cache[skill_id]['module']
+            if module:
+                self._cleanup_module_references(module)
+            del self._module_cache[skill_id]
+            self.logger.debug(f"技能模块缓存已移除：{skill_id}")
+        
+        if skill_id in self._module_names:
+            module_names = self._module_names[skill_id]
+            for name in module_names:
+                if name in sys.modules:
+                    del sys.modules[name]
+                    self.logger.debug(f"已从 sys.modules 移除：{name}")
+            del self._module_names[skill_id]
+        
+        gc.collect()
+        self.logger.debug(f"已调用 gc.collect() 清理内存")
+    
+    def _extract_module_names(self, module: ModuleType) -> List[str]:
+        """提取模块及其子模块的名称
+        
+        Args:
+            module: Python 模块对象
+            
+        Returns:
+            模块名称列表
+        """
+        module_names = []
+        if hasattr(module, '__name__'):
+            module_names.append(module.__name__)
+        
+        for attr_name in dir(module):
+            attr = getattr(module, attr_name)
+            if isinstance(attr, types.ModuleType):
+                if hasattr(attr, '__name__'):
+                    module_names.append(attr.__name__)
+        
+        return module_names
+    
+    def _cleanup_module_references(self, module: ModuleType) -> None:
+        """清理模块内部引用，帮助 GC 回收
+        
+        Args:
+            module: Python 模块对象
+        """
+        try:
+            for attr_name in dir(module):
+                if attr_name.startswith('__'):
+                    continue
+                try:
+                    attr = getattr(module, attr_name)
+                    if isinstance(attr, (list, dict, set)):
+                        attr.clear()
+                    elif hasattr(attr, '__dict__'):
+                        attr.__dict__.clear()
+                    delattr(module, attr_name)
+                except Exception:
+                    pass
+        except Exception as e:
+            self.logger.debug(f"清理模块引用时出错：{e}")
+    
+    def hot_reload(self, skill_id: str) -> None:
+        """热重载技能（强制清理并重新加载）
+        
+        Args:
+            skill_id: 技能ID
+        """
+        self.logger.info(f"热重载技能：{skill_id}")
+        self.invalidate(skill_id)
+        gc.collect()
+        self.logger.info(f"技能热重载完成：{skill_id}")
+    
+    def force_gc(self) -> int:
+        """强制执行垃圾回收
+        
+        Returns:
+            回收的对象数量
+        """
+        gc.collect()
+        count = gc.collect()
+        self.logger.info(f"强制 GC 完成，回收了 {count} 个对象")
+        return count
+    
+    def cleanup_expired(self) -> int:
+        """清理所有过期的缓存
+        
+        Returns:
+            清理的缓存条目数量
+        """
+        cleaned_count = 0
+        
+        expired_modules = []
+        for skill_id, entry in list(self._module_cache.items()):
+            if self._is_expired(entry['timestamp']):
+                expired_modules.append(skill_id)
+        
+        for skill_id in expired_modules:
+            self._remove_module(skill_id)
+            cleaned_count += 1
+        
+        expired_configs = []
+        for skill_id, entry in list(self._config_cache.items()):
+            if self._is_expired(entry['timestamp']):
+                expired_configs.append(skill_id)
+        
+        for skill_id in expired_configs:
+            del self._config_cache[skill_id]
+            cleaned_count += 1
+        
+        expired_md = []
+        for skill_id, entry in list(self._md_content_cache.items()):
+            if self._is_expired(entry['timestamp']):
+                expired_md.append(skill_id)
+        
+        for skill_id in expired_md:
+            del self._md_content_cache[skill_id]
+            cleaned_count += 1
+        
+        if cleaned_count > 0:
+            self.logger.info(f"清理了 {cleaned_count} 个过期缓存条目")
+        
+        return cleaned_count

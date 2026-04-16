@@ -31,7 +31,8 @@ class FileTool(ToolBase):
             "read": self._read,
             "write": self._write,
             "delete": self._delete,
-            "create": self._create
+            "create": self._create,
+            "list": self._list
         }
         
         if operation_type not in operation_map:
@@ -62,8 +63,11 @@ class FileTool(ToolBase):
         elif operation_type == "create":
             if not parameters.get("file_path"):
                 return "缺少必要参数: file_path"
+        elif operation_type == "list":
+            if not parameters.get("path"):
+                return "缺少必要参数: path"
         
-        # 检查文件大小限制
+        # 检查文件大小限制（仅适用于文件操作）
         security_params = parameters.get("security_params", {})
         max_size_str = security_params.get("max_size", self.default_max_size)
         
@@ -315,6 +319,52 @@ class FileTool(ToolBase):
             result["status"] = "S"
         except Exception as e:
             result["error"] = f"创建异常: {str(e)}"
+        
+        return result
+    
+    def _list(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """列出目录内容操作"""
+        directory_path = params.get("path", "")
+        result = {"status": "F", "content": [], "error": "", "result_description": f"列出目录: {directory_path}"}
+        
+        # 前置校验
+        if not directory_path:
+            result["error"] = "缺少必要参数: path"
+            return result
+        
+        if not os.path.exists(directory_path):
+            result["error"] = f"目录不存在: {directory_path}"
+            return result
+        
+        if not os.path.isdir(directory_path):
+            result["error"] = f"路径不是目录: {directory_path}"
+            return result
+        
+        try:
+            # 列出目录内容
+            items = []
+            for item in os.listdir(directory_path):
+                item_path = os.path.join(directory_path, item)
+                item_type = "directory" if os.path.isdir(item_path) else "file"
+                items.append({
+                    "name": item,
+                    "type": item_type,
+                    "path": item_path
+                })
+            
+            # 按类型和名称排序
+            items.sort(key=lambda x: (x["type"], x["name"]))
+            
+            # 转换为符合格式的内容
+            for idx, item in enumerate(items, 1):
+                result["content"].append({
+                    "line": str(idx),
+                    "str": f"[{item['type']}] {item['name']}"
+                })
+            
+            result["status"] = "S"
+        except Exception as e:
+            result["error"] = f"列出目录异常: {str(e)}"
         
         return result
     

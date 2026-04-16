@@ -4,6 +4,8 @@ import asyncio
 from typing import Dict, List, Optional, Any, Callable
 from concurrent.futures import ThreadPoolExecutor
 from lingxi.skills.skill_system import SkillSystem
+from lingxi.skills.tool_sandbox_adapter import ToolSandboxAdapter, adapt_tool_manager
+from lingxi.skills.execution_context import ExecutionContext
 from lingxi.core.utils.security import SecuritySandbox, SecurityError
 from lingxi.core.utils.Tool import Tool, ToolBase
 
@@ -46,7 +48,12 @@ class ActionCaller:
         self.skill_system = SkillSystem(config)
         self.skill_registry = self.skill_system.registry
         self.sandbox = self.skill_system.sandbox
+        self.sandbox_manager = self.skill_system.sandbox_manager
         self.tool = Tool(self.skill_system)
+        
+        # 初始化工具沙盒适配器
+        self.tool_adapter = adapt_tool_manager(self.tool, self.sandbox_manager)
+        self.logger.debug("工具沙盒适配器已初始化")
         
 
         
@@ -129,14 +136,39 @@ class ActionCaller:
             self.logger.warning(error_msg)
             return {"success": False, "result": error_msg}
         if action_type == "tool" :
-            tool_res = self.tool.execute_tool(skill_name, **parameters)
-            tool_status = tool_res.get('status')
-            if tool_status == 'F':
-                error_msg = f"工具执行失败: {skill_name} : {tool_res.get('error')}"
-                self.logger.warning(error_msg)
-                return {"success": False, "result": error_msg, "result_description": tool_res.get('result_description')}
-            elif tool_status == 'S':
-                return {"success": True, "result": str(tool_res), "result_description": tool_res.get('result_description')}
+            # 使用沙盒执行环境执行工具
+            context = ExecutionContext(skill_id=skill_name)
+            try:
+                # 从工具管理器获取工具实例
+                if skill_name in self.tool.tools:
+                    tool = self.tool.tools[skill_name]
+                    
+                    # 为 file 工具的 list 操作添加 operation_type 参数
+                    if skill_name == "file" and parameters.get("action") == "list":
+                        parameters["operation_type"] = "list"
+                    
+                    # 在沙盒中执行工具
+                    response = self.tool_adapter.execute_tool_in_sandbox(
+                        tool.execute,
+                        parameters,
+                        skill_name,
+                        context=context
+                    )
+                    
+                    if response.success:
+                        return {"success": True, "result": str(response.data), "result_description": response.message}
+                    else:
+                        error_msg = f"工具执行失败: {skill_name} : {response.message}"
+                        self.logger.warning(error_msg)
+                        return {"success": False, "result": error_msg, "result_description": response.message}
+                else:
+                    error_msg = f"工具 {skill_name} 未注册"
+                    self.logger.warning(error_msg)
+                    return {"success": False, "result": error_msg}
+            except Exception as e:
+                error_msg = f"工具执行异常: {skill_name} : {str(e)}"
+                self.logger.error(error_msg)
+                return {"success": False, "result": error_msg}
         else :
             return self.skill_system.execute_skill(skill_name, parameters)
 

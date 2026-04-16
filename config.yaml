@@ -17,7 +17,7 @@ engine:
   default: react
   max_steps: 50
   timeout: 60
-python_interpreter: D:/resources/lingxi-assistant/venv/Scripts/python.exe
+
 llm:
   api_key: 0f52b7ab-cb78-40f1-b99f-3cb7734dd16d
   base_url: https://ark.cn-beijing.volces.com/api/v3
@@ -79,6 +79,7 @@ skills:
   - read_file
   builtin_skills_dir: lingxi/skills/builtin
   config_path: data/skills_config.json
+  python_path: D:/resources/lingxi-assistant/WPy64-312101/python/python.exe
   registry_path: data/skills.db
   use_memory_registry: true
   user_skills_dir: .lingxi/skills

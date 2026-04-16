@@ -8,6 +8,9 @@ import logging
 import importlib.util
 import subprocess
 import sys
+import gc
+import venv
+import shutil
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from lingxi.utils.config import get_workspace_path
@@ -613,3 +616,305 @@ class SkillLoader:
             if config and config.get("skill_id") == skill_id:
                 return config
         return None
+    
+    def unload_module(self, skill_id: str) -> bool:
+        """显式卸载技能模块（防止内存泄漏）
+        
+        Args:
+            skill_id: 技能ID
+            
+        Returns:
+            是否卸载成功
+        """
+        self.logger.info(f"开始卸载技能模块：{skill_id}")
+        
+        try:
+            if skill_id not in self.loaded_modules:
+                self.logger.warning(f"技能模块未加载，无需卸载：{skill_id}")
+                return True
+            
+            module = self.loaded_modules[skill_id]
+            
+            if isinstance(module, type(sys)):
+                self._cleanup_module(module)
+            
+            if hasattr(self.cache, '_remove_module'):
+                self.cache._remove_module(skill_id)
+            elif self.cache:
+                self.cache.invalidate(skill_id)
+            
+            if skill_id in self.loaded_modules:
+                del self.loaded_modules[skill_id]
+            
+            gc.collect()
+            
+            self.logger.info(f"技能模块卸载成功：{skill_id}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"卸载技能模块失败 {skill_id}: {e}")
+            return False
+    
+    def _cleanup_module(self, module: Any) -> None:
+        """清理模块内部引用，帮助 GC 回收
+        
+        Args:
+            module: Python 模块对象
+        """
+        try:
+            if hasattr(module, "shutdown") and callable(module.shutdown):
+                try:
+                    module.shutdown()
+                    self.logger.debug(f"调用模块 shutdown 方法成功")
+                except Exception as e:
+                    self.logger.debug(f"调用模块 shutdown 失败: {e}")
+            
+            if hasattr(module, "__dict__"):
+                for attr_name in list(module.__dict__.keys()):
+                    if attr_name.startswith("__"):
+                        continue
+                    try:
+                        attr = getattr(module, attr_name)
+                        if isinstance(attr, (list, dict, set)):
+                            attr.clear()
+                        delattr(module, attr_name)
+                    except Exception:
+                        pass
+            
+            module_name = getattr(module, "__name__", None)
+            if module_name and module_name in sys.modules:
+                del sys.modules[module_name]
+                self.logger.debug(f"已从 sys.modules 移除：{module_name}")
+                
+        except Exception as e:
+            self.logger.debug(f"清理模块时出错：{e}")
+    
+    def unload_all(self) -> int:
+        """卸载所有已加载的技能模块
+        
+        Returns:
+            成功卸载的技能数量
+        """
+        self.logger.info("开始卸载所有技能模块")
+        
+        count = 0
+        skill_ids = list(self.loaded_modules.keys())
+        
+        for skill_id in skill_ids:
+            if self.unload_module(skill_id):
+                count += 1
+        
+        gc.collect()
+        self.logger.info(f"完成卸载所有技能模块，共 {count} 个")
+        return count
+    
+    def _get_skill_dir(self, skill_id):
+        """获取技能目录路径
+        
+        Args:
+            skill_id: 技能ID
+            
+        Returns:
+            技能目录路径，未找到返回 None
+        """
+        for skill_dir in self._find_skill_directories():
+            if os.path.basename(skill_dir) == skill_id:
+                return skill_dir
+        return None
+    
+    def has_virtual_env(self, skill_id_or_dir):
+        """检测技能是否有虚拟环境
+        
+        Args:
+            skill_id_or_dir: 技能ID 或技能目录路径
+            
+        Returns:
+            是否存在虚拟环境
+        """
+        if os.path.isdir(skill_id_or_dir):
+            skill_dir = skill_id_or_dir
+        else:
+            skill_dir = self._get_skill_dir(skill_id_or_dir)
+            if not skill_dir:
+                self.logger.warning(f"技能目录不存在：{skill_id_or_dir}")
+                return False
+        
+        venv_dir = os.path.join(skill_dir, ".venv")
+        exists = os.path.exists(venv_dir) and os.path.isdir(venv_dir)
+        
+        if exists:
+            self.logger.debug(f"技能 {os.path.basename(skill_dir)} 已存在虚拟环境：{venv_dir}")
+        else:
+            self.logger.debug(f"技能 {os.path.basename(skill_dir)} 不存在虚拟环境")
+        
+        return exists
+    
+    def create_venv(self, skill_id_or_dir, upgrade_pip=True):
+        """为技能创建虚拟环境
+        
+        Args:
+            skill_id_or_dir: 技能ID 或技能目录路径
+            upgrade_pip: 是否升级 pip
+            
+        Returns:
+            是否创建成功
+        """
+        if os.path.isdir(skill_id_or_dir):
+            skill_dir = skill_id_or_dir
+        else:
+            skill_dir = self._get_skill_dir(skill_id_or_dir)
+            if not skill_dir:
+                self.logger.error(f"技能目录不存在：{skill_id_or_dir}")
+                return False
+        
+        venv_dir = os.path.join(skill_dir, ".venv")
+        
+        if os.path.exists(venv_dir):
+            self.logger.warning(f"技能虚拟环境已存在，跳过创建：{venv_dir}")
+            return True
+        
+        try:
+            self.logger.info(f"开始为技能 {os.path.basename(skill_dir)} 创建虚拟环境：{venv_dir}")
+            
+            venv.create(venv_dir, with_pip=True)
+            self.logger.info(f"虚拟环境创建成功：{venv_dir}")
+            
+            if upgrade_pip:
+                pip_path = self._get_pip_path(venv_dir)
+                if pip_path and os.path.exists(pip_path):
+                    self.logger.info(f"升级 pip...")
+                    result = subprocess.run(
+                        [pip_path, "install", "--upgrade", "pip"],
+                        capture_output=True,
+                        text=True,
+                        cwd=skill_dir
+                    )
+                    if result.returncode == 0:
+                        self.logger.info("pip 升级成功")
+                    else:
+                        self.logger.warning(f"pip 升级失败：{result.stderr}")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"创建虚拟环境失败 {os.path.basename(skill_dir)}: {e}")
+            if os.path.exists(venv_dir):
+                shutil.rmtree(venv_dir)
+            return False
+    
+    def _get_pip_path(self, venv_dir):
+        """获取虚拟环境中 pip 的路径
+        
+        Args:
+            venv_dir: 虚拟环境目录
+            
+        Returns:
+            pip 可执行文件路径
+        """
+        if sys.platform == "win32":
+            pip_path = os.path.join(venv_dir, "Scripts", "pip.exe")
+        else:
+            pip_path = os.path.join(venv_dir, "bin", "pip")
+        
+        if os.path.exists(pip_path):
+            return pip_path
+        return None
+    
+    def _get_python_path(self, venv_dir):
+        """获取虚拟环境中 Python 的路径
+        
+        Args:
+            venv_dir: 虚拟环境目录
+            
+        Returns:
+            Python 可执行文件路径
+        """
+        if sys.platform == "win32":
+            python_path = os.path.join(venv_dir, "Scripts", "python.exe")
+        else:
+            python_path = os.path.join(venv_dir, "bin", "python")
+        
+        if os.path.exists(python_path):
+            return python_path
+        return None
+    
+    def install_dependencies(self, skill_id_or_dir, requirements_file=None):
+        """安装技能依赖
+        
+        Args:
+            skill_id_or_dir: 技能ID 或技能目录路径
+            requirements_file: 依赖文件路径，默认使用 requirements.txt
+            
+        Returns:
+            是否安装成功
+        """
+        if os.path.isdir(skill_id_or_dir):
+            skill_dir = skill_id_or_dir
+        else:
+            skill_dir = self._get_skill_dir(skill_id_or_dir)
+            if not skill_dir:
+                self.logger.error(f"技能目录不存在：{skill_id_or_dir}")
+                return False
+        
+        venv_dir = os.path.join(skill_dir, ".venv")
+        if not os.path.exists(venv_dir):
+            self.logger.info(f"技能虚拟环境不存在，先创建：{os.path.basename(skill_dir)}")
+            if not self.create_venv(skill_dir):
+                return False
+        
+        pip_path = self._get_pip_path(venv_dir)
+        if not pip_path:
+            self.logger.error(f"无法找到 pip 可执行文件：{venv_dir}")
+            return False
+        
+        if not requirements_file:
+            requirements_file = os.path.join(skill_dir, "requirements.txt")
+        
+        if not os.path.exists(requirements_file):
+            self.logger.info(f"依赖文件不存在，跳过安装：{requirements_file}")
+            return True
+        
+        try:
+            self.logger.info(f"开始安装技能 {os.path.basename(skill_dir)} 的依赖：{requirements_file}")
+            
+            result = subprocess.run(
+                [pip_path, "install", "-r", requirements_file],
+                capture_output=True,
+                text=True,
+                cwd=skill_dir
+            )
+            
+            if result.returncode == 0:
+                self.logger.info(f"依赖安装成功：{os.path.basename(skill_dir)}")
+                if result.stdout:
+                    self.logger.debug(f"安装输出：{result.stdout}")
+                return True
+            else:
+                self.logger.error(f"依赖安装失败 {os.path.basename(skill_dir)}: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"安装依赖时出错 {os.path.basename(skill_dir)}: {e}")
+            return False
+    
+    def get_venv_python_path(self, skill_id_or_dir):
+        """获取技能虚拟环境的 Python 解释器路径
+        
+        Args:
+            skill_id_or_dir: 技能ID 或技能目录路径
+            
+        Returns:
+            Python 解释器路径，未找到返回 None
+        """
+        if os.path.isdir(skill_id_or_dir):
+            skill_dir = skill_id_or_dir
+        else:
+            skill_dir = self._get_skill_dir(skill_id_or_dir)
+            if not skill_dir:
+                return None
+        
+        venv_dir = os.path.join(skill_dir, ".venv")
+        if not os.path.exists(venv_dir):
+            return None
+        
+        return self._get_python_path(venv_dir)
