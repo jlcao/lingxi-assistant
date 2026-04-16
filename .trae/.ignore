@@ -1,0 +1,5 @@
+desktop/node_modules/*
+backend/.langgraph_api/*
+backend/.venv/*
+frontend/node_modules/*
+frontend/*

@@ -51,6 +51,21 @@ onUnmounted(() => {
   wsStore.removeAllListeners()
 })
 
+// 辅助函数：将 Thread 转换为 Session
+function convertThreadToSession(thread: any): any {
+  return {
+    sessionId: thread.thread_id,
+    title: thread.values?.title || '新会话',
+    tasks: [],
+    totalTokens: 0,
+    userName: thread.metadata?.user_id || '新用户',
+    createdAt: Number(thread.created_at) * 1000, // 转换为毫秒
+    updatedAt: Number(thread.updated_at) * 1000, // 转换为毫秒
+    currentTaskId: null,
+    isTaskRunning: false
+  }
+}
+
 async function initializeApp() {
   console.log('[App] initializeApp called')
   appStore.setLoading(true)
@@ -77,13 +92,14 @@ async function initializeApp() {
     const currentWorkspace = workspaceStore.currentWorkspace
     if (currentWorkspace?.workspace) {
       console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
-      const result = await apiService.client.getWorkspaceSessions(currentWorkspace.workspace)
-      sessions = result.data.sessions || []
+      // 暂时使用 searchThreads 代替 getWorkspaceSessions
+      const threads = await apiService.client.searchThreads()
+      sessions = threads.map(convertThreadToSession)
       console.log('[App] Loaded sessions:', sessions)
     } else {
       console.log('[App] No workspace initialized, loading all sessions')
-      const result = await apiService.client.getSessions()
-      sessions = result.data?.sessions || []
+      const threads = await apiService.client.searchThreads()
+      sessions = threads.map(convertThreadToSession)
       console.log('[App] Loaded sessions:', sessions)
     }
 
@@ -330,12 +346,13 @@ async function refreshSessionsList() {
     
     if (currentWorkspace?.workspace) {
       console.log('[App] Loading sessions for workspace:', currentWorkspace.workspace)
-      const result = await apiService.client.getWorkspaceSessions(currentWorkspace.workspace)
-      newSessions = result.data.sessions || []
+      // 暂时使用 searchThreads 代替 getWorkspaceSessions
+      const threads = await apiService.client.searchThreads()
+      newSessions = threads.map(convertThreadToSession)
     } else {
       console.log('[App] No workspace initialized, loading all sessions')
-      const result = await apiService.client.getSessions()
-      newSessions = result.data?.sessions || []
+      const threads = await apiService.client.searchThreads()
+      newSessions = threads.map(convertThreadToSession)
     }
     
     // 保存所有会话的任务数据

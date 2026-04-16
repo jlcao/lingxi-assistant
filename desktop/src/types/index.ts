@@ -388,6 +388,143 @@ export type SkillErrorCode =
 
 export type ErrorCode = CommonErrorCode | TaskErrorCode | SkillErrorCode
 
+// LangGraph API Types
+export interface Thread {
+  thread_id: string
+  status: string
+  created_at: string
+  updated_at: string
+  metadata: Record<string, any>
+  values: Record<string, any>
+  interrupts: Record<string, any>
+}
+
+export interface ThreadState {
+  values: {
+    messages: any[]
+    sandbox: any
+    artifacts: any[]
+    thread_data: any
+    title: string
+  }
+  next: any[]
+  config: any
+}
+
+export interface Run {
+  run_id: string
+  status: string
+  created_at: string
+}
+
+export interface RunHistory {
+  runs: Run[]
+}
+
+export interface RunInput {
+  input: {
+    messages: {
+      role: string
+      content: string
+    }[]
+  }
+  config: {
+    recursion_limit: number
+    configurable: {
+      model_name: string
+      thinking_enabled: boolean
+      is_plan_mode: boolean
+    }
+  }
+  stream_mode: string[]
+}
+
+// Gateway API Types
+export interface Model {
+  name: string
+  display_name: string
+  supports_thinking: boolean
+  supports_vision: boolean
+}
+
+export interface ModelDetail extends Model {
+  model: string
+  max_tokens: number
+}
+
+export interface MCP {
+  enabled: boolean
+  type: string
+  command: string
+  args: string[]
+  env?: Record<string, string>
+  description: string
+}
+
+export interface MCPConfig {
+  mcpServers: Record<string, MCP>
+}
+
+export interface Skill {
+  name: string
+  display_name: string
+  description: string
+  enabled: boolean
+  license: string
+  path: string
+}
+
+export interface SkillDetail extends Skill {
+  allowed_tools: string[]
+  content: string
+}
+
+export interface FileUpload {
+  filename: string
+  size: number
+  path: string
+  virtual_path: string
+  artifact_url: string
+  markdown_file?: string
+  markdown_path?: string
+  markdown_virtual_path?: string
+  markdown_artifact_url?: string
+}
+
+export interface FileInfo {
+  filename: string
+  size: number
+  path: string
+  virtual_path: string
+  artifact_url: string
+  extension: string
+  modified: number
+}
+
+export interface FileUploadResponse {
+  success: boolean
+  files: FileUpload[]
+  message: string
+}
+
+export interface FileListResponse {
+  files: FileInfo[]
+  count: number
+}
+
+export interface Artifact {
+  // 工件类型定义
+}
+
+export interface SuccessResponse {
+  success: boolean
+  message: string
+}
+
+export interface ErrorResponse {
+  detail: string
+}
+
 export interface FileChange {
   type: 'created' | 'modified' | 'deleted'
   path: string

@@ -151,6 +151,17 @@ async def get_agent(name: str) -> AgentResponse:
     """
     _validate_agent_name(name)
     name = _normalize_agent_name(name)
+    
+    # Handle default agent
+    if name in ["default", "lead_agent"]:
+        soul = load_agent_soul(None)
+        return AgentResponse(
+            name=name,
+            description="Default lead agent",
+            model=None,
+            tool_groups=None,
+            soul=soul,
+        )
 
     try:
         agent_cfg = load_agent_config(name)

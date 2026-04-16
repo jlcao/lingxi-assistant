@@ -15,7 +15,18 @@ import type {
   WorkspaceInfo,
   WorkspaceInitResult,
   WorkspaceSwitchResult,
-  WorkspaceValidationResult
+  WorkspaceValidationResult,
+  Thread,
+  ThreadState,
+  RunHistory,
+  RunInput,
+  Model,
+  ModelDetail,
+  MCPConfig,
+  SkillDetail,
+  FileUploadResponse,
+  FileListResponse,
+  SuccessResponse
 } from '../types'
 
 export class ApiClient {
@@ -78,6 +89,15 @@ export class ApiClient {
     workspace_path?: string
   }): Promise<ApiResponse<{ sessions: Session[] }>> {
     return this.client.get('/api/sessions', { params })
+  }
+
+  async searchThreads(params?: {
+    metadata?: Record<string, any>
+    limit?: number
+    offset?: number
+    status?: string
+  }): Promise<Thread[]> {
+    return this.client.post('/api/threads/search', params || {})
   }
 
   async getSession(sessionId: string): Promise<ApiResponse<SessionDetail>> {
@@ -187,6 +207,7 @@ export class ApiClient {
     return Promise.resolve({ code: 0, message: 'success', data: { success: true, deleted_steps_count: 0 } })
   }
 
+  // 保留原有的getSkills方法，用于兼容旧的API
   async getSkills(params?: {
     status?: string
     page?: number
@@ -196,12 +217,31 @@ export class ApiClient {
     return this.client.get('/api/skills', { params })
   }
 
+  // 保留原有的installSkill方法，用于兼容旧的API
   async installSkill(data: {
     skill_data: SkillManifest
     skill_files: Record<string, string>
     auto_fix?: boolean
   }): Promise<ApiResponse<{ skill_id: string; status: string; message: string; installed_at: string }>> {
     return this.client.post('/api/skills/install', data)
+  }
+
+  // 新的Gateway API方法，使用不同的方法名以避免冲突
+  async getGatewaySkills(): Promise<{ skills: Skill[] }> {
+    return this.client.get('/api/skills')
+  }
+
+  async installGatewaySkill(file: File): Promise<SuccessResponse & { skill: { name: string; display_name: string; path: string } }> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const config = {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }
+
+    return this.client.post('/api/skills/install', formData, config)
   }
 
   async diagnoseSkill(skillId: string): Promise<ApiResponse<DiagnosticResult>> {
@@ -250,4 +290,117 @@ export class ApiClient {
     const params = workspacePath ? { workspace_path: workspacePath } : {}
     return this.client.get('/api/workspace/sessions', { params })
   }
+
+  // LangGraph API
+  async createThread(metadata?: Record<string, any>): Promise<Thread> {
+    return this.client.post('/api/langgraph/threads', { metadata: metadata || {} })
+  }
+
+  async getThreadState(threadId: string): Promise<ThreadState> {
+    return this.client.get(`/api/langgraph/threads/${threadId}/state`)
+  }
+
+  async createRun(threadId: string, input: RunInput): Promise<Response> {
+    const config: RequestInit = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(input)
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/langgraph/threads/${threadId}/runs`, config)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    return response
+  }
+
+  async getRunHistory(threadId: string): Promise<RunHistory> {
+    return this.client.get(`/api/langgraph/threads/${threadId}/runs`)
+  }
+
+  async streamRun(threadId: string, input: RunInput): Promise<Response> {
+    const config: RequestInit = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(input)
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/langgraph/threads/${threadId}/runs/stream`, config)
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    return response
+  }
+
+  // Gateway API
+  async getModels(): Promise<{ models: Model[] }> {
+    return this.client.get('/api/models')
+  }
+
+  async getModelDetails(modelName: string): Promise<ModelDetail> {
+    return this.client.get(`/api/models/${modelName}`)
+  }
+
+  async getMCPConfig(): Promise<MCPConfig> {
+    return this.client.get('/api/mcp/config')
+  }
+
+  async updateMCPConfig(config: MCPConfig): Promise<SuccessResponse> {
+    return this.client.put('/api/mcp/config', config)
+  }
+
+  async getSkillDetails(skillName: string): Promise<SkillDetail> {
+    return this.client.get(`/api/skills/${skillName}`)
+  }
+
+  async enableSkill(skillName: string): Promise<SuccessResponse> {
+    return this.client.post(`/api/skills/${skillName}/enable`)
+  }
+
+  async disableSkill(skillName: string): Promise<SuccessResponse> {
+    return this.client.post(`/api/skills/${skillName}/disable`)
+  }
+
+  // File Uploads
+  async uploadFiles(threadId: string, files: File[]): Promise<FileUploadResponse> {
+    const formData = new FormData()
+    files.forEach(file => {
+      formData.append('files', file)
+    })
+
+    const config = {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }
+
+    return this.client.post(`/api/threads/${threadId}/uploads`, formData, config)
+  }
+
+  async listUploadedFiles(threadId: string): Promise<FileListResponse> {
+    return this.client.get(`/api/threads/${threadId}/uploads/list`)
+  }
+
+  async deleteFile(threadId: string, filename: string): Promise<SuccessResponse> {
+    return this.client.delete(`/api/threads/${threadId}/uploads/${filename}`)
+  }
+
+  async deleteThread(threadId: string): Promise<SuccessResponse> {
+    return this.client.delete(`/api/threads/${threadId}`)
+  }
+
+  // Artifacts
+  async getArtifact(threadId: string, path: string, download?: boolean): Promise<Blob> {
+    const params = download ? { download: 'true' } : {}
+    const response = await this.client.get(`/api/threads/${threadId}/artifacts/${path}`, {
+      params,
+      responseType: 'blob'
+    })
+    return response as unknown as Blob
+  }
 }
+

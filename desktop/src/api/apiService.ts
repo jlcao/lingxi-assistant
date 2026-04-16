@@ -6,7 +6,7 @@ class ApiService {
 
   private constructor() {
     // 使用默认端口初始化，后续可以通过init方法更新
-    this.client = new ApiClient('http://127.0.0.1:5000')
+    this.client = new ApiClient('http://127.0.0.1:2026')
   }
 
   public static getInstance(): ApiService {
