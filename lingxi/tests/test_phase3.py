@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 from lingxi.skills import (
-    SkillResponse,
+    ToolResponse,
     ExecutionContext,
     TrustLevel,
     SecurityInterceptor,
@@ -149,7 +149,7 @@ class TestL1Sandbox(unittest.TestCase):
     def test_run_returns_skill_response(self):
         """测试返回 SkillResponse"""
         def func_returns_response(params):
-            return SkillResponse.success(data="direct_response")
+            return ToolResponse.success(data="direct_response")
 
         resp = self.sandbox.run(
             func_returns_response,

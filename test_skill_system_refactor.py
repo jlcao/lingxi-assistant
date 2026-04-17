@@ -5,7 +5,7 @@ import logging
 import sys
 from lingxi.skills import (
     SkillSystem,
-    SkillResponse,
+    ToolResponse,
     ExecutionContext,
     TrustLevel
 )
@@ -160,7 +160,7 @@ def test_skill_response():
     
     try:
         # 创建成功响应
-        success_response = SkillResponse.success(
+        success_response = ToolResponse.success(
             data="测试成功",
             message="操作完成",
             skill_id="test_skill",
@@ -170,7 +170,7 @@ def test_skill_response():
         logger.info(f"成功响应: {success_response.to_dict()}")
         
         # 创建错误响应
-        error_response = SkillResponse.error(
+        error_response = ToolResponse.error(
             message="测试失败",
             code=400,
             skill_id="test_skill",

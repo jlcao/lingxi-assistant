@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional, Callable
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
-from .skill_response import SkillResponse, ResponseCode
+from .skill_response import ToolResponse, ResponseCode
 from .execution_context import ExecutionContext, TrustLevel
 
 
@@ -54,7 +54,7 @@ class L1Sandbox:
         context: Optional[ExecutionContext] = None,
         timeout: Optional[float] = None,
         **kwargs
-    ) -> SkillResponse:
+    ) -> ToolResponse:
         """在 L1 沙盒中执行函数
 
         Args:
@@ -89,10 +89,10 @@ class L1Sandbox:
 
             cost_ms = (time.time() - start_time) * 1000
 
-            if isinstance(result, SkillResponse):
+            if isinstance(result, ToolResponse):
                 resp = result
             else:
-                resp = SkillResponse.success(
+                resp = ToolResponse.success(
                     data=result,
                     skill_id=skill_id,
                     trace_id=trace_id,
@@ -103,7 +103,7 @@ class L1Sandbox:
 
         except TimeoutError:
             cost_ms = (time.time() - start_time) * 1000
-            return SkillResponse.error(
+            return ToolResponse.error(
                 message=f"技能执行超时（{timeout}秒）",
                 code=ResponseCode.INTERNAL_ERROR,
                 skill_id=skill_id,
@@ -111,7 +111,7 @@ class L1Sandbox:
             )
         except Exception as e:
             cost_ms = (time.time() - start_time) * 1000
-            return SkillResponse.error(
+            return ToolResponse.error(
                 message=f"L1 沙盒执行失败: {str(e)}",
                 code=ResponseCode.INTERNAL_ERROR,
                 skill_id=skill_id,
@@ -153,7 +153,7 @@ class L2Sandbox:
         context: Optional[ExecutionContext] = None,
         timeout: Optional[float] = None,
         use_venv: bool = False
-    ) -> SkillResponse:
+    ) -> ToolResponse:
         """在 L2 沙盒中执行技能
 
         Args:
@@ -178,7 +178,7 @@ class L2Sandbox:
         main_py = skill_path / "main.py"
 
         if not main_py.exists():
-            return SkillResponse.error(
+            return ToolResponse.error(
                 message=f"技能主文件不存在: {main_py}",
                 skill_id=skill_id,
                 trace_id=trace_id
@@ -220,17 +220,17 @@ class L2Sandbox:
                 try:
                     resp_data = json.loads(output)
                     if "success" in resp_data:
-                        resp = SkillResponse.from_dict(resp_data)
+                        resp = ToolResponse.from_dict(resp_data)
                     else:
-                        resp = SkillResponse.success(data=output)
+                        resp = ToolResponse.success(data=output)
                 except json.JSONDecodeError:
-                    resp = SkillResponse.success(data=output)
+                    resp = ToolResponse.success(data=output)
 
                 resp.meta["cost_ms"] = cost_ms
                 return resp
             else:
                 error_msg = result.stderr.strip() or result.stdout.strip() or "未知错误"
-                return SkillResponse.error(
+                return ToolResponse.error(
                     message=f"L2 沙盒执行失败: {error_msg}",
                     skill_id=skill_id,
                     trace_id=trace_id
@@ -238,7 +238,7 @@ class L2Sandbox:
 
         except subprocess.TimeoutExpired:
             cost_ms = (time.time() - start_time) * 1000
-            return SkillResponse.error(
+            return ToolResponse.error(
                 message=f"L2 沙盒执行超时（{timeout}秒）",
                 skill_id=skill_id,
                 trace_id=trace_id
@@ -246,7 +246,7 @@ class L2Sandbox:
         except Exception as e:
             cost_ms = (time.time() - start_time) * 1000
             self.logger.error(f"L2 沙盒执行异常: {skill_id}", exc_info=e)
-            return SkillResponse.error(
+            return ToolResponse.error(
                 message=f"L2 沙盒执行异常: {str(e)}",
                 skill_id=skill_id,
                 trace_id=trace_id
@@ -352,7 +352,7 @@ class SandboxManager:
         trust_level: TrustLevel = TrustLevel.L1,
         timeout: Optional[float] = None,
         **kwargs
-    ) -> SkillResponse:
+    ) -> ToolResponse:
         """在合适的沙盒中执行
 
         Args:

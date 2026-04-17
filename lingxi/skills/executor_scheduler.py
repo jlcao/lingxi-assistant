@@ -22,7 +22,7 @@ from concurrent.futures import (
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .skill_response import SkillResponse, ResponseCode
+from .skill_response import ToolResponse, ResponseCode
 from .execution_context import ExecutionContext, TrustLevel
 
 
@@ -86,7 +86,7 @@ class ExceptionTranslator:
         exc: Exception,
         skill_id: Optional[str] = None,
         trace_id: Optional[str] = None
-    ) -> SkillResponse:
+    ) -> ToolResponse:
         """转译异常为 SkillResponse
 
         Args:
@@ -98,7 +98,7 @@ class ExceptionTranslator:
             SkillResponse 实例
         """
         message = cls.translate(exc, skill_id)
-        return SkillResponse.error(
+        return ToolResponse.error(
             message=message,
             code=ResponseCode.INTERNAL_ERROR,
             skill_id=skill_id,
@@ -202,7 +202,7 @@ class ExecutorScheduler:
         timeout: Optional[float],
         *args,
         **kwargs
-    ) -> SkillResponse:
+    ) -> ToolResponse:
         """执行包装器 - 处理异常和指标
 
         Args:
@@ -224,10 +224,10 @@ class ExecutorScheduler:
         try:
             result = func(*args, **kwargs)
 
-            if isinstance(result, SkillResponse):
+            if isinstance(result, ToolResponse):
                 response = result
             else:
-                response = SkillResponse.success(
+                response = ToolResponse.success(
                     data=result,
                     skill_id=skill_id,
                     trace_id=trace_id
@@ -339,7 +339,7 @@ class ExecutorScheduler:
         executor_type: ExecutorType = ExecutorType.THREAD,
         timeout: Optional[float] = None,
         **kwargs
-    ) -> SkillResponse:
+    ) -> ToolResponse:
         """异步提交并等待结果
 
         Args:

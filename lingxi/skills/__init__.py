@@ -2,7 +2,7 @@ from .skill_system import SkillSystem
 from .skill_cache import SkillCache
 from .skill_loader import SkillLoader
 from .registry_memory import SkillRegistry
-from .skill_response import SkillResponse, ResponseCode
+from .skill_response import ToolResponse, ResponseCode
 from .execution_context import ExecutionContext, TrustLevel
 from .base_skill import (
     BaseSkill,
@@ -44,7 +44,7 @@ __all__ = [
     'SkillCache', 
     'SkillLoader',
     'SkillRegistry',
-    'SkillResponse',
+    'ToolResponse',
     'ResponseCode',
     'ExecutionContext',
     'TrustLevel',

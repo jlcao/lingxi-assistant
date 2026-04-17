@@ -4,8 +4,17 @@
 """
 
 from .exceptions import *
+from .ToolException import *
 from .security import SecuritySandbox
 
 __all__ = [
     "SecuritySandbox",
+    "ToolException",
+    "ToolExecutionError",
+    "ToolValidationError",
+    "ToolNotFoundError",
+    "ToolPermissionError",
+    "ToolTimeoutError",
+    "ToolDependencyError",
+    "ToolConfigurationError",
 ]

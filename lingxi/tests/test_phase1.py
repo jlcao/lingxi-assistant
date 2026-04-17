@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import unittest
 from lingxi.skills import (
-    SkillResponse,
+    ToolResponse,
     ResponseCode,
     ExecutionContext,
     TrustLevel,
@@ -30,7 +30,7 @@ class TestSkillResponse(unittest.TestCase):
 
     def test_success_response(self):
         """测试成功响应"""
-        resp = SkillResponse.success(
+        resp = ToolResponse.success(
             data={"result": "test"},
             message="执行成功",
             skill_id="test_skill",
@@ -49,7 +49,7 @@ class TestSkillResponse(unittest.TestCase):
 
     def test_error_response(self):
         """测试错误响应"""
-        resp = SkillResponse.error(
+        resp = ToolResponse.error(
             message="执行失败",
             code=ResponseCode.INTERNAL_ERROR,
             skill_id="test_skill",
@@ -63,7 +63,7 @@ class TestSkillResponse(unittest.TestCase):
 
     def test_forbidden_response(self):
         """测试禁止响应"""
-        resp = SkillResponse.forbidden(
+        resp = ToolResponse.forbidden(
             message="安全检查失败",
             skill_id="test_skill",
             trace_id="trace_789"
@@ -73,7 +73,7 @@ class TestSkillResponse(unittest.TestCase):
 
     def test_bad_request_response(self):
         """测试参数错误响应"""
-        resp = SkillResponse.bad_request(
+        resp = ToolResponse.bad_request(
             message="参数错误",
             skill_id="test_skill",
             trace_id="trace_012"
@@ -83,9 +83,9 @@ class TestSkillResponse(unittest.TestCase):
 
     def test_to_dict_and_from_dict(self):
         """测试字典转换"""
-        resp1 = SkillResponse.success(data={"key": "value"})
+        resp1 = ToolResponse.success(data={"key": "value"})
         resp_dict = resp1.to_dict()
-        resp2 = SkillResponse.from_dict(resp_dict)
+        resp2 = ToolResponse.from_dict(resp_dict)
         self.assertEqual(resp1.success, resp2.success)
         self.assertEqual(resp1.code, resp2.code)
         self.assertEqual(resp1.data, resp2.data)
@@ -200,7 +200,7 @@ class TestSimpleSkill(unittest.TestCase):
     def test_wrap_execute_function_skill_response(self):
         """测试包装返回 SkillResponse 的函数"""
         def execute_func(params):
-            return SkillResponse.success(data="test")
+            return ToolResponse.success(data="test")
         
         skill = wrap_execute_function(execute_func)
         result = skill.sync_execute({})
@@ -221,7 +221,7 @@ class TestSimpleSkill(unittest.TestCase):
 class TestSkillImpl(BaseSkill):
     """测试用的具体技能实现"""
     async def execute(self, params: dict):
-        return SkillResponse.success(data="test")
+        return ToolResponse.success(data="test")
 
 
 class TestBaseSkill(unittest.TestCase):

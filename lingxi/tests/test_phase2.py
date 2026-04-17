@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 import unittest
 from concurrent.futures import TimeoutError
 from lingxi.skills import (
-    SkillResponse,
+    ToolResponse,
     ExecutionContext,
     ExecutorScheduler,
     ExecutorType,
@@ -158,7 +158,7 @@ class TestExecutorScheduler(unittest.TestCase):
     def test_returns_skill_response(self):
         """测试返回 SkillResponse 的函数"""
         def func_returns_response(params):
-            return SkillResponse.success(data="direct_response")
+            return ToolResponse.success(data="direct_response")
 
         future = self.scheduler.submit(func_returns_response, {})
         result = future.result()

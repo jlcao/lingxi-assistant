@@ -9,6 +9,7 @@ import logging
 import os
 from typing import Dict, Any, Optional, List
 from pathlib import Path
+from lingxi.core.utils import ToolValidationError
 from lingxi.core.utils.Tool import ToolBase
 
 
@@ -60,16 +61,9 @@ class ReadSkillTool(ToolBase):
         skill_name = parameters.get("skill_name") #技能名称
         file_path = parameters.get("file_path") #文件相对路径
         
-        result = {
-            "status": "F",
-            "content": [],
-            "error": "",
-            "result_description": f"加载技能: {skill_name}"
-        }
-        
+       
         if not skill_name:
-            result["error"] = "缺少必要参数: skill_name"
-            return result
+            raise ToolValidationError("缺少必要参数: skill_name")
         
         if file_path is None:
             file_path = f"SKILL.md"
@@ -82,29 +76,23 @@ class ReadSkillTool(ToolBase):
             cached_content = skill_cache.get_file_content(skill_name, file_path)
             self.logger.debug(f"get_file_content 返回结果：{cached_content}")
             if cached_content:
-                self.logger.info(f"从缓存读取 {file_path}：{skill_name}")
-                result["status"] = "S"
-                result["content"] = cached_content
-                return result
+                return f"已读取文件:{file_path}\n{cached_content}"
         
         # 如果缓存中没有，尝试从文件系统重新加载
         self.logger.debug(f"缓存未命中，尝试从文件系统加载：{skill_name}")
-        content = self._load_from_filesystem(skill_name)
+        content = self._load_from_filesystem(skill_name,file_path)
         if content:
-            self.logger.info(f"从文件系统加载 SKILL.md：{skill_name}")
+            self.logger.info(f"从文件系统加载 {file_path}：{skill_name}")
             # 重新缓存
             if skill_cache:
-                skill_md_path = self._find_skill_file_path(skill_name)
+                skill_md_path = self._find_skill_file_path(skill_name, file_path)
                 if skill_md_path:
-                    skill_cache.set_md_content(skill_name, content, skill_md_path)
-            result["status"] = "S"
-            result["content"] = content
-            return result
+                    skill_cache.set_file_content(skill_name, content, skill_md_path)
+            return f"已读取文件:{file_path}\n{content}"
         
         # 如果文件系统中也没有，返回错误
         self.logger.warning(f"缓存和文件系统中均未找到 {file_path}：{skill_name}")
-        result["error"] = f"缓存中未找到 {file_path}：{skill_name}"
-        return result
+        return f"缓存中未找到 {file_path}：{skill_name}"
     
     def _find_skill_file_path(self, skill_name: str, file_path: str = "SKILL.md") -> Optional[str]:
         """查找技能的文件路径
@@ -167,9 +155,7 @@ class ReadSkillTool(ToolBase):
         """
         skill_name = parameters.get("skill_name")
         if not skill_name:
-            return "缺少必要参数: skill_name"
-        return None
-    
+            raise ToolValidationError("缺少必要参数: skill_name")    
 
     
     

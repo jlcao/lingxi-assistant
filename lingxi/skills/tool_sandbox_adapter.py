@@ -10,7 +10,7 @@ from functools import partial
 
 from .sandbox import SandboxManager, TrustLevel
 from .execution_context import ExecutionContext
-from .skill_response import SkillResponse
+from .skill_response import ToolResponse
 from .executor_scheduler import ExecutorScheduler, ExecutorType, SkillPriority
 
 
@@ -84,7 +84,7 @@ class ToolSandboxAdapter:
         context = context or ExecutionContext()
         context = context.with_skill(tool_name, trust_level)
 
-        def wrapped(parameters: Dict[str, Any]) -> SkillResponse:
+        def wrapped(parameters: Dict[str, Any]) -> ToolResponse:
             """包装后的执行函数
 
             Args:
@@ -95,26 +95,26 @@ class ToolSandboxAdapter:
             """
             tool_result = tool_execute(parameters)
 
-            if isinstance(tool_result, SkillResponse):
+            if isinstance(tool_result, ToolResponse):
                 return tool_result
 
             if isinstance(tool_result, dict):
                 status = tool_result.get("status", "F")
                 if status == "S":
-                    return SkillResponse.success(
+                    return ToolResponse.success(
                         data=tool_result.get("output", []) or tool_result.get("content", []),
                         message=tool_result.get("result_description", ""),
                         skill_id=tool_name,
                         trace_id=context.trace_id
                     )
                 else:
-                    return SkillResponse.error(
+                    return ToolResponse.error(
                         message=tool_result.get("error", "工具执行失败"),
                         skill_id=tool_name,
                         trace_id=context.trace_id
                     )
 
-            return SkillResponse.success(
+            return ToolResponse.success(
                 data=tool_result,
                 skill_id=tool_name,
                 trace_id=context.trace_id
@@ -130,7 +130,7 @@ class ToolSandboxAdapter:
         context: Optional[ExecutionContext] = None,
         trust_level: Optional[TrustLevel] = None,
         timeout: Optional[float] = None
-    ) -> SkillResponse:
+    ) -> ToolResponse:
         """在沙盒中执行工具
 
         Args:
@@ -234,7 +234,7 @@ def create_sandboxed_tool_execute(
     if not adapter:
         adapter = ToolSandboxAdapter(executor_scheduler=executor_scheduler)
 
-    def sandboxed_execute(parameters: Dict[str, Any]) -> SkillResponse:
+    def sandboxed_execute(parameters: Dict[str, Any]) -> ToolResponse:
         return adapter.execute_tool_in_sandbox(
             tool.execute,
             parameters,

@@ -11,7 +11,7 @@ from lingxi.skills.skill_loader import SkillLoader
 from lingxi.skills.skill_cache import SkillCache
 from lingxi.skills.executor_scheduler import ExecutorScheduler, ExecutorType, SkillPriority
 from lingxi.skills.execution_context import ExecutionContext, TrustLevel
-from lingxi.skills.skill_response import SkillResponse, ResponseCode
+from lingxi.skills.skill_response import ToolResponse, ResponseCode
 from lingxi.core.utils.security import SecuritySandbox, SecurityError
 from lingxi.core.confirmation import DangerousSkillChecker, RiskLevel
 from lingxi.skills.security_interceptor import SecurityInterceptor
@@ -144,7 +144,7 @@ class SkillSystem:
             
             self.logger.info(f"工作目录技能重新加载完成，成功注册 {count} 个技能")
     
-    def execute_skill(self, skill_id: str, params: Dict[str, Any] = None) -> SkillResponse:
+    def execute_skill(self, skill_id: str, params: Dict[str, Any] = None) -> ToolResponse:
         """执行技能（统一入口，带安全检查）
         
         Args:
@@ -164,7 +164,7 @@ class SkillSystem:
         if not skill_info:
             error_msg = f"技能不存在: {skill_id}"
             self.logger.warning(error_msg)
-            return SkillResponse.error(
+            return ToolResponse.error(
                 message=error_msg,
                 code=ResponseCode.NOT_FOUND,
                 skill_id=skill_id
@@ -174,7 +174,7 @@ class SkillSystem:
         if not skill_info.get("enabled", True):
             error_msg = f"技能未启用: {skill_id}"
             self.logger.warning(error_msg)
-            return SkillResponse.error(
+            return ToolResponse.error(
                 message=error_msg,
                 code=ResponseCode.FORBIDDEN,
                 skill_id=skill_id
@@ -210,7 +210,7 @@ class SkillSystem:
             if not self.security_interceptor.require_confirm():
                 error_msg = "用户拒绝执行高风险操作"
                 self.logger.warning(error_msg)
-                return SkillResponse.forbidden(
+                return ToolResponse.forbidden(
                     message=error_msg,
                     skill_id=skill_id,
                     trace_id=context.trace_id
@@ -250,12 +250,12 @@ class SkillSystem:
             
             # 处理返回结果
             if isinstance(result, str) and "错误" in result:
-                return SkillResponse.error(
+                return ToolResponse.error(
                     message=result,
                     skill_id=skill_id,
                     trace_id=context.trace_id
                 )
-            return SkillResponse.success(
+            return ToolResponse.success(
                 data=result,
                 skill_id=skill_id,
                 trace_id=context.trace_id
@@ -294,7 +294,7 @@ class SkillSystem:
             self.logger.error(error_msg)
             
             # 写入审计日志
-            error_response = SkillResponse.error(
+            error_response = ToolResponse.error(
                 message=error_msg,
                 skill_id=skill_id,
                 trace_id=context.trace_id
@@ -309,7 +309,7 @@ class SkillSystem:
             
             return error_response
     
-    def execute_skill_async(self, skill_id: str, params: Dict[str, Any] = None) -> Future[SkillResponse]:
+    def execute_skill_async(self, skill_id: str, params: Dict[str, Any] = None) -> Future[ToolResponse]:
         """异步执行技能
         
         Args:
@@ -331,7 +331,7 @@ class SkillSystem:
             # 返回已完成的 Future
             from concurrent.futures import Future
             future = Future()
-            future.set_result(SkillResponse.error(
+            future.set_result(ToolResponse.error(
                 message=error_msg,
                 code=ResponseCode.NOT_FOUND,
                 skill_id=skill_id
@@ -376,12 +376,12 @@ class SkillSystem:
             result = self.loader.execute_local_skill(skill_id, params)
             
             if isinstance(result, str) and "错误" in result:
-                return SkillResponse.error(
+                return ToolResponse.error(
                     message=result,
                     skill_id=skill_id,
                     trace_id=context.trace_id
                 )
-            return SkillResponse.success(
+            return ToolResponse.success(
                 data=result,
                 skill_id=skill_id,
                 trace_id=context.trace_id

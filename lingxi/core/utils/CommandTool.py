@@ -11,7 +11,7 @@ import tempfile
 import re
 import importlib.util
 from typing import Dict, Any, Optional
-from lingxi.core.utils import utils
+from lingxi.core.utils import ToolExecutionError, ToolValidationError, utils
 from lingxi.core.utils.Tool import ToolBase
 from lingxi.utils.config import get_config
 
@@ -34,8 +34,25 @@ class CommandTool(ToolBase):
         Returns:
             是否校验通过
         """
-        required_params = ["command", "cwd"]
-        return all(param in parameters for param in required_params)
+        command = parameters.get("command")
+        cwd = parameters.get("cwd")
+        shell_type = parameters.get("shell_type")
+        # 参数校验
+        if not command:
+            raise ToolValidationError("缺少必要参数: command")
+            
+        if not cwd:
+            raise ToolValidationError("缺少必要参数: cwd")
+            
+        # 检查工作目录是否存在
+        if not os.path.exists(cwd):
+            raise ToolValidationError(f"指定的工作目录不存在: {cwd}")
+            
+        if not os.path.isdir(cwd):
+            raise ToolValidationError(f"指定的路径不是目录: {cwd}")        
+            
+        return True
+    
     
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """执行系统命令
@@ -52,35 +69,12 @@ class CommandTool(ToolBase):
                 - error: 错误信息（成功时为空字符串）
                 - output: 命令输出内容（失败时也可能有内容）
         """
-        result = {
-            "status": "F",
-            "error": "",
-            "output": "",
-            "result_description": f"执行命令: {str(parameters)}"
-        }
-        
+        command = parameters.get("command")
+        cwd = parameters.get("cwd")
+        shell_type = parameters.get("shell_type")
+
         try:
-            command = parameters.get("command")
-            cwd = parameters.get("cwd")
-            shell_type = parameters.get("shell_type")
             
-            # 参数校验
-            if not command:
-                result["error"] = "缺少必要参数: command"
-                return result
-            
-            if not cwd:
-                result["error"] = "缺少必要参数: cwd"
-                return result
-            
-            # 检查工作目录是否存在
-            if not os.path.exists(cwd):
-                result["error"] = f"指定的工作目录不存在: {cwd}"
-                return result
-            
-            if not os.path.isdir(cwd):
-                result["error"] = f"指定的路径不是目录: {cwd}"
-                return result
             
             # 2. 修复命令中的路径转义问题
             command = self._fix_over_escaped_paths(command)
@@ -102,8 +96,7 @@ class CommandTool(ToolBase):
                     
                     # 检查 Python 解释器是否可用
                     if not self._check_python_available():
-                        result["error"] = "Python 环境不可用。请确保已安装 Python 并配置了正确的 python_interpreter 路径。或者尝试使用 PowerShell/Bash 命令替代。"
-                        return result
+                        raise ToolExecutionError("Python 环境不可用。请确保已安装 Python 并配置了正确的 python_interpreter 路径。或者尝试使用 PowerShell/Bash 命令替代。")
                     
                     # 创建临时Python文件
                     with tempfile.NamedTemporaryFile(
@@ -174,43 +167,33 @@ class CommandTool(ToolBase):
                 stdout, stderr = process.communicate(timeout=30)
             
             else:
-                result["error"] = f"不支持的shell类型: {shell_type}"
-                return result
+                raise ToolExecutionError(f"不支持的shell类型: {shell_type}")
             
             # 5. 处理执行结果
             full_output = stdout + stderr
             # 限制输出长度，最长保留1000个字符
             if len(full_output) > 1000:
                 full_output = full_output[:1000] + "..."
-            result["output"] = full_output
             
             # 检查Python错误
             if self._check_python_errors(full_output):
-                result["error"] = f"检测到Python执行错误: {full_output}"
-                self.logger.error(result["error"], exc_info=True)
-                return result
+                raise ToolExecutionError(f"检测到Python执行错误: {full_output}")
             
             # 检查错误输出和返回码
             return_code = process.returncode if process else -1
             
             if stderr.strip() or return_code != 0:
                 error_msg = f"命令执行失败 (返回码: {return_code}): {stderr.strip()}"
-                result["error"] = error_msg
-            else:
-                result["status"] = "S"
-                result["error"] = ""
+                raise ToolExecutionError(error_msg)
             
-            return result
+            return full_output
         
         except subprocess.TimeoutExpired:
-            result["error"] = "命令执行超时（30秒）"
-            return result
+            raise ToolExecutionError("命令执行超时（30秒）")
         
         except Exception as e:
             error_msg = f"执行命令时发生异常: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
-            result["error"] = error_msg
-            return result
+            raise ToolExecutionError(error_msg)
         
         finally:
             # 确保临时文件被清理

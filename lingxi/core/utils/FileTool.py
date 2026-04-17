@@ -4,6 +4,7 @@
 import os
 import re
 from typing import Dict, List, Any, Optional
+from lingxi.core.utils import ToolValidationError
 from lingxi.core.utils.Tool import ToolBase
 
 
@@ -59,13 +60,13 @@ class FileTool(ToolBase):
         # 检查必要参数
         if operation_type in ["read", "write", "delete"]:
             if not parameters.get("file_path"):
-                return "缺少必要参数: file_path"
+                raise ToolValidationError("缺少必要参数: file_path")
         elif operation_type == "create":
             if not parameters.get("file_path"):
-                return "缺少必要参数: file_path"
+                raise ToolValidationError("缺少必要参数: file_path")
         elif operation_type == "list":
             if not parameters.get("path"):
-                return "缺少必要参数: path"
+                raise ToolValidationError("缺少必要参数: path")
         
         # 检查文件大小限制（仅适用于文件操作）
         security_params = parameters.get("security_params", {})
@@ -76,10 +77,9 @@ class FileTool(ToolBase):
             max_size_bytes = self._parse_max_size(max_size_str)
             
             if file_size > max_size_bytes:
-                return (f"文件大小超过限制 {max_size_str}，"
-                        f"实际大小：{file_size/1024/1024:.2f}MB")
+                raise ToolValidationError(f"文件大小超过限制 {max_size_str}，实际大小：{file_size/1024/1024:.2f}MB")
         
-        return None
+        return True
     
     def _parse_max_size(self, max_size_str: str) -> int:
         """解析文件大小限制字符串为字节数"""
@@ -93,8 +93,8 @@ class FileTool(ToolBase):
                 "GB": 1024 * 1024 * 1024
             }
             return max_size_num * unit_map.get(unit, unit_map["MB"])
-        except:
-            return 10 * 1024 * 1024  # 默认10MB
+        except ValueError:
+            raise ToolValidationError(f"无效的文件大小限制格式: {max_size_str}")  # 默认10MB
     
     def _read(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """读取文件操作"""
@@ -107,14 +107,8 @@ class FileTool(ToolBase):
         max_size_str = security_params.get("max_size", self.default_max_size)
         
         # 前置校验
-        result["error"] = self._validate_file_exists(file_path)
-        if result["error"]:
-            return result
-        
-        result["error"] = self._validate_file_size(file_path, max_size_str)
-        if result["error"]:
-            return result
-        
+        self._validatevalidate_file_exists(file_path)
+        self._validate_file_size(file_path, max_size_str)
         try:
             with open(file_path, 'r', encoding=encoding) as f:
                 all_lines = [line.rstrip('\n') for line in f.readlines()]
@@ -131,21 +125,20 @@ class FileTool(ToolBase):
                 result["error"] = self._validate_line_range(start_line, end_line, len(all_lines))
                 if result["error"]:
                     return result
-                
+                content = ""
+                line_num = 0
                 for idx in range(start_line - 1, end_line):
                     line_num = idx + 1
                     line_content = all_lines[idx]
                     
                     if filter_rule and filter_rule not in line_content:
                         continue
-                    
-                    result["content"].append({"line": str(line_num), "str": line_content})
+                    content += f"{line_num}:\t{line_content}\n"
                 
-                result["status"] = "S"
+                return f"已读取文件:{file_path} {line_num}行\n内容:\n{content}"
         except Exception as e:
-            result["error"] = f"读取异常: {str(e)}"
+            raise ToolExecutionError(f"读取异常: {str(e)}")
         
-        return result
     
     def _write(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """写入文件操作"""
@@ -161,9 +154,8 @@ class FileTool(ToolBase):
         max_size_str = security_params.get("max_size", self.default_max_size)
         
         # 前置校验
-        result["error"] = self._validate_file_exists(file_path)
-        if result["error"]:
-            return result
+        self._validate_file_exists(file_path)
+        self._validate_file_size(file_path, max_size_str)
         
         try:
             if operate_scope == "full":
@@ -186,7 +178,7 @@ class FileTool(ToolBase):
                 for idx, line in enumerate(lines, 1):
                     result["content"].append({"line": str(idx), "str": line})
                 
-                result["status"] = "S"
+                return f"已写入文件:{file_path} {len(lines)}行"
             elif operate_scope == "line":
                 start_line = line_params.get("start_line", 1)
                 end_line = line_params.get("end_line", start_line)
@@ -198,9 +190,7 @@ class FileTool(ToolBase):
                 
                 total_lines = len(all_lines)
                 if start_line < 1 or end_line > total_lines + 1 or start_line > end_line:
-                    result["error"] = (f"行号范围无效，文件总行数：{total_lines}，"
-                                         f"请求范围：{start_line}-{end_line}")
-                    return result
+                    raise ToolValidationError(f"行号范围无效，文件总行数：{total_lines}，请求范围：{start_line}-{end_line}")
                 
                 # 分割内容并过滤掉末尾的空行（避免 split 产生多余空行）
                 content_lines = insert_content.split('\n')
@@ -215,18 +205,19 @@ class FileTool(ToolBase):
                 with open(file_path, 'w', encoding=encoding) as f:
                     f.writelines(all_lines)
                 
+                content = ""
+                line_num = 0
                 for idx in range(start_line-1, start_line-1 + len(insert_lines)):
                     if idx < len(all_lines):
                         line_content = all_lines[idx].rstrip('\n')
-                        result["content"].append({"line": str(idx+1), "str": line_content})
+                        content += f"{line_num}:\t{line_content}\n"
                 
-                result["status"] = "S"
+                return f"已写入文件:{file_path} {line_num}行 {start_line}-{end_line}\n内容:\n{content}"
         except Exception as e:
-            result["error"] = f"写入异常: {str(e)}"
-        
-        return result
+            raise ToolExecutionError(f"写入异常: {str(e)}")
     
-    def _delete(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    
+    def _delete(self, params: Dict[str, Any]) -> str:
         """删除文件/行操作"""
         file_path = params.get("file_path", "")
         result = {"status": "F", "content": [], "error": "", "result_description": f"删除文件: {file_path}"}
@@ -256,9 +247,7 @@ class FileTool(ToolBase):
                 with open(file_path, 'r', encoding=encoding) as f:
                     all_lines = [line.rstrip('\n') + '\n' for line in f.readlines()]
                 
-                result["error"] = self._validate_line_range(start_line, end_line, len(all_lines))
-                if result["error"]:
-                    return result
+                self._validate_line_range(start_line, end_line, len(all_lines))
                 
                 deleted_content = []
                 for idx in range(start_line - 1, end_line):
@@ -272,13 +261,10 @@ class FileTool(ToolBase):
                 with open(file_path, 'w', encoding=encoding) as f:
                     f.writelines(all_lines)
                 
-                result["content"] = deleted_content
-                result["status"] = "S"
-                result["result_description"] = f"已删除{file_path}文件的行 {start_line}-{end_line}"
+                return f"已删除{file_path}文件的行 {start_line}-{end_line}"
         except Exception as e:
-            result["error"] = f"删除异常: {str(e)}"
+            raise ToolExecutionError(f"删除异常: {str(e)}")
         
-        return result
     
     def _create(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """创建文件操作"""
@@ -316,11 +302,9 @@ class FileTool(ToolBase):
             for idx, line in enumerate(lines, 1):
                 result["content"].append({"line": str(idx), "str": line})
             
-            result["status"] = "S"
+            return f"文件已创建: {file_path}"
         except Exception as e:
-            result["error"] = f"创建异常: {str(e)}"
-        
-        return result
+            raise ToolExecutionError(f"创建异常: {str(e)}")
     
     def _list(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """列出目录内容操作"""
@@ -371,9 +355,9 @@ class FileTool(ToolBase):
     def _validate_file_exists(self, file_path: str) -> str:
         """检查文件是否存在，返回错误信息（空表示无错误）"""
         if not os.path.exists(file_path):
-            return f"文件不存在: {file_path}"
+            raise ToolValidationError(f"文件不存在: {file_path}")
         if os.path.isdir(file_path):
-            return f"路径是目录而非文件: {file_path}"
+            raise ToolValidationError(f"路径是目录而非文件: {file_path}")
         return ""
     
     def _validate_file_size(self, file_path: str, max_size_str: str) -> str:
@@ -382,18 +366,17 @@ class FileTool(ToolBase):
         file_size = os.path.getsize(file_path)
         
         if file_size > max_size_bytes:
-            return (f"文件大小超过限制 {max_size_str}，"
-                    f"实际大小：{file_size/1024/1024:.2f}MB")
+            raise ToolValidationError(f"文件大小超过限制 {max_size_str}，实际大小：{file_size/1024/1024:.2f}MB")
         return ""
     
     def _validate_line_range(self, start_line: int, end_line: int, total_lines: int) -> str:
         """验证行号范围是否合法，返回错误信息（空表示无错误）"""
         if start_line < 1:
-            return f"开始行号不能小于1，当前值：{start_line}"
+            raise ToolValidationError(f"开始行号不能小于1，当前值：{start_line}")
         if end_line > total_lines:
-            return f"结束行号超过文件总行数，总行数：{total_lines}，当前值：{end_line}"
+            raise ToolValidationError(f"结束行号超过文件总行数，总行数：{total_lines}，当前值：{end_line}")
         if start_line > end_line:
-            return f"开始行号不能大于结束行号，范围：{start_line}-{end_line}"
+            raise ToolValidationError(f"开始行号不能大于结束行号，范围：{start_line}-{end_line}")
         return ""
 
 

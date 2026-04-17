@@ -18,13 +18,13 @@ class ResponseCode(IntEnum):
 
 
 @dataclass
-class SkillResponse:
-    """统一技能响应结构
+class ToolResponse:
+    """统一工具响应结构
 
     Attributes:
         success: 是否成功
         code: 响应码（200=成功 400=参数 403=安全 500=异常）
-        data: 技能返回数据
+        data: 工具执行返回数据
         message: 提示/错误信息
         meta: 元数据（skill_id, version, trace_id, cost_ms）
     """
@@ -47,7 +47,7 @@ class SkillResponse:
         version: Optional[str] = None,
         trace_id: Optional[str] = None,
         cost_ms: Optional[float] = None
-    ) -> "SkillResponse":
+    ) -> "ToolResponse":
         """创建成功响应
 
         Args:
@@ -87,7 +87,7 @@ class SkillResponse:
         skill_id: Optional[str] = None,
         version: Optional[str] = None,
         trace_id: Optional[str] = None
-    ) -> "SkillResponse":
+    ) -> "ToolResponse":
         """创建错误响应
 
         Args:
@@ -122,7 +122,7 @@ class SkillResponse:
         message: str = "安全检查失败",
         skill_id: Optional[str] = None,
         trace_id: Optional[str] = None
-    ) -> "SkillResponse":
+    ) -> "ToolResponse":
         """创建权限禁止响应
 
         Args:
@@ -146,7 +146,7 @@ class SkillResponse:
         message: str = "参数错误",
         skill_id: Optional[str] = None,
         trace_id: Optional[str] = None
-    ) -> "SkillResponse":
+    ) -> "ToolResponse":
         """创建参数错误响应
 
         Args:
@@ -179,7 +179,7 @@ class SkillResponse:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SkillResponse":
+    def from_dict(cls, data: Dict[str, Any]) -> "ToolResponse":
         """从字典创建
 
         Args:

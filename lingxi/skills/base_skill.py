@@ -14,7 +14,7 @@
 import abc
 from typing import Any, Dict, Optional, Callable, Union
 from .execution_context import ExecutionContext
-from .skill_response import SkillResponse
+from .skill_response import ToolResponse
 
 
 class BaseSkill(abc.ABC):
@@ -33,10 +33,10 @@ class BaseSkill(abc.ABC):
         self.context = context or ExecutionContext()
 
     @abc.abstractmethod
-    async def execute(self, params: Dict[str, Any]) -> SkillResponse:
+    async def execute(self, params: Dict[str, Any]) -> ToolResponse:
         pass
 
-    def sync_execute(self, params: Dict[str, Any]) -> SkillResponse:
+    def sync_execute(self, params: Dict[str, Any]) -> ToolResponse:
         import asyncio
         try:
             loop = asyncio.get_event_loop()
@@ -61,23 +61,23 @@ class SimpleSkill(BaseSkill):
         super().__init__(manifest, context)
         self._execute_func = execute_func
 
-    async def execute(self, params: Dict[str, Any]) -> SkillResponse:
+    async def execute(self, params: Dict[str, Any]) -> ToolResponse:
         result = self._execute_func(params)
         
-        if isinstance(result, SkillResponse):
+        if isinstance(result, ToolResponse):
             return result
         
         if isinstance(result, dict):
             if "success" in result:
-                return SkillResponse.from_dict(result)
-            return SkillResponse.success(data=result)
+                return ToolResponse.from_dict(result)
+            return ToolResponse.success(data=result)
         
         if isinstance(result, str):
             if result.startswith("错误") or result.startswith("error"):
-                return SkillResponse.error(message=result)
-            return SkillResponse.success(data=result)
+                return ToolResponse.error(message=result)
+            return ToolResponse.success(data=result)
         
-        return SkillResponse.success(data=result)
+        return ToolResponse.success(data=result)
 
 
 def wrap_execute_function(

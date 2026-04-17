@@ -4,6 +4,8 @@
 import logging
 from typing import Dict, Any, Optional
 
+from lingxi.skills.skill_response import ToolResponse
+
 
 class ToolBase:
     """工具基类，所有工具必须继承此类"""
@@ -119,28 +121,21 @@ class Tool:
         Returns:
             工具执行结果
         """
-        if tool_name not in self.tools:
-            return {
-                "status": "F",
-                "content": [],
-                "error": f"工具 {tool_name} 未注册",
-                "result_description": f"调用工具 {tool_name} 失败，工具未注册"
-            }
+        try:
+            if tool_name not in self.tools:
+                raise ToolNotFoundError(f"工具 {tool_name} 未注册")
         
-        tool = self.tools[tool_name]
+            tool = self.tools[tool_name]
+            # 验证参数
+            tool.validate_parameters(kwargs)
+            content = tool.execute(kwargs)
+
+            # 执行工具
+            return ToolResponse.success(data=content)  
+        except Exception as e:
+            self.logger.error(f"工具执行错误：{e}", exc_info=True)
+            return ToolResponse.error(message=str(e))
         
-        # 验证参数
-        validation_error = tool.validate_parameters(kwargs)
-        if validation_error:
-            return {
-                "status": "F",
-                "content": [],
-                "error": validation_error,
-                "result_description": f"调用工具 {tool_name} 参数验证失败"
-            }
-        
-        # 执行工具
-        return tool.execute(kwargs)
     
     def list_tools(self) -> Dict[str, Dict[str, Any]]:
         """列出所有工具"""
@@ -148,3 +143,4 @@ class Tool:
             name: tool.get_info()
             for tool in self.tools.values()
         }
+    

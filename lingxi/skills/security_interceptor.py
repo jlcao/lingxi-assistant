@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from .execution_context import ExecutionContext
-from .skill_response import SkillResponse
+from .skill_response import ToolResponse
 
 
 class SecurityInterceptor:
@@ -105,7 +105,7 @@ class SecurityInterceptor:
         # 暂时默认返回 True，允许执行
         return True
 
-    def audit_log(self, skill_id: str, params: Dict[str, Any], response: SkillResponse, context: ExecutionContext):
+    def audit_log(self, skill_id: str, params: Dict[str, Any], response: ToolResponse, context: ExecutionContext):
         """安全审计日志
 
         Args:

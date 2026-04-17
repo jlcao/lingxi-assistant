@@ -180,6 +180,8 @@ def map_exception_to_error_code(exception: Exception) -> tuple:
     Returns:
         (错误码, 可恢复性)
     """
+    from .ToolException import ToolException
+    
     if isinstance(exception, LLMException):
         return exception.error_code, exception.recoverable
     elif isinstance(exception, SkillException):
@@ -189,6 +191,8 @@ def map_exception_to_error_code(exception: Exception) -> tuple:
     elif isinstance(exception, TaskException):
         return exception.error_code, exception.recoverable
     elif isinstance(exception, ResourceException):
+        return exception.error_code, exception.recoverable
+    elif isinstance(exception, ToolException):
         return exception.error_code, exception.recoverable
     elif isinstance(exception, TimeoutError):
         return "TIMEOUT", True
