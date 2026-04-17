@@ -24,6 +24,18 @@ class CommandTool(ToolBase):
         self.temp_files = []  # 跟踪临时文件，确保清理
         config = get_config()
         self.python_interpreter = config.get('python_interpreter', 'python')
+
+    def validate_parameters(self, parameters: Dict[str, Any]) -> bool:
+        """校验参数是否符合要求
+        
+        Args:
+            parameters: 执行参数字典
+        
+        Returns:
+            是否校验通过
+        """
+        required_params = ["command", "cwd"]
+        return all(param in parameters for param in required_params)
     
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """执行系统命令

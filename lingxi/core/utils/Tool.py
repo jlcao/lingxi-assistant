@@ -48,6 +48,24 @@ class ToolBase:
             "name": self.name,
             "description": self.description
         }
+    def get_parameters_description(self) -> str:
+        """
+        获取工具参数描述
+        
+        Returns:
+            参数描述字符串  
+        """
+        return self.get_parameters()
+    
+    def get_description(self) -> str:
+        """
+        获取工具描述
+        
+        Returns:
+            工具描述字符串
+        """
+        return self.description
+    
     
     def validate_parameters(self, parameters: Dict[str, Any]) -> Optional[str]:
         """
