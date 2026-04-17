@@ -155,6 +155,7 @@ class ActionCaller:
                         context=context
                     )
                     
+                    # 处理响应 - 检查 response.success 而不是 response.data.get("success")
                     if response.success:
                         return {"success": True, "result": str(response.data), "result_description": response.message}
                     else:
@@ -170,7 +171,7 @@ class ActionCaller:
                 self.logger.error(error_msg)
                 return {"success": False, "result": error_msg}
         else :
-            return self.skill_system.execute_skill(skill_name, parameters)
+            return self.skill_system.execute_skill(skill_name, parameters).get("data", {})
 
     def _normalize_file_path(self, file_path: str) -> str:
         """将文件路径转换为绝对路径（如果是相对路径）

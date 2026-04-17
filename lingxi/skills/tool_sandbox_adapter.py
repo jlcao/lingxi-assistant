@@ -102,7 +102,7 @@ class ToolSandboxAdapter:
                 status = tool_result.get("status", "F")
                 if status == "S":
                     return SkillResponse.success(
-                        data=tool_result.get("content", []),
+                        data=tool_result.get("output", []) or tool_result.get("content", []),
                         message=tool_result.get("result_description", ""),
                         skill_id=tool_name,
                         trace_id=context.trace_id
@@ -164,8 +164,9 @@ class ToolSandboxAdapter:
             )
 
         # 根据信任等级选择执行器类型和优先级
-        executor_type = ExecutorType.PROCESS if trust_level == TrustLevel.L2 else ExecutorType.THREAD
-        priority = SkillPriority.LOW if trust_level == TrustLevel.L2 else SkillPriority.HIGH
+        # 全部使用线程池避免 ProcessPoolExecutor 序列化嵌套函数的问题
+        executor_type = ExecutorType.THREAD
+        priority = SkillPriority.HIGH
 
         # 使用执行调度器执行任务
         future = self.executor_scheduler.submit(
