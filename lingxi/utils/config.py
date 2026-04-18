@@ -107,6 +107,10 @@ DEFAULT_CONFIG = {
             ],
             "white_list_paths": ["~/.lingxi"]
         }
+    },
+    "memory": {
+        "auto_cleanup_days": 30,
+        "enabled_categories": ["work", "todo"]
     }
 }
 

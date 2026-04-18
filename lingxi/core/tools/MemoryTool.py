@@ -4,10 +4,11 @@
 import os
 import re
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from lingxi.core.tools import ToolValidationError, ToolExecutionError
 from lingxi.core.tools.Tool import ToolBase
 from lingxi.core.tools.FileTool import FileTool
+from lingxi.utils.config import get_config
 
 
 MEMORY_TEMPLATE = """📖 个人记忆库
@@ -67,13 +68,15 @@ class MemoryTool(ToolBase):
     def __init__(self):
         super().__init__("memory", "记忆管理工具，支持记忆保存、查找、更新、删除、统计")
         self.file_tool = FileTool()
+        # 每次初始化时执行清理
+        self._cleanup()
 
     def get_parameters_description(self) -> str:
         """获取工具参数描述"""
         return """- memory 工具调用示例
 ```json
 {
-  "operation_type": "add|search|update|delete|statistics|init",
+  "operation_type": "add|search|update|delete|statistics|init|cleanup",
   "category": "user|work|todo",
   "content": "记忆内容",
   "tags": "标签1,标签2",
@@ -94,12 +97,13 @@ class MemoryTool(ToolBase):
             "search": self._search,
             "update": self._update,
             "delete": self._delete,
-            "statistics": self._statistics
+            "statistics": self._statistics,
+            "cleanup": self._manual_cleanup
         }
 
         if operation_type not in operation_map:
             raise ToolValidationError(
-                f"不支持的操作类型: {operation_type}，支持的类型：init/add/search/update/delete/statistics"
+                f"不支持的操作类型: {operation_type}，支持的类型：init/add/search/update/delete/statistics/cleanup"
             )
 
         return operation_map[operation_type](parameters)
@@ -457,3 +461,129 @@ class MemoryTool(ToolBase):
             "error": "",
             "result_description": f"已删除记忆: {line_to_delete.strip()}"
         }
+
+    def _cleanup(self) -> None:
+        """自动清理过期记忆"""
+        config = get_config()
+        cleanup_days = config.get("memory", {}).get("auto_cleanup_days", 30)
+        enabled_categories = config.get("memory", {}).get("enabled_categories", ["work", "todo"])
+
+        if not enabled_categories:
+            return
+
+        try:
+            content = self._read_memory_file()
+            lines = content.split('\n')
+            lines_to_keep = []
+            current_category = None
+            in_category = False
+            deleted_count = 0
+
+            # 计算过期日期
+            cutoff_date = datetime.now() - timedelta(days=cleanup_days)
+
+            for line in lines:
+                # 检测分类开始
+                if line.strip().startswith("## 1. 用户记忆"):
+                    current_category = "user"
+                    in_category = True
+                elif line.strip().startswith("## 2. 工作记忆"):
+                    current_category = "work"
+                    in_category = True
+                elif line.strip().startswith("## 3. 待办事项"):
+                    current_category = "todo"
+                    in_category = True
+                elif line.strip().startswith("##"):
+                    # 其他分类开始
+                    in_category = False
+
+                # 检查是否是记忆条目且需要清理
+                if in_category and line.strip().startswith('- [') and current_category in enabled_categories:
+                    match = re.match(r"- \[(\d{4}-\d{2}-\d{2})\] (.+)", line.strip())
+                    if match:
+                        entry_date = datetime.strptime(match.group(1), "%Y-%m-%d")
+                        if entry_date >= cutoff_date:
+                            lines_to_keep.append(line)
+                        else:
+                            deleted_count += 1
+                else:
+                    lines_to_keep.append(line)
+
+            # 如果有变化，写入文件
+            new_content = '\n'.join(lines_to_keep)
+            if new_content != content:
+                self._write_memory_file(new_content)
+        except Exception as e:
+            # 清理失败不影响其他功能
+            self.logger.error(f"自动清理记忆失败: {str(e)}")
+
+    def _manual_cleanup(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """手动执行清理"""
+        config = get_config()
+        cleanup_days = config.get("memory", {}).get("auto_cleanup_days", 30)
+        enabled_categories = config.get("memory", {}).get("enabled_categories", ["work", "todo"])
+
+        if not enabled_categories:
+            return {
+                "status": "S",
+                "content": [],
+                "error": "",
+                "result_description": "没有启用自动清理的分类"
+            }
+
+        try:
+            content = self._read_memory_file()
+            lines = content.split('\n')
+            lines_to_keep = []
+            current_category = None
+            in_category = False
+            deleted_count = 0
+
+            # 计算过期日期
+            cutoff_date = datetime.now() - timedelta(days=cleanup_days)
+
+            for line in lines:
+                # 检测分类开始
+                if line.strip().startswith("## 1. 用户记忆"):
+                    current_category = "user"
+                    in_category = True
+                elif line.strip().startswith("## 2. 工作记忆"):
+                    current_category = "work"
+                    in_category = True
+                elif line.strip().startswith("## 3. 待办事项"):
+                    current_category = "todo"
+                    in_category = True
+                elif line.strip().startswith("##"):
+                    # 其他分类开始
+                    in_category = False
+
+                # 检查是否是记忆条目且需要清理
+                if in_category and line.strip().startswith('- [') and current_category in enabled_categories:
+                    match = re.match(r"- \[(\d{4}-\d{2}-\d{2})\] (.+)", line.strip())
+                    if match:
+                        entry_date = datetime.strptime(match.group(1), "%Y-%m-%d")
+                        if entry_date >= cutoff_date:
+                            lines_to_keep.append(line)
+                        else:
+                            deleted_count += 1
+                else:
+                    lines_to_keep.append(line)
+
+            # 如果有变化，写入文件
+            new_content = '\n'.join(lines_to_keep)
+            if new_content != content:
+                self._write_memory_file(new_content)
+
+            return {
+                "status": "S",
+                "content": [],
+                "error": "",
+                "result_description": f"已清理 {deleted_count} 条过期记忆（超过 {cleanup_days} 天）",
+                "cleanup_details": {
+                    "deleted_count": deleted_count,
+                    "cleanup_days": cleanup_days,
+                    "enabled_categories": enabled_categories
+                }
+            }
+        except Exception as e:
+            raise ToolExecutionError(f"清理记忆失败: {str(e)}")
