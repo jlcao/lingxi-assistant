@@ -136,7 +136,8 @@ class AsyncLingxiAssistant(BaseAssistant):
             stream=True,
             workspace_path=get_workspace_path(),
             thinking_mode=thinking_mode,
-            session_context=session_context
+            session_context=session_context,
+            model_name=self.config.get("llm",{}).get("model",""),
         )
         self.context_manager._build_soul_and_memory(context)
         self.context_manager._build_memory_context(context)

@@ -12,9 +12,22 @@ class FileTool(ToolBase):
     """文件操作工具类，支持read/write/delete/create四种操作，支持整文件/行级两种粒度，带文件大小安全限制"""
     
     def __init__(self):
-        super().__init__("file", "文件操作工具，支持read/write/delete/create四种操作，支持整文件/行级两种粒度，带文件大小安全限制")
+        super().__init__("file", "用于对本地文本文件进行安全、可控的读取/删除/创建/改操作，支持整文件/行级两种粒度，带文件大小安全限制")
         self.default_max_size = "10MB"
         self.default_encoding = "utf-8"
+
+    def get_parameters_description(self) -> str:
+        """
+        获取工具参数描述
+        
+        Returns:
+            参数描述字符串  
+        """
+
+        str = """```json
+{{"file_path": "文件路径，字符串，必填","encoding": "编码，默认 utf-8","operation_type": "read/write/delete/create/list，必填","operate_scope": "full/line，默认 full","line_params": {{"start_line": "开始行号，数字，行操作时生效","end_line": "结束行号，数字，行操作时生效","filter_rule": "读取时过滤关键词，字符串"}},"content": "操作内容，字符串，必填，create/write/insert 时必填"}}
+```"""
+        return "- execute 工具调用示例\n" + str
     
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -25,7 +38,7 @@ class FileTool(ToolBase):
         
         Returns:
             操作结果字典
-        """
+        """ 
         operation_type = parameters.get("operation_type", "").lower()
         
         operation_map = {

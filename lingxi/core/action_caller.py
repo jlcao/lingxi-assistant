@@ -94,7 +94,7 @@ class ActionCaller:
         Returns:
             技能列表
         """
-        return self.skill_registry.list_skills(enabled_only=enabled_only)
+        return self.skill_system.list_skills(enabled_only=enabled_only)
 
     def call_with_security_check(
         self,
@@ -139,39 +139,37 @@ class ActionCaller:
             # 使用沙盒执行环境执行工具
             context = ExecutionContext(skill_id=skill_name)
             try:
-                # 从工具管理器获取工具实例
-                if skill_name in self.tool.tools:
-                    
-                    
-                    # 为 file 工具的 list 操作添加 operation_type 参数
-                    if skill_name == "file" and parameters.get("action") == "list":
-                        parameters["operation_type"] = "list"
-                    
-                    # 在沙盒中执行工具
-                    response = self.tool_adapter.execute_tool_in_sandbox(
-                        self.tool,
-                        parameters,
-                        skill_name,
-                        context=context
-                    )
-                    
-                    # 处理响应 - 检查 response.success 而不是 response.data.get("success")
-                    if response.success:
-                        return {"success": True, "result": str(response.data), "result_description": response.message}
-                    else:
-                        error_msg = f"工具执行失败: {skill_name} : {response.message}"
-                        self.logger.warning(error_msg)
-                        return {"success": False, "result": response.message, "result_description": response.message}
+                # 在沙盒中执行工具
+                response = self.tool_adapter.execute_tool_in_sandbox(
+                    self.tool,
+                    parameters,
+                    skill_name,
+                    context=context
+                )
+                # 处理响应 - 检查 response.success 而不是 response.data.get("success")
+                if response.success:
+                    return {"success": True, "result": str(response.data), "result_description": response.message}
                 else:
-                    error_msg = f"工具 {skill_name} 未注册"
+                    error_msg = f"工具执行失败: {skill_name} : {response.message}"
                     self.logger.warning(error_msg)
-                    return {"success": False, "result": error_msg}
+                    return {"success": False, "result": response.message, "result_description": response.message}
             except Exception as e:
                 error_msg = f"工具执行异常: {skill_name} : {str(e)}"
                 self.logger.error(error_msg)
                 return {"success": False, "result": error_msg}
         else :
-            return self.skill_system.execute_skill(skill_name, parameters).get("data", {})
+            try:
+                response = self.skill_system.execute_skill(skill_name, parameters)
+                if response.success:
+                    return {"success": True, "result": str(response.data), "result_description": response.message}
+                else:
+                    error_msg = f"技能执行失败: {skill_name} : {response.message}"
+                    self.logger.warning(error_msg)
+                    return {"success": False, "result": response.message, "result_description": response.message}
+            except Exception as e:
+                error_msg = f"技能执行异常: {skill_name} : {str(e)}"
+                self.logger.error(error_msg)
+                return {"success": False, "result": error_msg}
 
     def _normalize_file_path(self, file_path: str) -> str:
         """将文件路径转换为绝对路径（如果是相对路径）

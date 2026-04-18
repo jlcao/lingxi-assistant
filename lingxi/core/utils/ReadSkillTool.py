@@ -30,7 +30,7 @@ class ReadSkillTool(ToolBase):
         Args:
             skill_system: SkillSystem 实例（可选，如果为 None 则需要手动设置）
         """
-        super().__init__("read_skill", "读取技能使用说明工具，从 SkillSystem 缓存中读取技能的 SKILL.md 文件内容")
+        super().__init__("read_skill", "用于读取技能的详细使用说明，默认读取 SKILL.md 文件，可指定该技能下面的其它文件读取，传入file_path参数")
         self.skill_system = skill_system
     
     def set_skill_system(self, skill_system):
@@ -41,6 +41,19 @@ class ReadSkillTool(ToolBase):
         """
         self.skill_system = skill_system
         self.logger.debug("SkillSystem 已设置")
+
+    def get_parameters_description(self) -> str:
+        """
+        获取工具参数描述
+        
+        Returns:
+            参数描述字符串  
+        """
+        str = """- execute 工具调用示例
+            ```json
+            {{"skill_name": "技能名称，字符串，必填","file_path": "文件相对路径，字符串，可填，默认 SKILL.md"}}
+            ```"""
+        return str
     
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """执行工具 - 读取技能的 SKILL.md 文件内容

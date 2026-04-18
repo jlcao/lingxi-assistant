@@ -178,6 +178,7 @@ def execute(parameters: Dict[str, Any]) -> str:
         logger.error(f"获取财经新闻失败: {e}")
         return f"获取财经新闻失败: {str(e)}"
 
+
 if __name__ == "__main__":
     import argparse
     import json
@@ -196,4 +197,3 @@ if __name__ == "__main__":
     
     result = execute(parameters)
     print(result)
-

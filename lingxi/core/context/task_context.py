@@ -32,6 +32,7 @@ class TaskContext:
     userMemory: Optional[str] = None  #用户记忆
     projectMemory: Optional[str] = None  #项目记忆
     description: Optional[str] = None  #任务描述
+    model_name: Optional[str] = None  #模型名称
     
     
     def __post_init__(self):

@@ -82,6 +82,7 @@ class SkillCache:
         self._config_cache: OrderedDict[str, dict] = OrderedDict()
         self._md_content_cache: OrderedDict[str, dict] = OrderedDict()
         self._file_cache: OrderedDict[str, SkillFileCache] = OrderedDict()
+        self._mcp_skills_cache: OrderedDict[str, dict] = OrderedDict()
         self._module_names: Dict[str, List[str]] = {}
         self._ttl = ttl
         self._max_size = max_size
@@ -101,8 +102,14 @@ class SkillCache:
         self._module_cache.move_to_end(skill_id)
         return cache_entry.get('module')
     
-    def set_module(self, skill_id: str, module: ModuleType, file_path: str) -> None:
-        """缓存技能模块（支持 LRU 淘汰）"""
+    def set_module(self, skill_id: str, module: Any, file_path: str) -> None:
+        """缓存技能模块（支持 LRU 淘汰）
+        
+        Args:
+            skill_id: 技能ID
+            module: 模块对象或外部执行模式字典
+            file_path: 文件路径
+        """
         if skill_id in self._module_cache:
             self._remove_module(skill_id)
         
@@ -111,15 +118,20 @@ class SkillCache:
             self.logger.debug(f"LRU 淘汰最旧的缓存：{oldest_skill_id}")
             self._remove_module(oldest_skill_id)
         
-        file_hash = self._compute_file_hash(file_path)
-        module_names = self._extract_module_names(module)
-        self._module_names[skill_id] = module_names
-        
-        self._module_cache[skill_id] = {
+        cache_entry = {
             'module': module,
-            'hash': file_hash,
             'timestamp': datetime.now()
         }
+        
+        if isinstance(module, ModuleType):
+            cache_entry['hash'] = self._compute_file_hash(file_path)
+            cache_entry['type'] = 'module'
+            module_names = self._extract_module_names(module)
+            self._module_names[skill_id] = module_names
+        else:
+            cache_entry['type'] = 'external'
+        
+        self._module_cache[skill_id] = cache_entry
         self.logger.debug(f"技能模块已缓存：{skill_id}")
     
     def get_config(self, skill_id: str) -> Optional[Dict[str, Any]]:
@@ -223,6 +235,74 @@ class SkillCache:
         }
         self.logger.debug(f"SKILL.md 内容已缓存：{skill_id}")
     
+    def get_mcp_skill(self, skill_id: str) -> Optional[Dict[str, Any]]:
+        """获取 MCP 技能配置
+        
+        Args:
+            skill_id: 技能ID
+            
+        Returns:
+            MCP 技能配置，如果缓存不存在或过期返回 None
+        """
+        if skill_id not in self._mcp_skills_cache:
+            return None
+        
+        cache_entry = self._mcp_skills_cache[skill_id]
+        if self._is_expired(cache_entry['timestamp']):
+            self.logger.debug(f"MCP 技能缓存过期：{skill_id}")
+            del self._mcp_skills_cache[skill_id]
+            return None
+        
+        self._mcp_skills_cache.move_to_end(skill_id)
+        return cache_entry.get('config')
+    
+    def set_mcp_skill(self, skill_id: str, config: Dict[str, Any]) -> None:
+        """缓存 MCP 技能配置
+        
+        Args:
+            skill_id: 技能ID
+            config: MCP 技能配置
+        """
+        if skill_id in self._mcp_skills_cache:
+            del self._mcp_skills_cache[skill_id]
+        
+        if len(self._mcp_skills_cache) >= self._max_size:
+            oldest_skill_id = next(iter(self._mcp_skills_cache))
+            self.logger.debug(f"LRU 淘汰最旧的 MCP 技能缓存：{oldest_skill_id}")
+            del self._mcp_skills_cache[oldest_skill_id]
+        
+        self._mcp_skills_cache[skill_id] = {
+            'config': config,
+            'timestamp': datetime.now()
+        }
+        self.logger.debug(f"MCP 技能已缓存：{skill_id}")
+    
+    def has_module(self, skill_id: str) -> bool:
+        """检查技能模块是否已缓存
+        
+        Args:
+            skill_id: 技能ID
+            
+        Returns:
+            是否已缓存
+        """
+        return skill_id in self._module_cache
+    
+    def list_loaded_modules(self) -> List[str]:
+        """列出所有已加载的技能ID
+        
+        Returns:
+            技能ID列表
+        """
+        return list(self._module_cache.keys())
+    
+    def clear_modules(self) -> None:
+        """清空所有已加载的模块"""
+        skill_ids = list(self._module_cache.keys())
+        for skill_id in skill_ids:
+            self._remove_module(skill_id)
+        self.logger.debug(f"已清空所有模块缓存，共 {len(skill_ids)} 个")
+    
     def invalidate(self, skill_id):
         """使缓存失效（同时清理 sys.modules 和引用）"""
         if skill_id in self._module_cache:
@@ -236,17 +316,24 @@ class SkillCache:
             del self._md_content_cache[skill_id]
             self.logger.debug(f"SKILL.md 内容缓存已失效：{skill_id}")
         
+        if skill_id in self._mcp_skills_cache:
+            del self._mcp_skills_cache[skill_id]
+            self.logger.debug(f"MCP 技能缓存已失效：{skill_id}")
+        
         if skill_id in self._file_cache:
             del self._file_cache[skill_id]
             self.logger.debug(f"技能文件缓存已失效：{skill_id}")
     
     def invalidate_all(self) -> None:
         """清空所有缓存"""
-        count = len(self._module_cache) + len(self._config_cache) + len(self._md_content_cache) + len(self._file_cache)
+        count = (len(self._module_cache) + len(self._config_cache) + 
+                 len(self._md_content_cache) + len(self._file_cache) +
+                 len(self._mcp_skills_cache))
         self._module_cache.clear()
         self._config_cache.clear()
         self._md_content_cache.clear()
         self._file_cache.clear()
+        self._mcp_skills_cache.clear()
         self.logger.info(f"所有技能缓存已清空，共 {count} 个条目")
     
     def cache_skill_files(self, skill_id: str, skill_dir: str) -> int:

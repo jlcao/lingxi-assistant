@@ -11,6 +11,7 @@ from typing import Dict, List, Any, Optional
 
 from lingxi.core.context.task_context import TaskContext
 from lingxi.utils.config import get_workspace_path
+from lingxi.core.utils.Tool import Tool
 
 
 class PromptTemplates:
@@ -247,68 +248,25 @@ class PromptTemplates:
         system_prompt = f"""你是灵犀智能助手
 
 ## 系统工具
-file : 用于对本地文本文件进行安全、可控的读取/删除/创建/改操作，支持整文件/行级两种粒度，带文件大小安全限制 
-execute : 用于执行shell命令，支持powershell、bash等多种shell类型
-read_skill : 用于读取技能的详细使用说明，默认读取 SKILL.md 文件，可指定该技能下面的其它文件读取，传入 file_path 参数即可
-
+{ '\n'.join(Tool.get_instance().list_tools_metadata()) }
 ## 工具调用示例
-- file 工具调用示例
-
-```json
-{{
-  "file_path": "文件路径，字符串，必填",
-  "encoding": "编码，默认 utf-8",
-  "operation_type": "read/write/delete/create，必填",
-  "operate_scope": "full/line，默认 full",
-  "line_params": {{
-    "start_line": "开始行号，数字，行操作时生效",
-    "end_line": "结束行号，数字，行操作时生效",
-    "filter_rule": "读取时过滤关键词，字符串"
-  }},
-  "content": "操作内容，字符串，必填，create/write/insert 时必填"
-}}
-```
-- execute 工具调用示例
-
-```json
-{{
-  "cwd": "当前工作目录,必填",
-  "command": "python -c \"print('Hello World')\"",
-  "shell_type": "powershell|bash"
-}}
-```
-- read_skill 工具调用示例
-
-```json
-{{
-  "skill_name": "技能名称，字符串，必填",
-  "file_path": "文件相对路径，字符串，可填，默认 SKILL.md"
-}}
-```
+{ '\n'.join(Tool.get_instance().list_tools_parameter_description()) }
 
 ## 技能:
 {skills_list}
-
 finish(answer) - 完成任务并返回答案
 
 ## 记忆
 {context.userMemory or ""}
-
 ## 模型
-qwen3.5-plus
-
+{context.model_name}
 ## workspace        
 当前工作目录:{get_workspace_path()}
-
 ## 系统环境
 {system_info['os_info']}
-
+当前时间：{system_info['current_date']} {system_info['current_time']}
 ## Shell类型
 {system_info['shell_type']}
-
-当前时间：{system_info['current_date']} {system_info['current_time']}
-
-
 ## 【重要】必须严格按照以下 JSON 格式输出，不要包含任何其他文字：
 {{"thought": "你的思考过程", "description": "当前步骤的摘要", "action": "工具或者技能名称","action_type":"tool or skill", "action_input": {{"参数名": "参数值"}}}}
 
@@ -407,27 +365,18 @@ Action Input: {{"file_path": "test.txt"}}
         base_system_prompt = f"""你是灵犀智能助手
 
 ## 系统工具
-file : 用于对本地文本文件进行安全、可控的读取/删除/创建/改操作，支持整文件/行级两种粒度，带文件大小安全限制 
-execute : 用于执行shell命令，支持powershell、bash等多种shell类型
-read_skill : 用于读取技能的详细使用说明
-
+{ '\n'.join(Tool.get_instance().list_tools_metadata()) }
 ## 技能:
 {skills_list}
-
 #### 模型
-qwen3.5-plus
-
+{context.model_name}
 ## workspace        
 {get_workspace_path()}
-
 ## 系统环境
 {system_info['os_info']}
-
 ## Shell类型
 {system_info['shell_type']}
-
 当前时间：{system_info['current_date']} {system_info['current_time']}
-
 ## 回复格式
 **请严格按照JSON格式返回，不要返回多余的其它内容**
 **JSON格式示例：**

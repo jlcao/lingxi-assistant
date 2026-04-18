@@ -69,3 +69,23 @@ def execute(parameters: Dict[str, Any]) -> str:
     except Exception as e:
         logger.error(f"提取新闻内容失败: {e}")
         return f"提取新闻内容失败: {str(e)}"
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--params", type=str, required=True, help="参数文件路径")
+    args = parser.parse_args()
+    
+    with open(args.params, "r", encoding="utf-8") as f:
+        parameters = json.load(f)
+    
+    result = execute(parameters)
+    print(result)

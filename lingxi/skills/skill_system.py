@@ -124,8 +124,8 @@ class SkillSystem:
             self.logger.debug("技能缓存已清空")
         
         # 清除已加载的技能模块
-        if self.loader:
-            self.loader.loaded_modules.clear()
+        if self.loader and self.cache:
+            self.cache.clear_modules()
             self.logger.debug("已加载的技能模块已清空")
         
         # 重新扫描和注册技能
@@ -230,7 +230,7 @@ class SkillSystem:
         
         def execute_task():
             # 根据信任等级选择执行方式
-            trust_level = skill_info.get("trust_level", TrustLevel.L1)
+            trust_level = skill_info.get("trust_level", TrustLevel.L2)
             
             if trust_level == TrustLevel.L2:
                 # 使用 L2 沙盒执行
@@ -244,10 +244,17 @@ class SkillSystem:
                         trust_level=trust_level
                     )
                     return response
-            
-            # L1 信任等级或技能目录不存在时，使用原有方式执行
-            result = self.loader.execute_local_skill(skill_id, params)
-            
+            try:
+                # L1 信任等级或技能目录不存在时，使用原有方式执行
+                result = self.loader.execute_local_skill(skill_id, params)
+            except Exception as e:
+                error_msg = f"技能执行异常: {skill_id} : {str(e)}"
+                self.logger.error(error_msg)
+                return ToolResponse.error(
+                    message=error_msg,
+                    skill_id=skill_id,
+                    trace_id=context.trace_id
+                )
             # 处理返回结果
             if isinstance(result, str) and "错误" in result:
                 return ToolResponse.error(

@@ -2,7 +2,7 @@
 """工具基类 - 所有工具的父类"""
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from lingxi.skills.skill_response import ToolResponse
 
@@ -87,17 +87,25 @@ class Tool:
     
     _instance = None
     
-    def __new__(cls,skill_system):
+    def __new__(cls, skill_system=None):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
     
-    def __init__(self,skill_system):
+    def __init__(self, skill_system=None):
         """初始化工具管理器"""
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
         self.logger = logging.getLogger(__name__)
         self.tools: Dict[str, ToolBase] = {}
         
-        # 延迟导入以避免循环依赖
+        if skill_system is not None:
+            self._initialize_tools(skill_system)
+            self._initialized = True
+    
+    def _initialize_tools(self, skill_system):
+        """初始化工具列表"""
         from lingxi.core.utils.FileTool import FileTool
         from lingxi.core.utils.CommandTool import CommandTool
         from lingxi.core.utils.ReadSkillTool import ReadSkillTool
@@ -105,6 +113,13 @@ class Tool:
         self.register_tool(FileTool())
         self.register_tool(CommandTool())
         self.register_tool(ReadSkillTool(skill_system))
+    
+    @classmethod
+    def get_instance(cls):
+        """获取单例实例"""
+        if cls._instance is None:
+            raise RuntimeError("Tool 实例尚未初始化，请先调用 Tool(skill_system)")
+        return cls._instance
     
     def register_tool(self, tool: ToolBase):
         """注册工具"""
@@ -143,4 +158,17 @@ class Tool:
             name: tool.get_info()
             for tool in self.tools.values()
         }
+    def list_tools_metadata(self) -> List[str]:
+        """列出所有工具的元数据"""
+        return [
+            f"{tool.name}: {tool.get_description()}"
+            for tool in self.tools.values()
+        ]
+    
+    def list_tools_parameter_description(self) -> List[str]:
+        """列出所有工具的参数描述"""
+        return [
+            f"{tool.name}:\n{tool.get_parameters_description()}"
+            for tool in self.tools.values()
+        ]
     

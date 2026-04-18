@@ -48,12 +48,6 @@ class SkillLoader:
         self.builtin_skills_dir = skills_config.get("builtin_skills_dir", "lingxi/skills/builtin")
         self.user_skills_dir = skills_config.get("user_skills_dir", ".lingxi/skills")
 
-        # 已加载的技能模块（Python模块对象，用于执行技能）
-        self.loaded_modules: Dict[str, Any] = {}
-
-        # MCP格式技能配置（SKILL.md格式的技能，存储配置信息）
-        self.mcp_skills: Dict[str, Dict[str, Any]] = {}
-
         # 注册表和缓存引用
         self.registry = registry
         self.cache = cache  # 新增缓存引用
@@ -135,28 +129,13 @@ class SkillLoader:
             # 检查是否有 main.py 文件
             has_main_py = os.path.exists(os.path.join(skill_dir, "main.py"))
             
-            # 根据是否有 main.py 文件选择注册方法
-            if has_main_py and hasattr(registry, 'register_skill_from_dir'):
-                registry.register_skill_from_dir(Path(skill_dir))
+            # 统一使用 register_skill 方法注册，传入完整的 skill_config
+            if hasattr(registry, 'register_skill'):
+                # 添加额外信息到 skill_config
+                skill_config['source'] = 'global'
+                skill_config['path'] = str(skill_dir)
+                registry.register_skill(skill_config)
                 self.logger.info(f"注册技能成功：{skill_id}")
-            elif hasattr(registry, 'register_skill'):
-                # 兼容两种 registry 实现：
-                # 1. registry.py: register_skill(name, description, author, version, parameters)
-                # 2. registry_memory.py: register_skill(skill_config)
-                try:
-                    # 尝试使用分开参数的方式（registry.py）
-                    registry.register_skill(
-                        name=skill_config.get('name', skill_id),
-                        description=skill_config.get('description', ''),
-                        author=skill_config.get('author', ''),
-                        version=skill_config.get('version', '1.0.0'),
-                        parameters=skill_config.get('parameters')
-                    )
-                    self.logger.info(f"注册技能成功：{skill_id}")
-                except TypeError:
-                    # 如果失败，使用字典方式（registry_memory.py）
-                    registry.register_skill(skill_config)
-                    self.logger.info(f"注册技能成功：{skill_id}")
             else:
                 self.logger.error(f"Registry 对象没有 register_skill 方法")
                 return False
@@ -358,13 +337,9 @@ class SkillLoader:
             skill_dir: 技能目录路径
             skill_id: 技能ID
         """
-        # 检查缓存
-        if self.cache:
-            cached_module = self.cache.get_module(skill_id)
-            if cached_module:
-                self.logger.debug(f"使用缓存的技能模块：{skill_id}")
-                self.loaded_modules[skill_id] = cached_module
-                return
+        if not self.cache:
+            self.logger.warning("缓存未初始化，无法加载技能模块")
+            return
         
         main_py_path = os.path.join(skill_dir, "main.py")
 
@@ -373,25 +348,16 @@ class SkillLoader:
             return
 
         try:
-            # ========== 修复：适配打包环境的模块加载 ==========
-            # 方案1：优先使用importlib（保持原有逻辑，但添加路径修复）
             module_name = f"skill_{skill_id.replace('.', '_')}"
-
-            # 将技能目录添加到Python路径
             sys.path.insert(0, skill_dir)
             
             spec = importlib.util.spec_from_file_location(module_name, main_py_path)
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
-                # 修复：设置模块的__file__属性为绝对路径
                 module.__file__ = main_py_path
                 spec.loader.exec_module(module)
 
-                self.loaded_modules[skill_id] = module
-
-                # 添加到缓存
-                if self.cache:
-                    self.cache.set_module(skill_id, module, main_py_path)
+                self.cache.set_module(skill_id, module, main_py_path)
 
                 if hasattr(module, "init"):
                     module.init()
@@ -399,22 +365,20 @@ class SkillLoader:
 
                 self.logger.debug(f"本地技能模块加载成功: {skill_id}")
             else:
-                # 方案2：如果importlib加载失败，使用内置Python解释器执行
                 self.logger.warning(f"importlib加载失败，使用subprocess执行: {skill_id}")
-                self.loaded_modules[skill_id] = {
+                self.cache.set_module(skill_id, {
                     'type': 'external',
                     'path': main_py_path,
                     'skill_dir': skill_dir
-                }
+                }, main_py_path)
 
         except Exception as e:
             self.logger.error(f"加载本地技能模块失败 {skill_id}: {e}")
-            # 降级方案：记录为外部执行模式
-            self.loaded_modules[skill_id] = {
+            self.cache.set_module(skill_id, {
                 'type': 'external',
                 'path': main_py_path,
                 'skill_dir': skill_dir
-            }
+            }, main_py_path)
 
     def execute_local_skill(self, skill_id: str, parameters: Dict[str, Any]) -> str:
         """执行本地技能（适配打包后的Python环境，统一处理所有MCP格式技能）
@@ -426,20 +390,19 @@ class SkillLoader:
         Returns:
             执行结果
         """
-        # 检查技能模块是否已加载
-        if skill_id not in self.loaded_modules:
+        if not self.cache:
+            return f"错误: 缓存未初始化: {skill_id}"
+        
+        if not self.cache.has_module(skill_id):
             return f"错误: 技能模块未加载: {skill_id}"
 
-        # 转换路径参数为绝对路径（基于当前工作目录）
         if self.sandbox and parameters:
             parameters = self._normalize_paths(parameters, skill_id)
 
-        module = self.loaded_modules[skill_id]
+        module = self.cache.get_module(skill_id)
 
         try:
-            # ========== 修复：支持两种执行模式 ==========
-            # 模式1：已加载的Python模块（原有逻辑）
-            if isinstance(module, type(sys)):  # 判断是否是模块对象
+            if isinstance(module, type(sys)):
                 if hasattr(module, "execute"):
                     result = module.execute(parameters)
 
@@ -453,19 +416,16 @@ class SkillLoader:
                 else:
                     return f"错误: 技能模块缺少execute函数: {skill_id}"
             
-            # 模式2：外部执行模式（使用内置Python解释器）
             elif isinstance(module, dict) and module.get('type') == 'external':
                 main_py_path = module.get('path')
                 if not main_py_path or not os.path.exists(main_py_path):
                     return f"错误: 技能文件不存在: {main_py_path}"
                 
-                # 将参数写入临时JSON文件（传递给外部脚本）
                 import tempfile
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
                     json.dump(parameters, f)
                     params_file = f.name
                 
-                # 使用内置Python解释器执行脚本
                 cmd = [
                     self.python_interpreter,
                     main_py_path,
@@ -480,10 +440,9 @@ class SkillLoader:
                     stderr=subprocess.PIPE,
                     encoding="utf-8",
                     cwd=module.get('skill_dir'),
-                    timeout=300  # 5分钟超时
+                    timeout=300
                 )
                 
-                # 删除临时参数文件
                 try:
                     os.unlink(params_file)
                 except:
@@ -628,66 +587,22 @@ class SkillLoader:
         """
         self.logger.info(f"开始卸载技能模块：{skill_id}")
         
+        if not self.cache:
+            self.logger.warning("缓存未初始化，无法卸载技能模块")
+            return False
+        
         try:
-            if skill_id not in self.loaded_modules:
+            if not self.cache.has_module(skill_id):
                 self.logger.warning(f"技能模块未加载，无需卸载：{skill_id}")
                 return True
             
-            module = self.loaded_modules[skill_id]
-            
-            if isinstance(module, type(sys)):
-                self._cleanup_module(module)
-            
-            if hasattr(self.cache, '_remove_module'):
-                self.cache._remove_module(skill_id)
-            elif self.cache:
-                self.cache.invalidate(skill_id)
-            
-            if skill_id in self.loaded_modules:
-                del self.loaded_modules[skill_id]
-            
-            gc.collect()
-            
+            self.cache.invalidate(skill_id)
             self.logger.info(f"技能模块卸载成功：{skill_id}")
             return True
             
         except Exception as e:
             self.logger.error(f"卸载技能模块失败 {skill_id}: {e}")
             return False
-    
-    def _cleanup_module(self, module: Any) -> None:
-        """清理模块内部引用，帮助 GC 回收
-        
-        Args:
-            module: Python 模块对象
-        """
-        try:
-            if hasattr(module, "shutdown") and callable(module.shutdown):
-                try:
-                    module.shutdown()
-                    self.logger.debug(f"调用模块 shutdown 方法成功")
-                except Exception as e:
-                    self.logger.debug(f"调用模块 shutdown 失败: {e}")
-            
-            if hasattr(module, "__dict__"):
-                for attr_name in list(module.__dict__.keys()):
-                    if attr_name.startswith("__"):
-                        continue
-                    try:
-                        attr = getattr(module, attr_name)
-                        if isinstance(attr, (list, dict, set)):
-                            attr.clear()
-                        delattr(module, attr_name)
-                    except Exception:
-                        pass
-            
-            module_name = getattr(module, "__name__", None)
-            if module_name and module_name in sys.modules:
-                del sys.modules[module_name]
-                self.logger.debug(f"已从 sys.modules 移除：{module_name}")
-                
-        except Exception as e:
-            self.logger.debug(f"清理模块时出错：{e}")
     
     def unload_all(self) -> int:
         """卸载所有已加载的技能模块
@@ -697,8 +612,12 @@ class SkillLoader:
         """
         self.logger.info("开始卸载所有技能模块")
         
+        if not self.cache:
+            self.logger.warning("缓存未初始化，无法卸载技能模块")
+            return 0
+        
         count = 0
-        skill_ids = list(self.loaded_modules.keys())
+        skill_ids = self.cache.list_loaded_modules()
         
         for skill_id in skill_ids:
             if self.unload_module(skill_id):

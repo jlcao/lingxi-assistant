@@ -20,7 +20,7 @@ class CommandTool(ToolBase):
     """系统命令执行工具类"""
     
     def __init__(self):
-        super().__init__("execute", "系统命令执行工具，支持powershell、bash等多种shell类型")
+        super().__init__("execute", "用于执行shell命令，支持powershell、bash等多种shell类型")
         self.temp_files = []  # 跟踪临时文件，确保清理
         config = get_config()
         self.python_interpreter = config.get('python_interpreter', 'python')
@@ -279,6 +279,19 @@ class CommandTool(ToolBase):
             except Exception as cleanup_err:
                 self.logger.warning(f"清理临时文件失败 {temp_file}: {cleanup_err}")
         self.temp_files.clear()
+    
+    def get_parameters_description(self) -> str:
+        """
+        获取工具参数描述
+        
+        Returns:
+            参数描述字符串  
+        """
+        str = f"""- execute 工具调用示例
+            ```json
+            {{"cwd": "当前工作目录,必填","command": "python -c \"print('Hello World')\"","shell_type": "powershell|bash"}}
+            ```"""
+        return str
 
 
 # ------------------- 测试用例 -------------------

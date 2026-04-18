@@ -41,10 +41,10 @@ class SkillRegistry:
         Returns:
             是否注册成功
         """
-        skill_id = skill_config.get("skill_id")
+        skill_id = skill_config.get("skill_id", skill_config.get("name"))
 
         if not skill_id:
-            self.logger.error("技能配置缺少 skill_id")
+            self.logger.error("技能配置缺少 skill_id 或 name")
             return False
 
         try:
@@ -54,13 +54,16 @@ class SkillRegistry:
             # 更新技能配置
             self.skill_cache[skill_id] = {
                 "skill_id": skill_id,
-                "skill_name": skill_config.get("skill_name", skill_id),
+                "skill_name": skill_config.get("skill_name", skill_config.get("name", skill_id)),
+                "name": skill_config.get("name", skill_config.get("skill_name", skill_id)),
                 "version": skill_config.get("version", "1.0.0"),
                 "type": skill_config.get("type", "local"),
                 "description": skill_config.get("description", ""),
                 "author": skill_config.get("author", ""),
                 "enabled": enabled,
-                "config": skill_config  # 保存完整配置
+                "source": skill_config.get("source", "global"),
+                "path": skill_config.get("path", ""),
+                "config": skill_config
             }
 
             self.logger.debug(f"注册技能: {skill_id}")
