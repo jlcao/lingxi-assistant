@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from lingxi.skills.skill_system import SkillSystem
 from lingxi.skills.tool_sandbox_adapter import ToolSandboxAdapter, adapt_tool_manager
 from lingxi.skills.execution_context import ExecutionContext
-from lingxi.core.utils.security import SecuritySandbox, SecurityError
-from lingxi.core.utils.Tool import Tool, ToolBase
+from lingxi.core.tools.security import SecuritySandbox, SecurityError
+from lingxi.core.tools.Tool import Tool, ToolBase
 
 # 创建线程池用于执行同步技能
 _skill_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="skill-executor")

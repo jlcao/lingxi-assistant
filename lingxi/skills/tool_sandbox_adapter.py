@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, Optional, Callable
 from functools import partial
 
-from lingxi.core.utils.Tool import Tool
+from lingxi.core.tools.Tool import Tool
 
 from .sandbox import SandboxManager, TrustLevel
 from .execution_context import ExecutionContext
@@ -105,7 +105,7 @@ class ToolSandboxAdapter:
                         trace_id=context.trace_id
                 )
             except Exception as e:
-                self.logger.error(f"工具 {tool_name} 执行异常: {str(e)}")
+                self.logger.error(e,exc_info=True)
                 return ToolResponse.error(
                     message=f"工具执行异常: {str(e)}",
                     skill_id=tool_name,

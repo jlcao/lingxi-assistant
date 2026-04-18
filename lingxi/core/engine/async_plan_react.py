@@ -125,8 +125,11 @@ class AsyncPlanReActEngine(AsyncReActCore):
         # 检查用户是否明确要求使用某个技能
         user_input_lower = context.user_input.lower()
         skill_mentioned = any(skill in user_input_lower for skill in ["spawn_subagent", "子代理"])
-        
-        if task_level == "simple" and direct_answer not in ["", None] and not skill_mentioned:
+        if plan:
+            self.logger.debug("复杂任务，执行计划")
+            async for chunk in self._execute_plan_steps(plan_descriptions, context):
+                yield chunk
+        elif task_level == "simple" and direct_answer not in ["", None] and not skill_mentioned:
             self.logger.debug("直接回答任务，执行 next_action")
             async for chunk in self._execute_direct_action(direct_answer, context):
                 yield chunk
@@ -141,10 +144,6 @@ class AsyncPlanReActEngine(AsyncReActCore):
         elif task_level == "direct":
             self.logger.debug("用户明确要求使用技能，降级为父类执行")
             async for chunk in super()._execute_task_stream(context):
-                yield chunk
-        elif plan:
-            self.logger.debug("复杂任务，执行计划")
-            async for chunk in self._execute_plan_steps(plan_descriptions, context):
                 yield chunk
         else:
             self.logger.warning("无法处理任务，降级为父类执行")

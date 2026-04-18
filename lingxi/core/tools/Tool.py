@@ -106,13 +106,15 @@ class Tool:
     
     def _initialize_tools(self, skill_system):
         """初始化工具列表"""
-        from lingxi.core.utils.FileTool import FileTool
-        from lingxi.core.utils.CommandTool import CommandTool
-        from lingxi.core.utils.ReadSkillTool import ReadSkillTool
-        
+        from lingxi.core.tools.FileTool import FileTool
+        from lingxi.core.tools.CommandTool import CommandTool
+        from lingxi.core.tools.ReadSkillTool import ReadSkillTool
+        from lingxi.core.tools.MemoryTool import MemoryTool
+
         self.register_tool(FileTool())
         self.register_tool(CommandTool())
         self.register_tool(ReadSkillTool(skill_system))
+        self.register_tool(MemoryTool())
     
     @classmethod
     def get_instance(cls):

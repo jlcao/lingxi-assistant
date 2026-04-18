@@ -9,8 +9,8 @@ import logging
 import os
 from typing import Dict, Any, Optional, List
 from pathlib import Path
-from lingxi.core.utils import ToolValidationError
-from lingxi.core.utils.Tool import ToolBase
+from lingxi.core.tools import ToolValidationError
+from lingxi.core.tools.Tool import ToolBase
 
 
 class ReadSkillTool(ToolBase):

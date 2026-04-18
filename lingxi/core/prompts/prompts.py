@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional
 
 from lingxi.core.context.task_context import TaskContext
 from lingxi.utils.config import get_workspace_path
-from lingxi.core.utils.Tool import Tool
+from lingxi.core.tools.Tool import Tool
 
 
 class PromptTemplates:

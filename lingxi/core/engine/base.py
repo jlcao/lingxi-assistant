@@ -9,7 +9,7 @@ from lingxi.core.action_caller import ActionCaller
 from lingxi.core.prompts.prompts import PromptTemplates
 from lingxi.core.event import global_event_publisher
 from lingxi.core.context.task_context import TaskContext
-from lingxi.core.utils.security import SecurityError
+from lingxi.core.tools.security import SecurityError
 from lingxi.core.confirmation.confirmation import ConfirmationManager, DangerousSkillChecker, RiskLevel
 from .utils import parse_llm_response, parse_action_parameters, process_parameters, calculate_expression
 from lingxi.utils.json_parser import stream_with_thought_only

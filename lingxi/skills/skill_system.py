@@ -12,7 +12,7 @@ from lingxi.skills.skill_cache import SkillCache
 from lingxi.skills.executor_scheduler import ExecutorScheduler, ExecutorType, SkillPriority
 from lingxi.skills.execution_context import ExecutionContext, TrustLevel
 from lingxi.skills.skill_response import ToolResponse, ResponseCode
-from lingxi.core.utils.security import SecuritySandbox, SecurityError
+from lingxi.core.tools.security import SecuritySandbox, SecurityError
 from lingxi.core.confirmation import DangerousSkillChecker, RiskLevel
 from lingxi.skills.security_interceptor import SecurityInterceptor
 from lingxi.skills.sandbox import SandboxManager

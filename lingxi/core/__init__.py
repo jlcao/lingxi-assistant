@@ -7,7 +7,7 @@ from . import llm
 from . import session
 from . import confirmation
 from . import assistant
-from . import utils
+from . import tools
 from . import prompts
 from . import engine
 from . import event

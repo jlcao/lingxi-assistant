@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from lingxi.web.state import get_assistant
-from lingxi.core.utils.exceptions import map_exception_to_error_code
+from lingxi.core.tools.exceptions import map_exception_to_error_code
 import uuid
 import time
 import traceback

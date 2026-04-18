@@ -4,8 +4,8 @@
 import os
 import re
 from typing import Dict, List, Any, Optional
-from lingxi.core.utils import ToolValidationError
-from lingxi.core.utils.Tool import ToolBase
+from lingxi.core.tools import ToolValidationError
+from lingxi.core.tools.Tool import ToolBase
 
 
 class FileTool(ToolBase):
@@ -116,7 +116,7 @@ class FileTool(ToolBase):
         max_size_str = security_params.get("max_size", self.default_max_size)
         
         # 前置校验
-        self._validatevalidate_file_exists(file_path)
+        self._validate_file_exists(file_path)
         self._validate_file_size(file_path, max_size_str)
         try:
             with open(file_path, 'r', encoding=encoding) as f:

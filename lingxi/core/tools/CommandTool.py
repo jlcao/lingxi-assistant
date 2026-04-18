@@ -11,8 +11,8 @@ import tempfile
 import re
 import importlib.util
 from typing import Dict, Any, Optional
-from lingxi.core.utils import ToolExecutionError, ToolValidationError, utils
-from lingxi.core.utils.Tool import ToolBase
+from lingxi.core.tools import ToolExecutionError, ToolValidationError, utils
+from lingxi.core.tools.Tool import ToolBase
 from lingxi.utils.config import get_config
 
 
@@ -296,7 +296,7 @@ class CommandTool(ToolBase):
 
 # ------------------- 测试用例 -------------------
 if __name__ == "__main__":
-    from lingxi.core.utils.Tool import Tool
+    from lingxi.core.tools.Tool import Tool
     
     # 创建工具管理器
     tool_manager = Tool()
