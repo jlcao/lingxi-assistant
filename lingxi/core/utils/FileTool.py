@@ -37,11 +37,7 @@ class FileTool(ToolBase):
         }
         
         if operation_type not in operation_map:
-            return {
-                "status": "F",
-                "content": [],
-                "error": f"不支持的操作类型: {operation_type}，支持的类型：read/write/delete/create"
-            }
+            raise ToolValidationError(f"不支持的操作类型: {operation_type}，支持的类型：read/write/delete/create/list")
         
         return operation_map[operation_type](parameters)
     
@@ -378,71 +374,3 @@ class FileTool(ToolBase):
         if start_line > end_line:
             raise ToolValidationError(f"开始行号不能大于结束行号，范围：{start_line}-{end_line}")
         return ""
-
-
-# ------------------- 测试用例 -------------------
-if __name__ == "__main__":
-    from lingxi.core.utils.Tool import Tool
-    
-    # 初始化工具管理器
-    tool_manager = Tool()
-    
-    # 注册 FileTool
-    file_tool = FileTool()
-    tool_manager.register_tool(file_tool)
-    
-    # 测试创建文件
-    create_params = {
-        "file_path": "./agent_data/test.txt",
-        "encoding": "utf-8",
-        "operation_type": "create",
-        "operate_scope": "full",
-        "content_params": {
-            "new_content": "第一行内容\n第二行error信息\n第三行正常内容",
-            "append_content": "追加的内容"
-        },
-        "security_params": {"max_size": "10MB"}
-    }
-    print("=== 创建文件 ===")
-    print(tool_manager.execute_tool("file", **create_params))
-    
-    # 测试读取文件（行级过滤）
-    read_params = {
-        "file_path": "./agent_data/test.txt",
-        "encoding": "utf-8",
-        "operation_type": "read",
-        "operate_scope": "line",
-        "line_params": {"start_line": 1, "end_line": 4, "filter_rule": "error"},
-        "security_params": {"max_size": "10MB"}
-    }
-    print("\n=== 行级读取 ===")
-    print(tool_manager.execute_tool("file", **read_params))
-    
-    # 测试写入文件（行级替换）
-    write_params = {
-        "file_path": "./agent_data/test.txt",
-        "encoding": "utf-8",
-        "operation_type": "write",
-        "operate_scope": "line",
-        "line_params": {"start_line": 2, "end_line": 2},
-        "content_params": {"insert_content": "替换后的第二行内容"},
-        "security_params": {"max_size": "10MB"}
-    }
-    print("\n=== 行级写入 ===")
-    print(tool_manager.execute_tool("file", **write_params))
-    
-    # 测试删除文件
-    delete_params = {
-        "file_path": "./agent_data/test.txt",
-        "encoding": "utf-8",
-        "operation_type": "delete",
-        "operate_scope": "full",
-        "security_params": {"max_size": "10MB"}
-    }
-    print("\n=== 删除文件 ===")
-    print(tool_manager.execute_tool("file", **delete_params))
-    
-    # 列出所有工具
-    print("\n=== 所有工具 ===")
-    for name, info in tool_manager.list_tools().items():
-        print(f"- {name}: {info['description']}")

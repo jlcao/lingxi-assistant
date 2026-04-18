@@ -8,6 +8,8 @@ import logging
 from typing import Dict, Any, Optional, Callable
 from functools import partial
 
+from lingxi.core.utils.Tool import Tool
+
 from .sandbox import SandboxManager, TrustLevel
 from .execution_context import ExecutionContext
 from .skill_response import ToolResponse
@@ -93,38 +95,27 @@ class ToolSandboxAdapter:
             Returns:
                 SkillResponse 实例
             """
-            tool_result = tool_execute(parameters)
-
-            if isinstance(tool_result, ToolResponse):
-                return tool_result
-
-            if isinstance(tool_result, dict):
-                status = tool_result.get("status", "F")
-                if status == "S":
-                    return ToolResponse.success(
-                        data=tool_result.get("output", []) or tool_result.get("content", []),
-                        message=tool_result.get("result_description", ""),
+            try:
+                tool_result = tool_execute(parameters)
+                if isinstance(tool_result, ToolResponse):
+                    return tool_result
+                return ToolResponse.success(
+                        data=tool_result,
                         skill_id=tool_name,
                         trace_id=context.trace_id
-                    )
-                else:
-                    return ToolResponse.error(
-                        message=tool_result.get("error", "工具执行失败"),
-                        skill_id=tool_name,
-                        trace_id=context.trace_id
-                    )
-
-            return ToolResponse.success(
-                data=tool_result,
-                skill_id=tool_name,
-                trace_id=context.trace_id
-            )
-
+                )
+            except Exception as e:
+                self.logger.error(f"工具 {tool_name} 执行异常: {str(e)}")
+                return ToolResponse.error(
+                    message=f"工具执行异常: {str(e)}",
+                    skill_id=tool_name,
+                    trace_id=context.trace_id
+                )
         return wrapped
 
     def execute_tool_in_sandbox(
         self,
-        tool_execute: Callable,
+        tool:Tool,
         parameters: Dict[str, Any],
         tool_name: str,
         context: Optional[ExecutionContext] = None,
@@ -144,6 +135,8 @@ class ToolSandboxAdapter:
         Returns:
             SkillResponse 实例
         """
+
+        tool_execute = tool.tools[tool_name].execute
         wrapped_func = self.wrap_tool_execute(
             tool_execute,
             tool_name,
@@ -154,6 +147,7 @@ class ToolSandboxAdapter:
         trust_level = trust_level or self.get_tool_trust_level(tool_name)
 
         def execute_task():
+            """在沙盒中执行任务"""
             return self.sandbox_manager.run(
                 wrapped_func,
                 parameters,
@@ -179,7 +173,8 @@ class ToolSandboxAdapter:
         )
 
         # 等待执行结果
-        return future.result()
+        result = future.result()
+        return result
 
     def shutdown(self, wait: bool = True):
         """关闭沙盒和执行调度器"""
@@ -214,32 +209,4 @@ def adapt_tool_manager(
             adapter.set_tool_trust_level(tool_name, TrustLevel.L1)
 
     return adapter
-
-
-def create_sandboxed_tool_execute(
-    tool,
-    adapter: Optional[ToolSandboxAdapter] = None,
-    executor_scheduler: Optional[ExecutorScheduler] = None
-) -> Callable:
-    """创建沙盒化的工具执行函数
-
-    Args:
-        tool: ToolBase 实例
-        adapter: 工具沙盒适配器
-        executor_scheduler: 执行调度器
-
-    Returns:
-        沙盒化的执行函数
-    """
-    if not adapter:
-        adapter = ToolSandboxAdapter(executor_scheduler=executor_scheduler)
-
-    def sandboxed_execute(parameters: Dict[str, Any]) -> ToolResponse:
-        return adapter.execute_tool_in_sandbox(
-            tool.execute,
-            parameters,
-            tool.name
-        )
-
-    return sandboxed_execute
 

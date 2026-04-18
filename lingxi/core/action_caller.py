@@ -141,7 +141,7 @@ class ActionCaller:
             try:
                 # 从工具管理器获取工具实例
                 if skill_name in self.tool.tools:
-                    tool = self.tool.tools[skill_name]
+                    
                     
                     # 为 file 工具的 list 操作添加 operation_type 参数
                     if skill_name == "file" and parameters.get("action") == "list":
@@ -149,7 +149,7 @@ class ActionCaller:
                     
                     # 在沙盒中执行工具
                     response = self.tool_adapter.execute_tool_in_sandbox(
-                        tool.execute,
+                        self.tool,
                         parameters,
                         skill_name,
                         context=context
@@ -161,7 +161,7 @@ class ActionCaller:
                     else:
                         error_msg = f"工具执行失败: {skill_name} : {response.message}"
                         self.logger.warning(error_msg)
-                        return {"success": False, "result": error_msg, "result_description": response.message}
+                        return {"success": False, "result": response.message, "result_description": response.message}
                 else:
                     error_msg = f"工具 {skill_name} 未注册"
                     self.logger.warning(error_msg)

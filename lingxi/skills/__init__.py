@@ -35,8 +35,7 @@ from .sandbox import (
 )
 from .tool_sandbox_adapter import (
     ToolSandboxAdapter,
-    adapt_tool_manager,
-    create_sandboxed_tool_execute
+    adapt_tool_manager
 )
 
 __all__ = [
@@ -71,5 +70,4 @@ __all__ = [
     'SandboxLevel',
     'ToolSandboxAdapter',
     'adapt_tool_manager',
-    'create_sandboxed_tool_execute'
 ]
