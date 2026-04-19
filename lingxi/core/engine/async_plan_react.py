@@ -62,8 +62,6 @@ class AsyncPlanReActEngine(AsyncReActCore):
         """
         stream = context.stream
         try:
-           
-
             async for chunk in super()._execute_task_stream(context):
                 if stream:
                     yield chunk
